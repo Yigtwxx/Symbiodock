@@ -43,7 +43,7 @@ struct IslandLayoutTests {
             == CGRect(x: 482, y: -4, width: 548, height: 142))
     }
 
-    @Test func collapsedIslandWithATrackGrowsAWingOnEachSide() {
+    @Test func collapsedIslandWithWingsGrowsAWingOnEachSide() {
         #expect(IslandLayout.frame(phase: .collapsed, notch: notch, screenSize: screen, showsWings: true)
             == CGRect(x: 626, y: 0, width: 260, height: 32 + IslandLayout.notchLip))
     }
@@ -61,7 +61,7 @@ struct IslandLayoutTests {
             == CGRect(x: 0, y: 0, width: 272, height: 32 + IslandLayout.notchLip))
     }
 
-    @Test func expandedIslandIgnoresTheTrack() {
+    @Test func expandedIslandIgnoresTheWings() {
         #expect(IslandLayout.frame(phase: .expanded, notch: notch, screenSize: screen, showsWings: true)
             == CGRect(x: 486, y: 0, width: 540, height: 134))
     }
@@ -116,7 +116,7 @@ struct IslandLayoutTests {
         #expect(radii(.corner(.bottomRight)) == [10, 0, 0, 0])
     }
 
-    @Test func floatingIslandIgnoresWhetherThereIsATrack() {
+    @Test func floatingIslandIgnoresWhetherThereAreWings() {
         #expect(
             floating(.corner(.topLeft), showsWings: false)
                 == floating(.corner(.topLeft), showsWings: true))

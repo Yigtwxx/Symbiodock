@@ -4,7 +4,7 @@ import CoreGraphics
 public enum IslandLayout {
     public static let expandedSize = CGSize(width: 540, height: 134)
     public static let hitPadding: CGFloat = 4
-    /// Width added on each side of the notch while a track is shown collapsed.
+    /// Width added on each side of the notch while the wings are shown collapsed.
     public static let collapsedWingWidth: CGFloat = 36
     /// How far the island with its wings reaches below the notch. The camera housing hides
     /// whatever lies behind it; this strip is what shows of the island's lower edge there,
