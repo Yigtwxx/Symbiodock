@@ -61,23 +61,72 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 
 ## Durum
 
-- Depo açıldı; tasarım dokümanı, bu dosya, LICENSE ve README `main` üzerinde.
-- Tasarım dokümanı sahibi tarafından onaylandı (2026-11-14).
-- Milestone 0-1 uygulama planı yazıldı; henüz uygulanmadı.
-- Uygulama kodu yok. Xcode projesi yok.
-- Sahibi Xcode'u indiriyor (2026-11-14); kurulduğu `xcodebuild -version` ile doğrulanmalı.
+- `main` üzerinde: onaylı tasarım dokümanı, milestone 0-1 uygulama planı, LICENSE, README.
+- Uygulama kodu yok. Xcode projesi yok. Faz 0 dahil hiçbir faz başlamadı.
+- Xcode 27.2 `/Applications/Xcode.app` içinde kurulu (2026-11-14). `xcode-select` hâlâ
+  Command Line Tools'u gösteriyor; komutlar `DEVELOPER_DIR` ile çalışıyor (bkz. Doğrulama).
+- Sahibi 2026-11-14'te Xcode içi bileşen indirmesini yapıyordu; bittiği doğrulanmadı.
 
-## Sıradaki adımlar
+## "Yapılacakları yap" denince
 
-1. Xcode kurulumu biter. Kontrol: `xcodebuild -version`. Kurulu ama seçili değilse sahibi
-   `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` çalıştırır.
-2. `docs/superpowers/plans/2026-11-14-m0-m1-notch-island.md` planı uygulanır
-   (`superpowers:subagent-driven-development` ya da `superpowers:executing-plans`).
-3. Milestone 2 için ayrı plan yazılır; planlar milestone başına yazılır, çünkü milestone 2
-   bir denemenin sonucuna bağlı.
+Sahibi "yapılacakları yap", "devam et", "başla" gibi bir şey derse ne yapılacağını sorma;
+bu bölümü uygula.
 
-Milestone'lar: 0 proje iskeleti → 1 çentik adası ve hover → 2 Now Playing →
-3 sürükleme ve yapışma → 4 symbiote efekti → 5 girişte başlatma.
+1. Yol haritasındaki tüm fazları görev listesine ekle. İşaretlenmemiş ilk fazdan başla.
+2. Her oturumun başında Faz 0'ı yeniden kontrol et; işaretli olsa bile.
+3. Fazın planı varsa görev görev uygula: `superpowers:subagent-driven-development`.
+   Subagent kullanılamıyorsa `superpowers:executing-plans`.
+4. Fazın planı yoksa: tasarım onaylı olduğu için brainstorming yapma. Spec'ten
+   `superpowers:writing-plans` ile `docs/superpowers/plans/` altına o fazın planını yaz,
+   commit + push et, onay beklemeden uygulamaya geç.
+5. Her görev sonunda: testler ve build temiz → commit → `main`'e push.
+6. Her faz sonunda: yol haritasında kutuyu işaretle, bu dosyadaki `Durum`u güncelle,
+   commit + push. Sonra dur ve sahibine o fazın elle kontrol listesini ver. Görsel
+   davranış (hover, sürükleme, efekt) testle doğrulanamaz; sahibi onaylamadan sonraki
+   faza geçme. Kendin doğrulayabildiğini (`scripts/list-windows.swift`, ekran görüntüsü)
+   önce kendin doğrula.
+
+Durup sorulacak durumlar:
+
+- `sudo` isteyen her komut. Sahibi kendisi çalıştırır.
+- macOS izin penceresi (Automation, Accessibility, Input Monitoring).
+- Spec'te yazmayan bir ürün kararı.
+- Spec'te adı geçmeyen yeni bir üçüncü taraf bağımlılık.
+- Force-push, repo ayarı değişikliği, PR.
+
+Durmadan devam edilecek durumlar:
+
+- Bir deneme başarısız olur ve spec'te yedeği yazıyorsa: yedeğe geç, sonucu bu dosyadaki
+  "Doğrulanmamış varsayımlar" bölümüne yaz, faz raporunda belirt.
+- Build ya da test hatası: `superpowers:systematic-debugging` ile çöz. Üç denemede
+  çözülmezse dur ve kanıtıyla raporla.
+- Plandaki kod derlenmezse (planlar derlenmeden yazıldı): davranışı ve arayüzleri koruyarak
+  düzelt, planı da aynı commit'te güncelle.
+
+## Yol haritası
+
+- [ ] **Faz 0 — Ön koşullar.** `xcodebuild -version` ve `xcodegen --version` çalışıyor.
+      Plan: milestone 0-1 planı, Görev 0.
+- [ ] **Faz 1 — Milestone 0: iskelet.** Çekirdek paket (geometri, durum, yerleşim) testleriyle;
+      agent uygulama açılıyor; menü çubuğu öğesinden çıkılabiliyor.
+      Plan: `docs/superpowers/plans/2026-11-14-m0-m1-notch-island.md`, Görev 1-3.
+- [ ] **Faz 2 — Milestone 1: çentik adası.** Şeffaf panel çentikte; hover ile büyüyor ve
+      küçülüyor; ada dışındaki tıklamalar alttaki uygulamaya geçiyor.
+      Plan: aynı dosya, Görev 4-5.
+- [ ] **Faz 3 — Milestone 2: Now Playing.** Plan yok, yazılacak (spec 5.7, 5.8). İlk görev
+      `mediaremote-adapter` denemesi ve lisansının GPL-3.0 uyum kontrolü. Bitince: en az
+      Apple Music'ten gerçek parça bilgisi ve çalışan önceki / oynat-duraklat / sonraki;
+      kapalı adada solda kapak, sağda seviye çubukları.
+- [ ] **Faz 4 — Milestone 3: sürükleme ve yapışma.** Plan yok, yazılacak (spec 5.3-5.5, 5.9).
+      Ada koparılıyor, kenara ve köşeye yapışıyor, çentiğe dönüyor, konum yeniden açılışta
+      korunuyor; menüde "Return to notch".
+- [ ] **Faz 5 — Milestone 4: symbiote efekti.** Plan yok, yazılacak (spec 5.5 titreşim, 5.6).
+      Uzama, incelen lifler, kopma ve geri çekilme; kopma ve yapışmada trackpad titreşimi.
+- [ ] **Faz 6 — Milestone 5: girişte başlatma.** Plan yok, yazılacak (spec 5.9). Menüde
+      "Launch at login" aç/kapa.
+
+v1 bunlarla biter. Sonrası (widget'lar, kişiselleştirme, dil desteği, imzalama, site) için
+sahibi ayrıca yön verecek; kendiliğinden başlama.
 
 ## Doğrulanmamış varsayımlar
 
@@ -91,5 +140,17 @@ spec'te yazılı.
 
 ## Doğrulama
 
-Plan uygulanınca build ve test komutları buraya eklenecek. Yalnızca Command Line Tools
-ile `swift test` de çalışmıyor (2026-11-14'te denendi); Xcode şart.
+`xcode-select` Xcode'u göstermiyorsa her komutun başına şunu ekle (sudo gerektirmez;
+2026-11-14'te Xcode 27.2 ile `swift test` bu şekilde çalıştı):
+
+```bash
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+```
+
+Kalıcı çözüm sahibinin çalıştıracağı komuttur:
+
+```bash
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+```
+
+Build, çalıştırma ve test komutları Faz 1 bitince buraya eklenecek (plan Görev 3, Adım 7).

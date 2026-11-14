@@ -84,6 +84,15 @@ sudo xcodebuild -license accept
 
 Stop and ask the owner to run them. Do not continue until Step 1 passes.
 
+Without `sudo`, the same toolchain can be used by setting an environment variable in
+every shell that runs a command from this plan (verified with Xcode 27.2 on 2026-11-14):
+
+```bash
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+```
+
+With that set, Step 1 passes and the rest of the plan can proceed.
+
 - [ ] **Step 2: Check XcodeGen**
 
 Run: `xcodegen --version`
