@@ -2849,38 +2849,41 @@ xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock
 pkill -x Symbiodock; open build/Build/Products/Debug/Symbiodock.app
 ```
 
-Tabs:
+Already confirmed by the owner on 2026-11-15, on the running app: hover opens the island again (after the hang was fixed), and the island being 2 pt taller than the notch does not look clumsy.
 
-0. In every row and on the collapsed island each tool is shown by its pet, a small figure made of vertical bars in the tool's colour: an orange blocky creature for Claude Code, a blue cloud for Codex. They look clean at both sizes. While a session works its pet's bars move like a wave; while it needs input the pet hops.
-1. Hover the island. Two glyphs are at its top left (sparkles, music note); the selected one is bright with a dot under it. Click each: the content changes, the music controls still work.
-2. Right-click → `First tab` → `Media`. Play music and keep a Claude Code session working: the collapsed island shows the artwork and level bars. Choose `Agents`: it shows the pet and the turning mark instead. Quit and relaunch: the choice is kept.
-3. With music paused for more than 10 seconds and no agent working, the island at the notch is the bare notch again.
+Pets and tabs:
+
+1. On the collapsed island and in every row each tool is shown by its pet: a small square of fine vertical lines in the tool's colours, the figure showing through the lines' brightness. Claude Code is a plump rounded star with two small eyes and two feet; Codex a plump cloud, blue to violet, with a white `>_`. They look clean at both sizes.
+2. While a session works, a wave crosses its pet from left to right every couple of seconds: the lines under the crest come forward (a little larger, in full colour) and go back. Nothing moves up or down, nothing white passes over it, and the pet never hops.
+3. Hover the island. It is wider than before (540 pt). Two glyphs are at its top left (sparkles, music note); the selected one is bright with a dot under it. Click each: the content changes, the music controls still work.
+4. Right-click → `First tab` → `Media`. Play music and keep a Claude Code session working: the collapsed island shows the artwork and level bars. Choose `Agents`: it shows the pet and the turning mark instead. Quit and relaunch: the choice is kept.
+5. With music paused for more than 10 seconds and no agent working, the island at the notch is the bare notch again.
 
 Claude Code:
 
-4. Start a Claude Code session in a terminal and give it a task. Within three seconds the collapsed island widens: its pet left, a turning arc right. Hover: the row shows the session's name, its folder, `Working …`.
-5. Let Claude Code ask a question (or a permission). The island does **not** open. The red light runs around the island and passes **under the camera housing** without a break; the island is only a hair taller than the notch and does not look clumsy (if it does: `IslandLayout.notchLip` back to 0).
-   Also: the island does **not** open. The mark turns into a red ring whose dot knocks twice, and a red light breathes along the island's lower rim with a highlight passing every few seconds.
-6. Hover: the Agents tab opens whichever tab is first. The row is tinted, says `Needs input`, and shows the question on a second line. Answer in the terminal: the row goes back to `Working`.
-7. Let the task finish. The mark becomes a mint ring with a check mark that draws itself, and a mint light passes once and stays as a thin line. Hover: the row says `Done …`. Move away: the light and the check mark are gone; the row is `Idle …` the next time.
-8. Click a row. Its terminal (or editor) comes to the front.
-9. Close the session. Its row disappears within three seconds.
+6. Start a Claude Code session in a terminal and give it a task. Within three seconds the collapsed island widens: its pet left, a turning arc right. Hover: the row shows the session's name, `Claude Code · <folder>`, `Working …`.
+7. Let Claude Code ask a question, and separately let it ask for a permission. The island does **not** open. The mark turns into a red ring whose dot knocks twice, and a red light breathes around the island and passes **under the camera housing** without a break, with a highlight travelling along it every few seconds. The pet stands still.
+8. Hover: the Agents tab opens, whichever tab is first. The row is tinted, says `Needs input`, and for a question shows its text on the second line. Answer in the terminal: the row goes back to `Working`.
+9. Let the task finish. The mark becomes a mint ring with a check mark that draws itself, and a mint light passes once and stays as a thin line. Hover: the row says `Done …`. Move away: the light and the check mark are gone; the row is `Idle …` the next time.
+10. Click a row. Its terminal (or editor) comes to the front.
+11. Close the session. Its row disappears within three seconds. Kill a session's terminal instead of quitting it: its row disappears too, and does not come back later.
 
 Codex:
 
-10. Start a turn in Codex (desktop or CLI). A `Codex` row with the thread's name says `Working …`, then `Done …` when the turn ends. Clicking it brings Codex forward.
+12. Start a turn in Codex (desktop or CLI). A `Codex` row with the thread's name says `Working …`, then `Done …` when the turn ends. Clicking it brings Codex forward.
 
 Other tools (if you have one of Gemini CLI, Cursor Agent, OpenCode, Aider, Copilot CLI):
 
-11. Start it in a terminal. A row with its name and folder says `Running`. It never says working or done. Clicking it brings the terminal forward.
+13. Start it in a terminal. A row with its name and folder says `Running`. It never says working or done. Clicking it brings the terminal forward.
 
 Everywhere:
 
-12. Dock the island on the bottom edge and on the right edge and repeat 4–7: the capsule shows pet, name and mark; the strip shows them top to bottom; the light runs along the free edges only.
-13. With three or more sessions, two are visible, one under the other; the list scrolls with two fingers and comes to rest on a row.
-14. System Settings → Accessibility → Display → Reduce motion on: marks and light are still, in their colour.
-15. At rest (no hover), Activity Monitor shows Symbiodock near 0 % CPU; with one agent working it stays low.
-16. No macOS permission dialog appeared at any point.
+14. Dock the island on the bottom edge and on the right edge and repeat 6–9: the capsule shows pet, name and mark; the strip shows them top to bottom; the light runs along the free edges only. With only idle sessions the docked island shows the first of them, not `No agents running`.
+15. With three or more sessions, two are visible, one under the other; the list scrolls with two fingers and comes to rest on a row.
+16. System Settings → Accessibility → Display → Reduce motion on: pets, marks and light are still, in their colour.
+17. Close the lid or let the Mac sleep for a while, wake it: the island answers at once, and nothing on it is frozen.
+18. At rest (no hover), Activity Monitor shows Symbiodock near 0 % CPU; with one agent working it stays near 0 %; while a question waits it may be a few percent.
+19. No macOS permission dialog appeared at any point.
 
 To see what the scan finds without any content: `log stream --predicate 'subsystem == "com.yigtwxx.Symbiodock" && category == "agents"'` prints a count and the tool names whenever the count changes.
 

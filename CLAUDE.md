@@ -87,9 +87,22 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 - Dağıtım öncesi sağlamlaştırma listesi `.superpowers/sdd/progress.md` içinde (git'e girmez);
   özeti: yardımcı sürecin zorla öldürülmesi, komut sıralaması, Release ve Intel derlemesinin
   perl altında denenmesi.
-- Faz 7 (sekmeler ve Agents sekmesi, 2026-11-14): spec onaylandı, iki plan yazıldı
-  (`2026-11-14-agents-tab-core.md`, `2026-11-14-agents-tab-app.md`), uygulama sürüyor.
-  Sahibi "başla ve bitir" dedi.
+- **Faz 7 (sekmeler ve Agents sekmesi): kod tamam ve `main`'de (2026-11-15).** 316 çekirdek
+  testi geçiyor. Sahibi çalışan uygulamada hover'ı ve çentiği saran 2 pt'lik taşmayı onayladı
+  ("her şey düzgün çalışıyor şu an, kaba da gözükmedi"); pet'leri, renkleri ve dalgayı
+  görüntüler üzerinden yönlendirdi. Tam elle kontrol listesi
+  `docs/superpowers/plans/2026-11-14-agents-tab-app.md` sonunda (19 madde).
+- Faz 7'de canlı doğrulananlar: bu Mac'teki Claude Code oturumu bulunuyor
+  (`sessions: 1 [claudeCode]`), sahte bir `opencode` süreci süreç düzeyinde bulunuyor, bir
+  agent çalışırken CPU ~%0, dalga iki ekran görüntüsünde görüldü.
+- Faz 7'de denenmeyenler: Codex yolu (denemeler sırasında Codex çalışmıyordu), satıra
+  tıklayınca uygulamanın öne gelmesi, listenin kaydırılması, Reduce Motion, izin penceresinde
+  `waiting` durumu, uyku sonrası davranış.
+- Bilinen, bırakılanlar: soru beklerken CPU birkaç puan (ışığın geçişi ve halka vuruşları aynı
+  hizada değil); müzik çalarken seviye çubukları ~%5 çekirdek yiyor (v1'den beri; 0,35 sn'den
+  sık yeniden çizim tam ekran panelin güncelleme döngüsünü açık tutuyor, çözümü Core
+  Animation'a taşımak); kanatlar belirirken imleç çentiğin hemen yanındaysa ada kendiliğinden
+  açılabilir (medya yolunda da böyle).
 - Xcode 27.2 ve XcodeGen 2.45.4 kurulu, `xcode-select` ile seçili.
 
 ## "Yapılacakları yap" denince
@@ -155,7 +168,7 @@ Durmadan devam edilecek durumlar:
 
 v1 bunlarla biter.
 
-- [ ] **Faz 7 — Sekmeler ve Agents sekmesi.** Spec:
+- [x] **Faz 7 — Sekmeler ve Agents sekmesi.** Kod tamam, elle kontrolün kalanı bekliyor. Spec:
       `docs/superpowers/specs/2026-11-14-agents-tab-design.md`. Planlar: önce
       `docs/superpowers/plans/2026-11-14-agents-tab-core.md` (çekirdek, 6 görev), sonra
       `docs/superpowers/plans/2026-11-14-agents-tab-app.md` (uygulama, 6 görev; elle kontrol
@@ -182,6 +195,16 @@ spec'te yazılı.
   Yedekleri: Agents spec bölüm 11.
 - Fare izleme: `NSEvent` monitörleri macOS 27'de izin istemeden çalışıyor (sahibi 2026-11-14'te
   elle doğruladı; Dock boyutu değişimi maddesi denenmedi).
+- Beş araç için durum okuyucusu araştırıldı (2026-11-15, rapor `.superpowers/sdd/agents-tool-research.md`,
+  git'e girmez): hiçbiri eklenmedi, hepsi süreç düzeyinde `Running` gösterir. OpenCode tur
+  başlangıç ve bitişini açıkça yazıyor ama SQLite içinde (spec SQLite açmayı yasaklıyor);
+  Copilot CLI `~/.copilot/session-state/<uuid>/events.jsonl` içinde tur ve izin olaylarını
+  kısmen yazıyor; Gemini CLI ve Aider yalnızca mesajları yazıyor; Cursor Agent kapalı kaynak.
+  Bu araçlardan biri kurulursa önce gerçek dosyalarına bakılır.
+- Claude Code oturum dosyasının canlılığı süreç listesinden karar verilir (süreç kullanıcının
+  olmalı ve dosyanın son yazımından en geç 2 sn sonra başlamış olmalı). Çok uzun süre hiç
+  durum değiştirmeyen canlı bir oturumun dosyası başka nedenle yeniden yazılmıyorsa bu kural
+  onu düşürmez (dosya süreçten sonra yazılmıştır); tersi durum görülürse buraya yazılır.
 
 ## Doğrulama
 
