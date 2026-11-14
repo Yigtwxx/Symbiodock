@@ -1,7 +1,7 @@
 # Symbiodock v1 Design
 
 Date: 2026-11-14
-Status: architecture approved by the owner; this written spec awaits review.
+Status: approved by the owner on 2026-11-14.
 
 ## 1. Goal
 

@@ -37,6 +37,9 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 | Efekt tekniği | SwiftUI `Canvas` metaball (blur + alpha threshold); yetmezse Metal shader | Efekt yalnızca sürüklerken çalışır |
 | Çentik dışı konum | `visibleFrame` içinde 8 pt içeride yüzen siyah kapsül | Menü çubuğunu ve sistem Dock'unu kapatmamalı |
 | Mimari | Spec bölüm 4-5 | Sahibi onayladı |
+| Proje üretimi | XcodeGen (`project.yml`), `.xcodeproj` commit edilmez | Komut satırından üretilebilir ve diff'i okunur |
+| Kod yerleşimi | Saf mantık `Packages/SymbiodockCore` paketinde, AppKit/SwiftUI app hedefinde | Mantık uygulama açılmadan `swift test` ile test edilir |
+| Telif satırı | `Yigtwxx` | Sahibinin tercihi |
 | Lisans | MIT | Public, kişisel araç |
 | Depo | `Yigtwxx/Symbiodock`, public | Sahibinin isteği |
 
@@ -50,16 +53,19 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 ## Durum
 
 - Depo açıldı; tasarım dokümanı, bu dosya, LICENSE ve README `main` üzerinde.
+- Tasarım dokümanı sahibi tarafından onaylandı (2026-11-14).
+- Milestone 0-1 uygulama planı yazıldı; henüz uygulanmadı.
 - Uygulama kodu yok. Xcode projesi yok.
 - Sahibi Xcode'u indiriyor (2026-11-14); kurulduğu `xcodebuild -version` ile doğrulanmalı.
 
 ## Sıradaki adımlar
 
-1. Sahibi tasarım dokümanını gözden geçirir.
-2. Xcode kurulumu biter (indirme sürüyor; o zamana kadar `xcodebuild` çalışmıyor).
-3. Milestone 0 ve 1 için uygulama planı yazılır (`superpowers:writing-plans`), sonra
-   uygulanır. Planlar milestone başına yazılır, çünkü milestone 2 bir denemenin
-   sonucuna bağlı.
+1. Xcode kurulumu biter. Kontrol: `xcodebuild -version`. Kurulu ama seçili değilse sahibi
+   `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` çalıştırır.
+2. `docs/superpowers/plans/2026-11-14-m0-m1-notch-island.md` planı uygulanır
+   (`superpowers:subagent-driven-development` ya da `superpowers:executing-plans`).
+3. Milestone 2 için ayrı plan yazılır; planlar milestone başına yazılır, çünkü milestone 2
+   bir denemenin sonucuna bağlı.
 
 Milestone'lar: 0 proje iskeleti → 1 çentik adası ve hover → 2 Now Playing →
 3 sürükleme ve yapışma → 4 symbiote efekti.
@@ -76,5 +82,5 @@ spec'te yazılı.
 
 ## Doğrulama
 
-Xcode projesi kurulunca build ve test komutları buraya eklenecek. O zamana kadar
-çalıştırılabilir bir şey yok.
+Plan uygulanınca build ve test komutları buraya eklenecek. Yalnızca Command Line Tools
+ile `swift test` de çalışmıyor (2026-11-14'te denendi); Xcode şart.
