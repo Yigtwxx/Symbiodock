@@ -981,6 +981,22 @@ struct ClaudeSessionParserTests {
         #expect(ClaudeSessionParser.record(from: data("{\"pid\":4242")) == nil)
     }
 
+    @Test func rejectsPidsThatAreNotPids() {
+        #expect(ClaudeSessionParser.record(from: data("{\"pid\":true}")) == nil)
+        #expect(ClaudeSessionParser.record(from: data("{\"pid\":4294967297}")) == nil)
+        #expect(ClaudeSessionParser.record(from: data("{\"pid\":1e300}")) == nil)
+        #expect(ClaudeSessionParser.record(from: data("{\"pid\":-5}")) == nil)
+        #expect(ClaudeSessionParser.record(from: data("{\"pid\":12.5}")) == nil)
+    }
+
+    @Test func ignoresATimeThatIsNotATime() throws {
+        for value in ["1e300", "-1", "0", "true"] {
+            let record = try #require(
+                ClaudeSessionParser.record(from: data("{\"pid\":7,\"statusUpdatedAt\":\(value)}")))
+            #expect(record.statusUpdatedAt == nil, "\(value)")
+        }
+    }
+
     @Test func rejectsAnOversizedFile() {
         let padding = String(repeating: " ", count: ClaudeSessionParser.maximumFileSize)
         #expect(ClaudeSessionParser.record(from: data("{\"pid\":4242}" + padding)) == nil)
@@ -1172,9 +1188,9 @@ public enum ClaudeSessionParser {
     public static func record(from data: Data) -> ClaudeSessionRecord? {
         guard data.count <= maximumFileSize,
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let pid = (object["pid"] as? NSNumber)?.int32Value, pid > 0
+              let pid = processID(object["pid"])
         else { return nil }
-        let milliseconds = (object["statusUpdatedAt"] as? NSNumber)?.doubleValue
+        let milliseconds = number(object["statusUpdatedAt"])
         return ClaudeSessionRecord(
             pid: pid,
             sessionID: object["sessionId"] as? String,
@@ -1183,9 +1199,30 @@ public enum ClaudeSessionParser {
             status: object["status"] as? String,
             waitingFor: object["waitingFor"] as? String,
             statusUpdatedAt: milliseconds.flatMap { value in
-                value.isFinite && value > 0 ? Date(timeIntervalSince1970: value / 1000) : nil
+                value > 0 && value < maximumMilliseconds ? Date(timeIntervalSince1970: value / 1000) : nil
             },
             isSpare: (object["spare"] as? Bool) == true)
+    }
+
+    /// About year 5138; anything larger is not a time.
+    private static let maximumMilliseconds = 1e14
+
+    /// A JSON number as a Double; a boolean is not a number here.
+    private static func number(_ value: Any?) -> Double? {
+        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else {
+            return nil
+        }
+        let double = number.doubleValue
+        return double.isFinite ? double : nil
+    }
+
+    /// A positive whole number that fits `Int32`; nil for anything else, so a huge value
+    /// is rejected instead of wrapping around to a valid-looking pid.
+    private static func processID(_ value: Any?) -> Int32? {
+        guard let double = number(value), double >= 1, double <= Double(Int32.max),
+              double == double.rounded()
+        else { return nil }
+        return Int32(double)
     }
 
     /// The session a record stands for; nil for a spare process.
