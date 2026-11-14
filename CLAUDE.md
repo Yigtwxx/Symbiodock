@@ -135,8 +135,11 @@ sahibi ayrıca yön verecek; kendiliğinden başlama.
 Bunlar denenmedi; ilgili milestone'da ilk iş olarak doğrulanacak. Her birinin yedeği
 spec'te yazılı.
 
-- `mediaremote-adapter` macOS 27'de çalışıyor mu (milestone 2 başında deneme). Lisansı
-  paketlemeden önce kontrol edilecek; GPL-3.0 ile uyumlu olmak zorunda.
+- `mediaremote-adapter` v0.7.7 macOS 27.0.1'de çalışıyor (2026-11-14'te denendi): `get` ve
+  `stream` Safari'den gerçek veri ve kapak döndürdü, `test` çıkış kodu 0. Lisansı
+  BSD-3-Clause, GPL-3.0 ile uyumlu. `send` (oynatma komutları) henüz denenmedi. CMake
+  gerekmiyor; kaynakları doğrudan derlenebiliyor. Canlı yayında `duration` anlamsız büyük
+  geliyor (9.2e12); ilerleme çubuğu bunu yok saymalı.
 - `com.apple.Music.playerInfo` bildirimi macOS 27'de geliyor mu.
 - Fare izleme: `NSEvent` monitörleri macOS 27'de izin istemeden çalışıyor (sahibi 2026-11-14'te
   elle doğruladı; Dock boyutu değişimi maddesi denenmedi).
