@@ -87,22 +87,27 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 - Dağıtım öncesi sağlamlaştırma listesi `.superpowers/sdd/progress.md` içinde (git'e girmez);
   özeti: yardımcı sürecin zorla öldürülmesi, komut sıralaması, Release ve Intel derlemesinin
   perl altında denenmesi.
-- **Faz 7 (sekmeler ve Agents sekmesi): kod tamam ve `main`'de (2026-11-15).** 316 çekirdek
+- **Faz 7 (sekmeler ve Agents sekmesi): kod tamam ve `main`'de (2026-11-15).** 310 çekirdek
   testi geçiyor. Sahibi çalışan uygulamada hover'ı ve çentiği saran 2 pt'lik taşmayı onayladı
   ("her şey düzgün çalışıyor şu an, kaba da gözükmedi"); pet'leri, renkleri ve dalgayı
   görüntüler üzerinden yönlendirdi. Tam elle kontrol listesi
   `docs/superpowers/plans/2026-11-14-agents-tab-app.md` sonunda (19 madde).
 - Faz 7'de canlı doğrulananlar: bu Mac'teki Claude Code oturumu bulunuyor
-  (`sessions: 1 [claudeCode]`), sahte bir `opencode` süreci süreç düzeyinde bulunuyor, bir
-  agent çalışırken CPU ~%0, dalga iki ekran görüntüsünde görüldü.
+  (`sessions: 1 [claudeCode]`), sahte bir `opencode` süreci süreç düzeyinde bulunuyor; dalga,
+  halkanın vuruşları, ışığın üstünden geçen parlaklık ve seviye çubukları ardışık ekran
+  görüntülerinde hareket ederken görüldü.
 - Faz 7'de denenmeyenler: Codex yolu (denemeler sırasında Codex çalışmıyordu), satıra
   tıklayınca uygulamanın öne gelmesi, listenin kaydırılması, Reduce Motion, izin penceresinde
   `waiting` durumu, uyku sonrası davranış.
-- Bilinen, bırakılanlar: soru beklerken CPU birkaç puan (ışığın geçişi ve halka vuruşları aynı
-  hizada değil); müzik çalarken seviye çubukları ~%5 çekirdek yiyor (v1'den beri; 0,35 sn'den
-  sık yeniden çizim tam ekran panelin güncelleme döngüsünü açık tutuyor, çözümü Core
-  Animation'a taşımak); kanatlar belirirken imleç çentiğin hemen yanındaysa ada kendiliğinden
-  açılabilir (medya yolunda da böyle).
+- CPU (2026-11-15, Debug derleme, `top` + `sample`): hareketsiz, bir agent çalışırken, soru
+  beklerken ve müzik çalarken hepsinde %0; ana iş parçacığı örneklerin tamamında boşta. Önce:
+  soru beklerken ~%8-9, müzik çalarken ~%7-8. Adadaki bütün hareketler (dönen yay, vuruşlar ve
+  halkalar, ışığın nefesi ve geçen parlaklık, pet dalgası, seviye çubukları) Core Animation'da.
+  Ölçmek için: `SYMBIODOCK_DEMO_AGENTS=finished|working|1|quiet` ve `SYMBIODOCK_DEMO_MEDIA=1`
+  (yalnızca Debug).
+- Bilinen, bırakılanlar: kanatlar belirirken imleç çentiğin hemen yanındaysa ada kendiliğinden
+  açılabilir (medya yolunda da böyle); seviye çubukları Reduce Motion'ı dikkate almıyor
+  (v1'den beri).
 - Xcode 27.2 ve XcodeGen 2.45.4 kurulu, `xcode-select` ile seçili.
 
 ## "Yapılacakları yap" denince
