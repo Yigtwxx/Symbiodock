@@ -477,7 +477,11 @@ struct NowPlayingServiceTests {
         let service = NowPlayingService(providers: [active, idle], onUpdate: { _ in })
 
         let running = Task { await service.run() }
-        for _ in 0..<1_000 where !service.hasActiveProvider { await Task.yield() }
+        // Wait on the clock, not on a number of yields: choosing a provider hops executors.
+        let deadline = ContinuousClock.now + .seconds(5)
+        while !service.hasActiveProvider, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
         #expect(service.hasActiveProvider)
 
         await service.send(.next)
