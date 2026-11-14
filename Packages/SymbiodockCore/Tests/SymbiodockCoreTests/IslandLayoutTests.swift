@@ -88,9 +88,26 @@ struct IslandLayoutTests {
         }
     }
 
-    @Test func floatingCollapsedIslandIsACapsuleInsideTheVisibleFrame() {
-        #expect(floating(.corner(.topLeft)) == CGRect(x: 8, y: 40, width: 200, height: 36))
-        #expect(floating(.corner(.bottomRight)) == CGRect(x: 1304, y: 868, width: 200, height: 36))
+    @Test func dockedCollapsedIslandLiesFlushAgainstTheVisibleFrame() {
+        #expect(floating(.corner(.topLeft)) == CGRect(x: 0, y: 32, width: 200, height: 36))
+        #expect(floating(.corner(.bottomRight)) == CGRect(x: 1312, y: 876, width: 200, height: 36))
+    }
+
+    @Test func cornersOnAScreenEdgeAreSquareLikeTheNotchs() {
+        func radii(_ anchor: IslandAnchor) -> [CGFloat] {
+            let r = IslandLayout.cornerRadii(anchor: anchor, radius: 10)
+            return [r.topLeading, r.topTrailing, r.bottomLeading, r.bottomTrailing]
+        }
+        #expect(radii(.notch) == [0, 0, 10, 10])
+        #expect(radii(.edge(.top, fraction: 0.3)) == [0, 0, 10, 10])
+        #expect(radii(.edge(.bottom, fraction: 0.3)) == [10, 10, 0, 0])
+        #expect(radii(.edge(.left, fraction: 0.3)) == [0, 10, 0, 10])
+        #expect(radii(.edge(.right, fraction: 0.3)) == [10, 0, 10, 0])
+        // In a corner only the corner that points into the display is rounded.
+        #expect(radii(.corner(.topLeft)) == [0, 0, 0, 10])
+        #expect(radii(.corner(.topRight)) == [0, 0, 10, 0])
+        #expect(radii(.corner(.bottomLeft)) == [0, 10, 0, 0])
+        #expect(radii(.corner(.bottomRight)) == [10, 0, 0, 0])
     }
 
     @Test func floatingIslandIgnoresWhetherThereIsATrack() {
@@ -100,24 +117,24 @@ struct IslandLayoutTests {
     }
 
     @Test func edgeFractionSlidesAlongTheEdge() {
-        #expect(floating(.edge(.top, fraction: 0)) == CGRect(x: 8, y: 40, width: 200, height: 36))
-        #expect(floating(.edge(.top, fraction: 1)) == CGRect(x: 1304, y: 40, width: 200, height: 36))
-        #expect(floating(.edge(.top, fraction: 0.5)) == CGRect(x: 656, y: 40, width: 200, height: 36))
-        #expect(floating(.edge(.left, fraction: 0.5)) == CGRect(x: 8, y: 454, width: 200, height: 36))
-        #expect(floating(.edge(.right, fraction: 1)) == CGRect(x: 1304, y: 868, width: 200, height: 36))
-        #expect(floating(.edge(.bottom, fraction: 0)) == CGRect(x: 8, y: 868, width: 200, height: 36))
+        #expect(floating(.edge(.top, fraction: 0)) == CGRect(x: 0, y: 32, width: 200, height: 36))
+        #expect(floating(.edge(.top, fraction: 1)) == CGRect(x: 1312, y: 32, width: 200, height: 36))
+        #expect(floating(.edge(.top, fraction: 0.5)) == CGRect(x: 656, y: 32, width: 200, height: 36))
+        #expect(floating(.edge(.left, fraction: 0.5)) == CGRect(x: 0, y: 454, width: 200, height: 36))
+        #expect(floating(.edge(.right, fraction: 1)) == CGRect(x: 1312, y: 876, width: 200, height: 36))
+        #expect(floating(.edge(.bottom, fraction: 0)) == CGRect(x: 0, y: 876, width: 200, height: 36))
     }
 
     @Test func expandingGrowsTowardTheInside() {
         #expect(
             floating(.corner(.bottomRight), .expanded)
-                == CGRect(x: 1144, y: 754, width: 360, height: 150))
+                == CGRect(x: 1152, y: 762, width: 360, height: 150))
         #expect(
             floating(.edge(.bottom, fraction: 0.5), .expanded)
-                == CGRect(x: 576, y: 754, width: 360, height: 150))
+                == CGRect(x: 576, y: 762, width: 360, height: 150))
         #expect(
             floating(.edge(.right, fraction: 0), .expanded)
-                == CGRect(x: 1144, y: 40, width: 360, height: 150))
+                == CGRect(x: 1152, y: 32, width: 360, height: 150))
     }
 
     @Test func floatingHitRectIsTheFrameGrownByFourPoints() {
@@ -125,7 +142,7 @@ struct IslandLayoutTests {
             IslandLayout.hitRect(
                 anchor: .corner(.topLeft), phase: .collapsed, notch: notch,
                 visibleFrame: visible, screenSize: screen, hasTrack: false)
-                == CGRect(x: 4, y: 36, width: 208, height: 44))
+                == CGRect(x: -4, y: 28, width: 208, height: 44))
     }
 
     // MARK: Edge fraction is the center's position
@@ -150,9 +167,9 @@ struct IslandLayoutTests {
     }
 
     @Test func centerFractionIsClampedIntoTheUsableArea() {
-        #expect(floating(.edge(.top, fraction: 0.01)).minX == 8)
-        #expect(floating(.edge(.top, fraction: 0.99)).maxX == 1504)
-        #expect(floating(.edge(.top, fraction: 0.01), .expanded).minX == 8)
+        #expect(floating(.edge(.top, fraction: 0.01)).minX == 0)
+        #expect(floating(.edge(.top, fraction: 0.99)).maxX == 1512)
+        #expect(floating(.edge(.top, fraction: 0.01), .expanded).minX == 0)
     }
 
     // MARK: Drag phases
@@ -222,7 +239,7 @@ struct IslandLayoutTests {
         let aside = IslandLayout.frame(
             anchor: .edge(.top, fraction: 0.1), phase: .collapsed, notch: notch,
             visibleFrame: full, screenSize: screen, hasTrack: false)
-        #expect(aside.minY == 8)
+        #expect(aside.minY == 0)
     }
 
     @Test func hoveringADockedIslandNeverMovesItFromUnderThePointer() {

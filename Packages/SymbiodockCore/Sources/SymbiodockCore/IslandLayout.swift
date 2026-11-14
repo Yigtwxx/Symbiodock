@@ -45,8 +45,36 @@ public enum IslandLayout {
 extension IslandLayout {
     /// Size of the island when it is collapsed away from the notch.
     public static let floatingCollapsedSize = CGSize(width: 200, height: 36)
-    /// Gap (pt) between a floating island and the edge of the visible frame.
-    public static let floatingInset: CGFloat = 8
+    /// Gap (pt) kept below the notch by an island that had to move out from under it.
+    public static let notchClearance: CGFloat = 8
+    /// Radius of the island's free corners while collapsed, the same as the notch's.
+    public static let collapsedCornerRadius: CGFloat = 10
+    /// Radius of the island's free corners while expanded.
+    public static let expandedCornerRadius: CGFloat = 24
+
+    /// The island's outline at rest. Docked, it sits against the screen edge the way the
+    /// notch does: the corners on that edge are square and only the free ones are rounded.
+    public static func cornerRadii(anchor: IslandAnchor, radius: CGFloat) -> IslandCornerRadii {
+        var radii = IslandCornerRadii(
+            topLeading: radius, topTrailing: radius, bottomLeading: radius, bottomTrailing: radius)
+        func square(_ edge: ScreenEdge) {
+            switch edge {
+            case .top: radii.topLeading = 0; radii.topTrailing = 0
+            case .bottom: radii.bottomLeading = 0; radii.bottomTrailing = 0
+            case .left: radii.topLeading = 0; radii.bottomLeading = 0
+            case .right: radii.topTrailing = 0; radii.bottomTrailing = 0
+            }
+        }
+        switch anchor {
+        case .notch: square(.top)
+        case .edge(let edge, _): square(edge)
+        case .corner(.topLeft): square(.top); square(.left)
+        case .corner(.topRight): square(.top); square(.right)
+        case .corner(.bottomLeft): square(.bottom); square(.left)
+        case .corner(.bottomRight): square(.bottom); square(.right)
+        }
+        return radii
+    }
 
     /// The island frame for any anchor, in panel-local coordinates.
     public static func frame(
@@ -62,10 +90,9 @@ extension IslandLayout {
                 screenSize: screenSize, hasTrack: hasTrack)
         }
 
+        // A docked island lies flush against the border of the visible frame.
         let visible = usableBase(visibleFrame, screenSize: screenSize)
-        var usable = visible.insetBy(dx: floatingInset, dy: floatingInset)
-        // Too small for the inset: use the whole visible frame rather than an empty area.
-        if usable.isNull || usable.width <= 0 || usable.height <= 0 { usable = visible }
+        let usable = visible
 
         /// Where an island of `size` sits at this anchor, before the notch is considered.
         func place(_ size: CGSize) -> CGRect {
@@ -108,7 +135,7 @@ extension IslandLayout {
         // Collapsed and expanded must agree: if only the wider, expanded island met the
         // notch, hovering would move the island out from under the pointer.
         if rect.intersects(notch) || place(expandedSize).intersects(notch) {
-            rect.origin.y = max(rect.origin.y, notch.maxY + floatingInset)
+            rect.origin.y = max(rect.origin.y, notch.maxY + notchClearance)
         }
         return rect
     }
@@ -130,5 +157,22 @@ extension IslandLayout {
             anchor: anchor, phase: phase, notch: notch, visibleFrame: visibleFrame,
             screenSize: screenSize, hasTrack: hasTrack)
             .insetBy(dx: -hitPadding, dy: -hitPadding)
+    }
+}
+
+/// Corner radii of the island's outline, in panel-local terms: leading is the left side.
+public struct IslandCornerRadii: Equatable, Sendable {
+    public var topLeading: CGFloat
+    public var topTrailing: CGFloat
+    public var bottomLeading: CGFloat
+    public var bottomTrailing: CGFloat
+
+    public init(
+        topLeading: CGFloat, topTrailing: CGFloat, bottomLeading: CGFloat, bottomTrailing: CGFloat
+    ) {
+        self.topLeading = topLeading
+        self.topTrailing = topTrailing
+        self.bottomLeading = bottomLeading
+        self.bottomTrailing = bottomTrailing
     }
 }
