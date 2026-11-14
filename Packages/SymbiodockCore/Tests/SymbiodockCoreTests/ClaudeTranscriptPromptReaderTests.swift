@@ -36,8 +36,13 @@ struct ClaudeTranscriptPromptReaderTests {
         #expect(read([ask(id: "t1", "Which tools first?"), result(for: "t0")]) == "Which tools first?")
     }
 
-    @Test func aLaterToolCallMeansTheTalkMovedOn() {
-        #expect(read([ask(id: "t1", "Which tools first?"), otherTool]) == nil)
+    @Test func onlyItsOwnResultClosesAQuestion() {
+        // A tool called in parallel with the question, or after it, is not an answer.
+        #expect(read([ask(id: "t1", "Which tools first?"), otherTool]) == "Which tools first?")
+        #expect(
+            read([ask(id: "t1", "Which tools first?"), otherTool, result(for: "t9")])
+                == "Which tools first?")
+        #expect(read([ask(id: "t1", "Which tools first?"), otherTool, result(for: "t1")]) == nil)
     }
 
     @Test func theLatestQuestionWins() {

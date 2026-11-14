@@ -38,7 +38,7 @@ Spec: `docs/superpowers/specs/2026-11-14-agents-tab-design.md`.
 | `Agents/CodexRolloutParser.swift` | Thread meta, turn state, listing rule, session |
 | `Agents/CodexSessionIndex.swift` | Thread titles |
 | `Agents/AgentProcess.swift` | `ProcessSnapshot`, `AgentProcessMatcher`, `ProcessTree`, `AgentScanContext`, `AgentSessionProvider`, `ProcessLevelProvider` |
-| `Agents/AgentPetGlyph.swift` | The pets: each tool's figure as seven bars, and how it moves |
+| `Agents/AgentPetGlyph.swift` | The pets: each tool's figure as fine lines at three depths, and how it moves |
 
 Tests mirror these under `Packages/SymbiodockCore/Tests/SymbiodockCoreTests/`.
 
@@ -1119,8 +1119,13 @@ struct ClaudeTranscriptPromptReaderTests {
         #expect(read([ask(id: "t1", "Which tools first?"), result(for: "t0")]) == "Which tools first?")
     }
 
-    @Test func aLaterToolCallMeansTheTalkMovedOn() {
-        #expect(read([ask(id: "t1", "Which tools first?"), otherTool]) == nil)
+    @Test func onlyItsOwnResultClosesAQuestion() {
+        // A tool called in parallel with the question, or after it, is not an answer.
+        #expect(read([ask(id: "t1", "Which tools first?"), otherTool]) == "Which tools first?")
+        #expect(
+            read([ask(id: "t1", "Which tools first?"), otherTool, result(for: "t9")])
+                == "Which tools first?")
+        #expect(read([ask(id: "t1", "Which tools first?"), otherTool, result(for: "t1")]) == nil)
     }
 
     @Test func theLatestQuestionWins() {
@@ -1300,7 +1305,8 @@ public enum ClaudeTranscriptPromptReader {
             for item in content {
                 switch item["type"] as? String {
                 case "tool_use":
-                    pending = question(in: item)
+                    // Another tool called alongside or after the question does not answer it.
+                    if let asked = question(in: item) { pending = asked }
                 case "tool_result":
                     if let id = item["tool_use_id"] as? String, id == pending?.id { pending = nil }
                 default:
@@ -1769,6 +1775,12 @@ struct AgentProcessTests {
         #expect(AgentProcessMatcher.tool(for: process(1, node, ["node", "/Users/me/copilot/server.js"])) == nil)
         #expect(AgentProcessMatcher.tool(for: process(1, node, ["node", "server.js", "/opt/homebrew/bin/gemini"])) == nil)
         #expect(AgentProcessMatcher.tool(for: process(1, node, ["node"])) == nil)
+        // A package whose name merely begins like a tool's is another package.
+        #expect(
+            AgentProcessMatcher.tool(
+                for: process(1, node, ["node", "/usr/lib/node_modules/@github/copilot-language-server/dist/main.js"]))
+                == nil)
+        #expect(AgentProcessMatcher.tool(for: process(1, node, ["node", "/Users/me/opencode-ai-notes/build.js"])) == nil)
         #expect(AgentProcessMatcher.tool(for: process(1, "/usr/bin/python3", ["python3", "-m", "http.server"])) == nil)
         #expect(AgentProcessMatcher.tool(for: process(1, "/opt/homebrew/bin/gemini-helper")) == nil)
         #expect(AgentProcessMatcher.tool(for: process(1, "/bin/zsh", ["zsh", "-c", "gemini"])) == nil)
@@ -1895,10 +1907,10 @@ public enum AgentProcessMatcher {
     ]
     /// Package folders that identify a tool wherever its entry script is called.
     private static let packages: [(marker: String, tool: AgentTool)] = [
-        ("@google/gemini-cli", .geminiCLI),
-        ("@github/copilot", .copilotCLI),
-        ("@openai/codex", .codex),
-        ("opencode-ai", .openCode),
+        ("/@google/gemini-cli/", .geminiCLI),
+        ("/@github/copilot/", .copilotCLI),
+        ("/@openai/codex/", .codex),
+        ("/opencode-ai/", .openCode),
         // Cursor's agent runs as `node …/cursor-agent/versions/<version>/index.js`.
         ("/cursor-agent/", .cursorAgent),
     ]
@@ -2043,10 +2055,12 @@ git push origin main
 **Interfaces:**
 - Consumes: `AgentTool` (Task 1).
 - Produces:
-  - `AgentPetGlyph` (`columns: [[Segment]]`, `Segment { top: Double; bottom: Double }`), `AgentPetGlyph.columnCount` (7), `.barWidth` (0.1), `.pitch` (0.15), `AgentPetGlyph.glyph(for: AgentTool) -> AgentPetGlyph`.
-  - `AgentPetMotion.sway(column: Int, at: TimeInterval) -> Double`, `AgentPetMotion.hop(at: TimeInterval) -> Double`, `.swayAmplitude` (0.05), `.hopHeight` (0.12), `.hopPeriod` (2.4), `.hopLength` (0.3).
+  - `AgentPetGlyph` (`columns: [[Segment]]`, `Segment { top: Double; bottom: Double; depth: Int }`), `AgentPetGlyph.gridSize` and `.columnCount` (17), `.barWidth` (1/33), `.pitch` (2/33), `.depthCount` (3), `AgentPetGlyph.glyph(for: AgentTool) -> AgentPetGlyph`.
+  - `AgentPetMotion.sway(column: Int, at: TimeInterval) -> Double`, `AgentPetMotion.hop(at: TimeInterval) -> Double`, `.swayAmplitude` (0.025), `.hopHeight` (0.08), `.hopPeriod` (2.4), `.hopLength` (0.3).
 
-A pet is the figure a tool is known by, drawn from seven vertical bars with round ends. All measures are fractions of the figure's side: `top` and `bottom` run from 0 (top) to 1 (bottom); a bar is 0.1 wide and bars are 0.15 apart, so seven bars and six gaps fill the width. A stretch must be at least as tall as a bar is wide, or it could not be drawn as a capsule; the same goes for a break between two stretches.
+A pet is the figure a tool is known by, made of fine vertical lines with round ends. Each figure is drawn in the source as a 17 × 17 grid of characters: `#` in front, `+` in the middle, `-` at the back, `.` empty. Every column of the grid is one line; a run of ink at one depth is one stretch of it. A line is as wide as the gap beside it (1/33 of the figure's side). All measures are fractions of the figure's side.
+
+This task was first written with seven thick bars per figure. The owner found that too plain and asked for finer lines, more detail and depth, so the figures were redrawn on this grid; the code below is what is in the repository.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2058,20 +2072,34 @@ import Testing
 @testable import SymbiodockCore
 
 struct AgentPetGlyphTests {
-    @Test func everyToolHasAFigureOfSevenColumns() {
+    @Test func everyDrawingFillsItsGrid() {
         for tool in AgentTool.allCases {
-            let glyph = AgentPetGlyph.glyph(for: tool)
-            #expect(glyph.columns.count == AgentPetGlyph.columnCount, "\(tool)")
-            #expect(glyph.columns.allSatisfy { !$0.isEmpty }, "\(tool)")
+            let art = AgentPetGlyph.art(for: tool)
+            #expect(art.count == AgentPetGlyph.gridSize, "\(tool)")
+            for row in art {
+                #expect(row.count == AgentPetGlyph.gridSize, "\(tool)")
+                let known = row.allSatisfy { "#+-.".contains($0) }
+                #expect(known, "\(tool)")
+            }
         }
     }
 
-    @Test func sevenBarsAndSixGapsFillTheWidth() {
+    @Test func everyToolHasAFigureOfOneLinePerColumn() {
+        for tool in AgentTool.allCases {
+            let glyph = AgentPetGlyph.glyph(for: tool)
+            #expect(glyph.columns.count == AgentPetGlyph.columnCount, "\(tool)")
+            // A figure that is mostly empty columns would not read as a figure.
+            let inked = glyph.columns.filter { !$0.isEmpty }.count
+            #expect(inked >= 13, "\(tool)")
+        }
+    }
+
+    @Test func theLinesAndTheirGapsFillTheWidth() {
         let width = Double(AgentPetGlyph.columnCount - 1) * AgentPetGlyph.pitch + AgentPetGlyph.barWidth
         #expect(abs(width - 1) < 1e-9)
     }
 
-    @Test func everyStretchCanBeDrawnAsACapsule() {
+    @Test func everyStretchCanBeDrawnWithRoundEnds() {
         let minimum = AgentPetGlyph.barWidth - 1e-9
         for tool in AgentTool.allCases {
             for (index, column) in AgentPetGlyph.glyph(for: tool).columns.enumerated() {
@@ -2079,10 +2107,56 @@ struct AgentPetGlyphTests {
                     #expect(segment.top >= 0 && segment.bottom <= 1, "\(tool) column \(index)")
                     #expect(segment.bottom - segment.top >= minimum, "\(tool) column \(index)")
                 }
+                for segment in column {
+                    #expect((0..<AgentPetGlyph.depthCount).contains(segment.depth), "\(tool) column \(index)")
+                }
                 for (upper, lower) in zip(column, column.dropFirst()) {
-                    #expect(lower.top - upper.bottom >= minimum, "\(tool) column \(index)")
+                    // Two stretches either touch, at different depths, or are a real break apart.
+                    let gap = lower.top - upper.bottom
+                    if gap == 0 {
+                        #expect(upper.depth != lower.depth, "\(tool) column \(index)")
+                    } else {
+                        #expect(gap >= minimum, "\(tool) column \(index)")
+                    }
                 }
             }
+        }
+    }
+
+    @Test func aDrawingBecomesLinesWithBreaks() {
+        let glyph = AgentPetGlyph(art: [
+            "#.+",
+            "#.+",
+            "..-",
+            "#.#",
+        ])
+        /// Where the edge of the given grid row lies.
+        func edge(_ row: Int) -> Double { Double(row) / Double(AgentPetGlyph.gridSize) }
+        #expect(
+            glyph.columns[0] == [
+                .init(top: edge(0), bottom: edge(2)), .init(top: edge(3), bottom: edge(4)),
+            ])
+        #expect(glyph.columns[1].isEmpty)
+        // A change of depth starts a new stretch without a break.
+        #expect(
+            glyph.columns[2] == [
+                .init(top: edge(0), bottom: edge(2), depth: 1),
+                .init(top: edge(2), bottom: edge(3), depth: 2),
+                .init(top: edge(3), bottom: edge(4), depth: 0),
+            ])
+        // Whatever the drawing leaves out is empty; nothing is read outside it.
+        #expect(glyph.columns.count == AgentPetGlyph.columnCount)
+        let restIsEmpty = glyph.columns[3...].allSatisfy { $0.isEmpty }
+        #expect(restIsEmpty)
+        let nothingDrawn = AgentPetGlyph(art: []).columns.allSatisfy { $0.isEmpty }
+        #expect(nothingDrawn)
+    }
+
+    @Test func everyFigureHasDepth() {
+        for tool in AgentTool.allCases {
+            let depths = Set(AgentPetGlyph.glyph(for: tool).columns.flatMap { $0.map(\.depth) })
+            #expect(depths.contains(0), "\(tool)")
+            #expect(depths.count >= 2, "\(tool)")
         }
     }
 
@@ -2093,13 +2167,31 @@ struct AgentPetGlyphTests {
         }
     }
 
-    @Test func theWaveStaysSmallAndDiffersBetweenColumns() {
-        for step in 0..<200 {
+    @Test func aWorkingPetStirsOnlyALittle() {
+        for step in 0..<400 {
             let time = Double(step) * 0.037
             let values = (0..<AgentPetGlyph.columnCount).map { AgentPetMotion.sway(column: $0, at: time) }
             #expect(values.allSatisfy { abs($0) <= AgentPetMotion.swayAmplitude + 1e-9 })
         }
+        // Small: less than half a grid cell.
+        #expect(AgentPetMotion.swayAmplitude < 0.5 / Double(AgentPetGlyph.gridSize))
+        // The lines do not move in step.
         #expect(AgentPetMotion.sway(column: 0, at: 1) != AgentPetMotion.sway(column: 3, at: 1))
+    }
+
+    @Test func aWorkingPetMovesSlowly() {
+        // No line may change by more than a small part of its travel between two frames
+        // at 20 frames a second: slow enough not to flicker.
+        let frame = 1.0 / 20.0
+        for step in 0..<400 {
+            let time = Double(step) * frame
+            for column in 0..<AgentPetGlyph.columnCount {
+                let change = abs(
+                    AgentPetMotion.sway(column: column, at: time + frame)
+                        - AgentPetMotion.sway(column: column, at: time))
+                #expect(change <= AgentPetMotion.swayAmplitude * 0.2)
+            }
+        }
     }
 
     @Test func thePetHopsTwiceAndThenRests() {
@@ -2132,101 +2224,253 @@ Expected: compile errors, `cannot find 'AgentPetGlyph' in scope`.
 ```swift
 import Foundation
 
-/// A tool's pet: the figure the tool is known by, built from seven vertical bars with
-/// round ends, the way the island's level bars are. All measures are fractions of the
-/// figure's side.
+/// A tool's pet: the figure the tool is known by, made of fine vertical lines with round
+/// ends. Each figure is drawn on a square grid; every column of the grid becomes one line,
+/// broken wherever the drawing has a hole (an eye, a prompt, an opening). Parts of a figure
+/// stand at different depths, which the views draw as different strengths of the tool's
+/// colour. All measures are fractions of the figure's side.
 public struct AgentPetGlyph: Equatable, Sendable {
-    /// A solid stretch of a bar. 0 is the top of the figure, 1 its bottom.
+    /// A solid stretch of a line. 0 is the top of the figure, 1 its bottom.
     public struct Segment: Equatable, Sendable {
         public let top: Double
         public let bottom: Double
+        /// 0 is in front, `depthCount - 1` is farthest back.
+        public let depth: Int
 
-        public init(top: Double, bottom: Double) {
+        public init(top: Double, bottom: Double, depth: Int = 0) {
             self.top = top
             self.bottom = bottom
+            self.depth = depth
         }
     }
 
-    public static let columnCount = 7
-    /// A bar is twice as wide as the gap beside it.
-    public static let barWidth = 0.1
-    /// From one bar's leading edge to the next.
-    public static let pitch = 0.15
+    /// Figures are drawn on a grid of this many cells each way.
+    public static let gridSize = 17
+    public static let columnCount = gridSize
+    /// A line is as wide as the gap beside it: 17 lines and 16 gaps fill the width.
+    public static let barWidth = 1.0 / Double(2 * gridSize - 1)
+    /// From one line's leading edge to the next.
+    public static let pitch = 2 * barWidth
+    /// In front, in the middle, at the back.
+    public static let depthCount = 3
 
-    /// The bars, left to right. A bar with several stretches has breaks: eyes, openings.
+    /// The lines, left to right. A line with several stretches has breaks, or changes depth.
     public let columns: [[Segment]]
 
-    private init(_ columns: [[(Double, Double)]]) {
-        self.columns = columns.map { $0.map { Segment(top: $0.0, bottom: $0.1) } }
+    /// What a character of a drawing stands for: `#` in front, `+` in the middle, `-` at
+    /// the back; anything else is empty.
+    private static func depth(of character: Character) -> Int? {
+        switch character {
+        case "#": 0
+        case "+": 1
+        case "-": 2
+        default: nil
+        }
     }
 
-    /// A figure that is the same on both sides of its middle bar.
-    private static func mirrored(
-        _ side: [[(Double, Double)]], middle: [(Double, Double)]
-    ) -> AgentPetGlyph {
-        AgentPetGlyph(side + [middle] + side.reversed())
+    /// Reads a drawing, top row first. A column of the drawing becomes a line; each run of
+    /// ink at one depth becomes a stretch. Cells outside the drawing count as empty, so a
+    /// short row cannot fail.
+    init(art: [String]) {
+        let rows = art.prefix(Self.gridSize).map(Array.init)
+        let size = Double(Self.gridSize)
+        columns = (0..<Self.gridSize).map { x in
+            var segments: [Segment] = []
+            var start = 0
+            var current: Int?
+            for y in 0...Self.gridSize {
+                let here = y < rows.count && x < rows[y].count ? Self.depth(of: rows[y][x]) : nil
+                guard here != current else { continue }
+                if let current {
+                    segments.append(
+                        Segment(top: Double(start) / size, bottom: Double(y) / size, depth: current))
+                }
+                start = y
+                current = here
+            }
+            return segments
+        }
     }
 
     public static func glyph(for tool: AgentTool) -> AgentPetGlyph {
+        AgentPetGlyph(art: art(for: tool))
+    }
+
+    /// The drawings. Each is `gridSize` rows of `gridSize` characters.
+    static func art(for tool: AgentTool) -> [String] {
         switch tool {
         case .claudeCode:
-            // A blocky body with a flat top, two eyes, a stub arm on each side, and two legs
-            // that carry on below the eyes.
-            mirrored(
-                [[(0.42, 0.62)], [(0.12, 0.70)], [(0.12, 0.30), (0.42, 0.88)]],
-                middle: [(0.12, 0.70)])
+            // A blocky creature: flat top, two eyes, an arm on each side, four legs, the far
+            // pair behind.
+            [
+                ".................",
+                ".................",
+                ".................",
+                "..#############..",
+                "..#############..",
+                "..###..###..###..",
+                "++###..###..###++",
+                "++###..###..###++",
+                "++#############++",
+                "..#############..",
+                "..#############..",
+                "...##.--.--.##...",
+                "...##.--.--.##...",
+                "...##.--.--.##...",
+                ".................",
+                ".................",
+                ".................",
+            ]
         case .codex:
-            // A cloud: a flat base with rounded ends under a small bump and a bigger one,
-            // with two eyes under the bigger one.
-            AgentPetGlyph([
-                [(0.56, 0.76)], [(0.38, 0.82)], [(0.40, 0.82)], [(0.24, 0.50), (0.60, 0.82)],
-                [(0.18, 0.82)], [(0.24, 0.50), (0.60, 0.82)], [(0.48, 0.76)],
-            ])
+            // A cloud with a prompt in it, ">" and "_", and a second cloud behind it.
+            [
+                ".................",
+                ".................",
+                "...........---...",
+                ".........-------.",
+                ".....###.--------",
+                "...#######-------",
+                "..#########------",
+                ".###########-----",
+                "#############----",
+                "###.#########---.",
+                "####.########....",
+                "###.###...###....",
+                "#############....",
+                ".###########.....",
+                ".................",
+                ".................",
+                ".................",
+            ]
         case .geminiCLI:
-            // A four-pointed star: one tall bar, quickly shorter towards the sides.
-            mirrored([[(0.45, 0.55)], [(0.38, 0.62)], [(0.26, 0.74)]], middle: [(0.05, 0.95)])
+            // A four-pointed star, and a small one far behind it.
+            [
+                ".................",
+                ".............-...",
+                ".......#.....-...",
+                ".......#...-----.",
+                ".......#.....-...",
+                "......###....-...",
+                "......###........",
+                ".....#####.......",
+                "...#########.....",
+                "###############..",
+                "...#########.....",
+                ".....#####.......",
+                "......###........",
+                "......###........",
+                ".......#.........",
+                ".......#.........",
+                ".......#.........",
+            ]
         case .cursorAgent:
-            // A hexagon with upright sides whose middle bar is split, like the near corner
-            // of a cube.
-            mirrored(
-                [[(0.27, 0.73)], [(0.20, 0.80)], [(0.13, 0.87)]],
-                middle: [(0.06, 0.42), (0.58, 0.94)])
+            // A cube seen from a corner: its top in front, one side in the middle, the other
+            // at the back.
+            [
+                ".................",
+                ".......###.......",
+                ".....#######.....",
+                "...###########...",
+                ".+#############-.",
+                ".+++#########---.",
+                ".+++++#####-----.",
+                ".+++++++#-------.",
+                ".+++++++.-------.",
+                ".+++++++.-------.",
+                ".+++++++.-------.",
+                "..++++++.------..",
+                "....++++.----....",
+                "......++.--......",
+                ".................",
+                ".................",
+                ".................",
+            ]
         case .openCode:
-            // An empty frame with a tall cursor block inside, where a prompt would start.
-            AgentPetGlyph([
-                [(0.14, 0.86)], [(0.14, 0.26), (0.74, 0.86)],
-                [(0.14, 0.26), (0.38, 0.62), (0.74, 0.86)], [(0.14, 0.26), (0.74, 0.86)],
-                [(0.14, 0.26), (0.74, 0.86)], [(0.14, 0.26), (0.74, 0.86)], [(0.14, 0.86)],
-            ])
+            // A terminal window with a prompt, ">" and "_", and a second window behind it.
+            [
+                ".................",
+                "....-------------",
+                "....-------------",
+                "....--.........--",
+                "#############..--",
+                "#############..--",
+                "##.........##..--",
+                "##.+.......##..--",
+                "##..+......##..--",
+                "##...+.....##..--",
+                "##..+......##----",
+                "##.+..+++..##----",
+                "##.........##....",
+                "#############....",
+                "#############....",
+                ".................",
+                ".................",
+            ]
         case .aider:
-            // An "A": steps rising to a peak, with a crossbar.
-            mirrored(
-                [[(0.64, 0.94)], [(0.36, 0.94)], [(0.16, 0.64)]],
-                middle: [(0.06, 0.26), (0.46, 0.64)])
+            // The letter A, folded: its left stroke in front, the crossbar in the middle, the
+            // right stroke turning away.
+            [
+                ".................",
+                "........#........",
+                ".......##+.......",
+                ".......##+.......",
+                "......##.++......",
+                "......##.++......",
+                ".....##...++.....",
+                ".....##...++.....",
+                "....##.....++....",
+                "....##+++++++....",
+                "...###+++++++-...",
+                "...##.......--...",
+                "..##.........--..",
+                "..##.........--..",
+                ".##...........--.",
+                ".................",
+                ".................",
+            ]
         case .copilotCLI:
-            // A domed head with two large goggle openings, each two bars wide, and an ear
-            // on each side.
-            mirrored(
-                [[(0.32, 0.66)], [(0.16, 0.32), (0.52, 0.80)], [(0.10, 0.32), (0.52, 0.88)]],
-                middle: [(0.08, 0.90)])
+            // A helmeted head: two goggles with dark glass, two eyes below them, an ear on
+            // each side.
+            [
+                ".................",
+                ".....#######.....",
+                "...###########...",
+                "..#############..",
+                ".###############.",
+                ".##----###----##.",
+                "+##----###----##+",
+                "+##----###----##+",
+                "+##----###----##+",
+                "+###############+",
+                ".###############.",
+                ".#####.###.#####.",
+                ".#####.###.#####.",
+                "..#############..",
+                "....#########....",
+                ".................",
+                ".................",
+            ]
         }
     }
 }
 
 /// How a pet moves. Pure functions of time, so the views only draw.
 public enum AgentPetMotion {
-    /// How far the top of a bar rises or sinks while its session works.
-    public static let swayAmplitude = 0.05
+    /// How far the top of a line rises or sinks while its session works: under half a
+    /// grid cell, less than a point on screen. Enough to see that it is alive, no more.
+    public static let swayAmplitude = 0.025
     /// How high the pet jumps while its session needs input.
-    public static let hopHeight = 0.12
+    public static let hopHeight = 0.08
     /// The same beat as the status mark's knocks: two hops, then rest.
     public static let hopPeriod: TimeInterval = 2.4
     public static let hopLength: TimeInterval = 0.3
 
-    /// The rise (positive) or fall of one bar's top at `time`: a wave passing through
-    /// the figure from left to right.
+    /// The rise (positive) or fall of one line's top at `time`. Every line breathes at its
+    /// own slow pace (a cycle takes two to four seconds), so the figure stirs gently
+    /// instead of marching in step.
     public static func sway(column: Int, at time: TimeInterval) -> Double {
-        swayAmplitude * sin(time * 4.2 - Double(column) * 0.9)
+        let pace = 2.4 + 0.9 * sin(Double(column) * 2.3)
+        return swayAmplitude * sin(time * pace + Double(column) * 1.7)
     }
 
     /// How far above its place the pet is at `time`.
@@ -2240,12 +2484,12 @@ public enum AgentPetMotion {
 }
 ```
 
-The figures are a first drawing. They are tuned by eye in Task 1 of the app plan, where they are rendered; any change there must keep these tests passing.
+The figures are tuned by eye from renders (`SYMBIODOCK_RENDER_DIR`, app plan Task 1); any change must keep these tests passing.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -1`
-Expected: every test passes (6 more than before).
+Expected: every test passes.
 
 - [ ] **Step 5: Commit**
 

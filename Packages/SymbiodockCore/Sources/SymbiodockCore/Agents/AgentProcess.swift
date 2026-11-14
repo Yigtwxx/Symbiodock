@@ -40,10 +40,10 @@ public enum AgentProcessMatcher {
     ]
     /// Package folders that identify a tool wherever its entry script is called.
     private static let packages: [(marker: String, tool: AgentTool)] = [
-        ("@google/gemini-cli", .geminiCLI),
-        ("@github/copilot", .copilotCLI),
-        ("@openai/codex", .codex),
-        ("opencode-ai", .openCode),
+        ("/@google/gemini-cli/", .geminiCLI),
+        ("/@github/copilot/", .copilotCLI),
+        ("/@openai/codex/", .codex),
+        ("/opencode-ai/", .openCode),
         // Cursor's agent runs as `node …/cursor-agent/versions/<version>/index.js`.
         ("/cursor-agent/", .cursorAgent),
     ]

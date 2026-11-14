@@ -153,8 +153,9 @@ All paths are under the user's home. A missing directory means no sessions.
 - Title: `name`, else the last component of `cwd`. `since`: `statusUpdatedAt`.
 - Question text, best effort: the last 256 KB of
   `~/.claude/projects/<cwd with "/" replaced by "-">/<sessionId>.jsonl`. If the last
-  assistant `tool_use` named `AskUserQuestion` has no later `tool_result`, the prompt is
-  its `input.questions[0].question`. Anything else → `prompt` is nil and the row says
+  assistant `tool_use` named `AskUserQuestion` has no later `tool_result` of its own, the
+  prompt is its `input.questions[0].question`. Another tool called beside or after the
+  question does not answer it. Anything else → `prompt` is nil and the row says
   `Needs input`.
 
 ### 6.2 Codex, CLI and desktop (verified on 2026-11-14)
@@ -248,7 +249,7 @@ when `showsWings` is true; Agents when `hasFace` is true.
 
 | Form | Agents face |
 |---|---|
-| At the notch | Left wing: the lead session's pet (18 pt). Right wing: its status mark |
+| At the notch | Left wing: the lead session's pet (22 pt). Right wing: its status mark |
 | Floating capsule (200 × 36) | Pet, the lead session's title, status mark |
 | Side strip (36 × 170) | Pet on top, the title rotated in the middle, status mark at the bottom |
 
@@ -265,7 +266,7 @@ meaning.
   by scrolling down, and the list comes to rest on a row. With more than two sessions the
   list fades out at its lower edge to show that it goes on. One or two rows are centred
   in the space below the header.
-- A row is 46 pt: the tool's pet (30 pt, section 7.5), then two lines, then at the
+- A row is 46 pt: the tool's pet (34 pt, section 7.5), then two lines, then at the
   trailing end a label (11 pt) and the status mark.
 - First line: the session's title (13 pt semibold). Second line (11 pt): the tool's name
   and the project folder, `Claude Code · storefront`, white 50 %. A row that needs input
@@ -278,31 +279,39 @@ meaning.
 
 ### 7.5 Pets
 
-Each tool is shown by its pet: a small figure of what the tool is known by, drawn the way
-the island's level bars are, from seven vertical bars with round ends (a bar is twice as
-wide as the gap beside it). A bar can be broken into several stretches; a break is an
-eye or an opening. Each pet has its tool's colour; none of them is the red or the mint
-that a state uses.
+Each tool is shown by its pet: a small figure of what the tool is known by, made of fine
+vertical lines with round ends, in the tool's own colour. A figure is drawn on a 17 × 17
+grid; every column of the grid is one line, as wide as the gap beside it, broken wherever
+the drawing has a hole (an eye, a prompt, an opening).
+
+A figure has depth: its parts stand in front, in the middle or at the back, and are drawn
+at 100 %, 50 % and 26 % of the tool's colour, mixed towards the island's black. None of
+the tool colours is the red or the mint that a state uses.
 
 | Tool | Colour | Pet |
 |---|---|---|
-| Claude Code | `#D97757` | A blocky body with a flat top, two eyes, a stub arm on each side, two legs |
-| Codex | `#4F9CF9` | A cloud: a flat base under uneven bumps, with two eyes |
-| Gemini CLI | `#9D7BFF` | A four-pointed star: one tall bar, quickly shorter towards the sides |
-| Cursor Agent | `#D7D7DB` | A hexagon whose middle bar is split, like the near corner of a cube |
-| OpenCode | `#F2E6C8` | An empty frame with a cursor block inside |
-| Aider | `#A3E635` | An `A`: steps rising to a peak, with a crossbar |
-| Copilot CLI | `#F27FC0` | A domed head with two large goggle openings and an ear on each side |
+| Claude Code | `#D97757` | A blocky creature: flat top, two eyes, an arm on each side (middle), four legs, the far pair at the back |
+| Codex | `#4F9CF9` | A cloud with a prompt in it, `>` and `_`, and a second cloud behind it |
+| Gemini CLI | `#9D7BFF` | A four-pointed star, and a small one far behind it |
+| Cursor Agent | `#D7D7DB` | A cube seen from a corner: top in front, one side in the middle, the other at the back |
+| OpenCode | `#F0D9A8` | A terminal window with a prompt, `>` and `_` (middle), and a second window behind it |
+| Aider | `#A3E635` | The letter A, folded: left stroke in front, crossbar in the middle, right stroke at the back |
+| Copilot CLI | `#F27FC0` | A helmeted head: two goggles with dark glass, two eyes below them, an ear on each side |
 
-The figures are data in the core package (`AgentPetGlyph`), so every tool is guaranteed
+The figures are drawings in the core package (`AgentPetGlyph`), so every tool is guaranteed
 one and their proportions are tested. No logo file is bundled or downloaded.
 
-The pet moves with its session: while working, the tops of its bars rise and fall like
-a wave passing through it; while input is needed, it hops twice together with the status
-mark's knocks; finished it stands still at full strength; running it is at 70 %, idle at
-45 %. With Reduce Motion on it never moves.
+The pet moves with its session, and only a little:
 
-The pet is used in the Agents tab's rows and in every collapsed agents face.
+- Working: the tops of its lines rise and fall by at most 2.5 % of the figure's side
+  (under a point), each at its own slow pace of two to four seconds a cycle. It stirs; it
+  does not dance. This is all the motion a working pet has.
+- Needs input: it hops by 8 % of its side, twice, together with the status mark's knocks,
+  then rests.
+- Finished it stands still at full strength; running it is at 70 %, idle at 45 %.
+- With Reduce Motion on it never moves.
+
+The pet is 34 pt in the Agents tab's rows and 22 pt in every collapsed agents face.
 
 ## 8. Jumping to a session
 

@@ -66,6 +66,12 @@ struct AgentProcessTests {
         #expect(AgentProcessMatcher.tool(for: process(1, node, ["node", "/Users/me/copilot/server.js"])) == nil)
         #expect(AgentProcessMatcher.tool(for: process(1, node, ["node", "server.js", "/opt/homebrew/bin/gemini"])) == nil)
         #expect(AgentProcessMatcher.tool(for: process(1, node, ["node"])) == nil)
+        // A package whose name merely begins like a tool's is another package.
+        #expect(
+            AgentProcessMatcher.tool(
+                for: process(1, node, ["node", "/usr/lib/node_modules/@github/copilot-language-server/dist/main.js"]))
+                == nil)
+        #expect(AgentProcessMatcher.tool(for: process(1, node, ["node", "/Users/me/opencode-ai-notes/build.js"])) == nil)
         #expect(AgentProcessMatcher.tool(for: process(1, "/usr/bin/python3", ["python3", "-m", "http.server"])) == nil)
         #expect(AgentProcessMatcher.tool(for: process(1, "/opt/homebrew/bin/gemini-helper")) == nil)
         #expect(AgentProcessMatcher.tool(for: process(1, "/bin/zsh", ["zsh", "-c", "gemini"])) == nil)

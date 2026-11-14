@@ -13,7 +13,7 @@ enum DebugRender {
         let directory = URL(fileURLWithPath: path, isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         write(StatusMarkGallery(), size: CGSize(width: 560, height: 150), named: "status-marks", to: directory)
-        write(PetGallery(), size: CGSize(width: 700, height: 300), named: "pets", to: directory)
+        write(PetGallery(), size: CGSize(width: 760, height: 360), named: "pets", to: directory)
         exit(0)
     }
 
@@ -68,37 +68,41 @@ private struct StatusMarkGallery: View {
 
 /// Every pet: large, at the size of a row, at the size of a wing, and in each state.
 private struct PetGallery: View {
+    private func caption(_ text: String) -> some View {
+        Text(text).font(.system(size: 9)).foregroundStyle(.white.opacity(0.6))
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 18) {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 14) {
                 ForEach(AgentTool.allCases, id: \.self) { tool in
-                    VStack(spacing: 8) {
-                        AgentPet(tool: tool, size: 60, frozenAt: 0)
+                    VStack(spacing: 10) {
+                        AgentPet(tool: tool, size: 76, frozenAt: 0)
                         HStack(spacing: 8) {
-                            AgentPet(tool: tool, size: 30, frozenAt: 0)
-                            AgentPet(tool: tool, size: 18, frozenAt: 0)
+                            AgentPet(tool: tool, size: 34, frozenAt: 0)
+                            AgentPet(tool: tool, size: 22, frozenAt: 0)
                         }
-                        Text(tool.displayName).font(.system(size: 9)).foregroundStyle(.white.opacity(0.6))
+                        caption(tool.displayName)
                     }
-                    .frame(width: 76)
+                    .frame(width: 86)
                 }
             }
             HStack(spacing: 18) {
-                Text("working").font(.system(size: 9)).foregroundStyle(.white.opacity(0.6)).frame(width: 44)
-                ForEach([0.0, 0.4, 0.8], id: \.self) { time in
-                    AgentPet(tool: .claudeCode, state: .working, size: 40, frozenAt: time)
-                    AgentPet(tool: .codex, state: .working, size: 40, frozenAt: time)
+                caption("working").frame(width: 44)
+                ForEach([0.0, 0.7, 1.4], id: \.self) { time in
+                    AgentPet(tool: .claudeCode, state: .working, size: 48, frozenAt: time)
+                    AgentPet(tool: .codex, state: .working, size: 48, frozenAt: time)
                 }
             }
             HStack(spacing: 18) {
-                Text("states").font(.system(size: 9)).foregroundStyle(.white.opacity(0.6)).frame(width: 44)
-                AgentPet(tool: .claudeCode, state: .needsInput(prompt: nil), size: 40, frozenAt: 0.15)
-                AgentPet(tool: .claudeCode, state: .finished, size: 40, frozenAt: 0)
-                AgentPet(tool: .claudeCode, state: .running, size: 40, frozenAt: 0)
-                AgentPet(tool: .claudeCode, state: .idle, size: 40, frozenAt: 0)
+                caption("states").frame(width: 44)
+                AgentPet(tool: .claudeCode, state: .needsInput(prompt: nil), size: 48, frozenAt: 0.15)
+                AgentPet(tool: .claudeCode, state: .finished, size: 48, frozenAt: 0)
+                AgentPet(tool: .claudeCode, state: .running, size: 48, frozenAt: 0)
+                AgentPet(tool: .claudeCode, state: .idle, size: 48, frozenAt: 0)
             }
         }
-        .padding(16)
+        .padding(18)
         .background(.black, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }

@@ -22,7 +22,8 @@ public enum ClaudeTranscriptPromptReader {
             for item in content {
                 switch item["type"] as? String {
                 case "tool_use":
-                    pending = question(in: item)
+                    // Another tool called alongside or after the question does not answer it.
+                    if let asked = question(in: item) { pending = asked }
                 case "tool_result":
                     if let id = item["tool_use_id"] as? String, id == pending?.id { pending = nil }
                 default:
