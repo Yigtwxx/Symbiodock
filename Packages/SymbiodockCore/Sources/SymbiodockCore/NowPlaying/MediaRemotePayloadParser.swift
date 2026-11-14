@@ -6,6 +6,8 @@ public enum MediaRemotePayloadParser {
         let payload: Payload
     }
 
+    /// Every field is optional and decoded leniently: a value of an unexpected type counts as
+    /// absent, so one odd field does not drop the whole update.
     private struct Payload: Decodable {
         let title: String?
         let artist: String?
@@ -17,6 +19,33 @@ public enum MediaRemotePayloadParser {
         let bundleIdentifier: String?
         let parentApplicationBundleIdentifier: String?
         let artworkData: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case title, artist, album, duration, elapsedTime, timestamp, playing
+            case bundleIdentifier, parentApplicationBundleIdentifier, artworkData
+        }
+
+        init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            title = try? c.decodeIfPresent(String.self, forKey: .title)
+            artist = try? c.decodeIfPresent(String.self, forKey: .artist)
+            album = try? c.decodeIfPresent(String.self, forKey: .album)
+            duration = try? c.decodeIfPresent(Double.self, forKey: .duration)
+            elapsedTime = try? c.decodeIfPresent(Double.self, forKey: .elapsedTime)
+            timestamp = try? c.decodeIfPresent(String.self, forKey: .timestamp)
+            bundleIdentifier = try? c.decodeIfPresent(String.self, forKey: .bundleIdentifier)
+            parentApplicationBundleIdentifier =
+                try? c.decodeIfPresent(String.self, forKey: .parentApplicationBundleIdentifier)
+            artworkData = try? c.decodeIfPresent(String.self, forKey: .artworkData)
+            if let flag = try? c.decodeIfPresent(Bool.self, forKey: .playing) {
+                playing = flag
+            } else if let number = try? c.decodeIfPresent(Int.self, forKey: .playing),
+                      number == 0 || number == 1 {
+                playing = number == 1
+            } else {
+                playing = nil
+            }
+        }
     }
 
     /// Convenience for text input; forwards to the `Data` entry point.

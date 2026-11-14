@@ -27,7 +27,10 @@ public enum AnchorCodec {
         if case .edge(let edge, let fraction) = anchor, !fraction.isFinite {
             anchor = .edge(edge, fraction: 0.5)
         }
-        return (try? JSONEncoder().encode(anchor)) ?? Data()
+        // Sorted keys: dictionary order is random per process and would change the bytes.
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return (try? encoder.encode(anchor)) ?? Data()
     }
 
     /// Anything that cannot be decoded is `.notch`; an edge fraction is clamped to 0...1.
