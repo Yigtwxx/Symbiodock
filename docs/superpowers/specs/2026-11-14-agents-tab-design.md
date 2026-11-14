@@ -309,13 +309,13 @@ state uses.
 
 | Tool | Colour | Pet |
 |---|---|---|
-| Claude Code | `#E99A6E` → `#D97757` → `#B9553A` | A plump creature on two small feet: one big round body with five soft bumps, so its outline is a rounded star, and two small upright eyes |
-| Codex | `#4F9CF9` → `#8B5CF6` | A plump cloud of round lobes, blue at its left and violet at its right, with a prompt glowing on its front: `>` and `_` |
-| Gemini CLI | `#4E8CFF` → `#9D7BFF` → `#F08AA8` | A four-pointed star, faceted like a cut stone, and a small one far behind it |
-| Cursor Agent | `#F4F4F7` → `#B4B4C0` | A cube seen from a corner; the light gives each of its three faces its own tone |
-| OpenCode | `#F8E9C0` → `#DDAF63` | A terminal window with a sunken screen and a prompt, `>` and `_`, and a second window behind it |
-| Aider | `#D6F45C` → `#78D23A` | The letter A made of three tubes: the left stroke nearest, the right one farthest |
-| Copilot CLI | `#A78BFA` → `#F27FC0` | A round helmeted head: two goggles with sunken glass, two eyes below them, an ear on each side |
+| Claude Code | `#F5965F` → `#EB7046` → `#CD4E30` | A plump creature on two small feet: one big round body with five soft bumps, so its outline is a rounded star, and two small upright eyes |
+| Codex | `#4096FF` → `#8C52FF` | A plump cloud of round lobes, blue at its left and violet at its right, with a prompt glowing on its front: `>` and `_` |
+| Gemini CLI | `#3C87FF` → `#9669FF` → `#FF78A5` | A four-pointed star, faceted like a cut stone, and a small one far behind it |
+| Cursor Agent | `#FAFAFC` → `#BEBECC` | A cube seen from a corner; the light gives each of its three faces its own tone |
+| OpenCode | `#FFE8AA` → `#F0AF4B` | A terminal window with a sunken screen and a prompt, `>` and `_`, and a second window behind it |
+| Aider | `#D2FA46` → `#64DC28` | The letter A made of three tubes: the left stroke nearest, the right one farthest |
+| Copilot CLI | `#A078FF` → `#FF69BE` | A round helmeted head: two goggles with sunken glass, two eyes below them, an ear on each side |
 
 The reliefs and their lighting are in the core package (`AgentPetReliefs`,
 `AgentPetFigure`), so every tool is guaranteed a figure and its properties are tested. No

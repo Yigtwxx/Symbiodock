@@ -13,13 +13,13 @@ enum AgentPalette {
     /// red, green and blue from 0 to 255. None of them is the alert red or the finished mint.
     private static func run(for tool: AgentTool) -> [(Double, Double, Double)] {
         switch tool {
-        case .claudeCode: [(233, 154, 110), (217, 119, 87), (185, 85, 58)]  // #E99A6E #D97757 #B9553A
-        case .codex: [(79, 156, 249), (139, 92, 246)]  // #4F9CF9 #8B5CF6
-        case .geminiCLI: [(78, 140, 255), (157, 123, 255), (240, 138, 168)]  // #4E8CFF #9D7BFF #F08AA8
-        case .cursorAgent: [(244, 244, 247), (180, 180, 192)]  // #F4F4F7 #B4B4C0
-        case .openCode: [(248, 233, 192), (221, 175, 99)]  // #F8E9C0 #DDAF63
-        case .aider: [(214, 244, 92), (120, 210, 58)]  // #D6F45C #78D23A
-        case .copilotCLI: [(167, 139, 250), (242, 127, 192)]  // #A78BFA #F27FC0
+        case .claudeCode: [(245, 150, 95), (235, 112, 70), (205, 78, 48)]  // #F5965F #EB7046 #CD4E30
+        case .codex: [(64, 150, 255), (140, 82, 255)]  // #4096FF #8C52FF
+        case .geminiCLI: [(60, 135, 255), (150, 105, 255), (255, 120, 165)]  // #3C87FF #9669FF #FF78A5
+        case .cursorAgent: [(250, 250, 252), (190, 190, 204)]  // #FAFAFC #BEBECC
+        case .openCode: [(255, 232, 170), (240, 175, 75)]  // #FFE8AA #F0AF4B
+        case .aider: [(210, 250, 70), (100, 220, 40)]  // #D2FA46 #64DC28
+        case .copilotCLI: [(160, 120, 255), (255, 105, 190)]  // #A078FF #FF69BE
         }
     }
 
