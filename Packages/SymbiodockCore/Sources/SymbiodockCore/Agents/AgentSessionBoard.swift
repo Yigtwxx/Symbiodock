@@ -97,6 +97,13 @@ public struct AgentSessionBoard: Equatable, Sendable {
         }
     }
 
+    /// The session behind `attention`: the first that needs input, else the first that has
+    /// finished. It can lie behind a working row, which `lead` would show instead.
+    public var attentionRow: AgentRow? {
+        rows.first { if case .needsInput = $0.state { true } else { false } }
+            ?? rows.first { $0.state == .finished }
+    }
+
     /// Whether the collapsed island has something to show for the agents.
     public var hasFace: Bool { lead != nil }
 

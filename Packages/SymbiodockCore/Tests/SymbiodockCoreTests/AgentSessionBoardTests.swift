@@ -105,6 +105,32 @@ struct AgentSessionBoardTests {
         #expect(board.rows.map(\.state) == [.working])
     }
 
+    @Test func needsInputWinsOverFinishedAsTheAttentionRow() {
+        var board = AgentSessionBoard()
+        board.update([session("done", .working), session("ask", .working, since: 5)])
+        board.update([session("done", .idle), session("ask", .needsInput(prompt: nil), since: 5)])
+        #expect(board.rows.map(\.state) == [.needsInput(prompt: nil), .finished])
+        #expect(board.attentionRow?.id == "ask")
+    }
+
+    @Test func aFinishedRowIsFoundBehindAWorkingOne() {
+        var board = AgentSessionBoard()
+        board.update([session("done", .working), session("busy", .working, since: 5)])
+        board.update([session("done", .idle), session("busy", .working, since: 5)])
+        #expect(board.lead?.id == "busy")
+        #expect(board.attention == .finished)
+        #expect(board.attentionRow?.id == "done")
+        #expect(board.attentionRow?.state == .finished)
+    }
+
+    @Test func noAttentionRowWhenNothingWantsAttention() {
+        var board = AgentSessionBoard()
+        #expect(board.attentionRow == nil)
+        board.update([session("busy", .working), session("open", .running), session("idle", .idle)])
+        #expect(board.attention == .none)
+        #expect(board.attentionRow == nil)
+    }
+
     @Test func equalInputsGiveEqualBoards() {
         var first = AgentSessionBoard()
         var second = AgentSessionBoard()

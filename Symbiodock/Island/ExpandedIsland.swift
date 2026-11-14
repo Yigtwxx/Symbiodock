@@ -47,7 +47,7 @@ struct ExpandedIsland: View {
             ) { tab in
                 state.selectTab(tab)
             }
-            .padding(.leading, 12)
+            .padding(.leading, 14)
             .frame(width: metrics.leading, alignment: .leading)
 
             Color.clear.frame(width: metrics.gap)

@@ -16,7 +16,8 @@ struct AgentNotchFace: View {
             AgentStatusMark(state: row.state)
                 .frame(maxWidth: .infinity)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(AgentFaceLabel.text(for: row))
     }
 }
 
@@ -46,7 +47,8 @@ struct AgentFloatingFace: View {
             }
         }
         .padding(.horizontal, row == nil ? 14 : 10)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(AgentFaceLabel.text(for: row))
     }
 }
 
@@ -72,6 +74,22 @@ struct AgentSideFace: View {
         }
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(AgentFaceLabel.text(for: row))
+    }
+}
+
+/// What VoiceOver says for a face: the tool, the session and its state.
+private enum AgentFaceLabel {
+    static func text(for row: AgentRow?) -> String {
+        guard let row else { return "No agents running" }
+        let state: String = switch row.state {
+        case .needsInput: "Needs input"
+        case .working: "Working"
+        case .finished: "Finished"
+        case .running: "Running"
+        case .idle: "Idle"
+        }
+        return "\(row.session.tool.displayName), \(row.session.title), \(state)"
     }
 }

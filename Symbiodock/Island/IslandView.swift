@@ -81,7 +81,7 @@ struct IslandView: View {
     private func collapsedFace(atNotch: Bool) -> some View {
         let lead = state.board.lead
         // On the media face an agent that wants attention still gets its mark.
-        let attention = state.board.attention == .none ? nil : lead?.state
+        let attention = state.board.attentionRow?.state
         // A docked island never hides: with no face it shows the paused track if there is
         // one, otherwise the first tab's idle text.
         let agentsSpeak = state.face == .agents

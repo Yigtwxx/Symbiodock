@@ -37,6 +37,8 @@ Spec: `docs/superpowers/specs/2026-11-14-agents-tab-design.md`.
 | `Symbiodock/Island/Agents/AgentsContent.swift` | The Agents tab: rows, empty state |
 | `Symbiodock/Island/Agents/AgentFaces.swift` | Collapsed faces for the notch, the capsule and the strip |
 | `Symbiodock/Island/RimLight.swift` | The light along the collapsed island's rim |
+| `Symbiodock/Island/FrameSchedule.swift` | How often animated views redraw (see the last section) |
+| `Symbiodock/Island/LayerAnimation.swift` | Spinner and breath played by Core Animation (see the last section) |
 | `Symbiodock/Island/TabStrip.swift` | The tab buttons |
 | `Symbiodock/Island/ExpandedIsland.swift` | Header band plus the selected tab's content |
 | `Symbiodock/Window/TabOrderStore.swift` | Tab order in `UserDefaults` |
@@ -147,6 +149,11 @@ struct AgentStatusMark: View {
     /// When the mark last became finished: one ring goes outward from then.
     @State private var finishedAt: Date?
 
+    /// The knocks and the ring are short; this is plenty for them. The working spinner is
+    /// not drawn frame by frame at all: Core Animation turns it (`SpinningArc`).
+    private static let frameInterval = 1.0 / 20.0
+    /// The knocks and their rings are over this long into each beat; the mark rests after.
+    private static let knockWindow: TimeInterval = 1.25
     private static let stroke: CGFloat = 1.75
     private static let turnPeriod: TimeInterval = 1.1
     private static let knockPeriod: TimeInterval = 2.4
@@ -158,7 +165,7 @@ struct AgentStatusMark: View {
             if let frozenAt {
                 mark(time: frozenAt, burst: nil, moving: true)
             } else {
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !moves)) { context in
+                TimelineView(schedule) { context in
                     mark(
                         time: context.date.timeIntervalSinceReferenceDate,
                         burst: finishedAt.map { context.date.timeIntervalSince($0) },
@@ -194,6 +201,25 @@ struct AgentStatusMark: View {
         !reduceMotion && (state == .working || isNeedsInput || finishedAt != nil)
     }
 
+    /// Whether Core Animation is turning the arc.
+    private var spins: Bool {
+        !reduceMotion && state == .working && frozenAt == nil
+    }
+
+    /// When the mark has to be redrawn: while it knocks, and while the finished ring goes
+    /// out. The turning arc needs no redraws.
+    private var schedule: FrameSchedule {
+        if isNeedsInput, !reduceMotion {
+            return FrameSchedule(
+                interval: Self.frameInterval,
+                pulse: .init(
+                    anchor: Date(timeIntervalSinceReferenceDate: 0), period: Self.knockPeriod,
+                    length: Self.knockWindow))
+        }
+        return FrameSchedule(
+            interval: Self.frameInterval, paused: reduceMotion || finishedAt == nil)
+    }
+
     private var color: Color {
         switch state {
         case .working: .white.opacity(0.9)
@@ -220,6 +246,11 @@ struct AgentStatusMark: View {
                 .trim(from: 0, to: state == .working ? 0.75 : 1)
                 .stroke(color, style: StrokeStyle(lineWidth: Self.stroke, lineCap: .round))
                 .rotationEffect(.degrees(turn - 90))
+                .opacity(spins ? 0 : 1)
+            if spins {
+                SpinningArc(color: color, lineWidth: Self.stroke, period: Self.turnPeriod)
+                    .transition(.opacity)
+            }
             Circle()
                 .fill(color)
                 .frame(width: size * 0.29, height: size * 0.29)
@@ -300,15 +331,21 @@ struct AgentPet: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// The stir is slow; it needs no more frames than this.
-    private static let frameInterval = 1.0 / 20.0
+    /// Redrawing more often than every 0.35 s keeps the whole island's update cycle awake,
+    /// which costs about 5 % of a core (see `FrameSchedule`). A pet of the collapsed island
+    /// (24 pt) stirs by under a point, a step of under a point at this rate; larger pets
+    /// only show while the island is open and can afford more.
+    private var stirInterval: TimeInterval { size <= 30 ? 0.4 : 1.0 / 12.0 }
+    /// A hop lasts 0.3 s; two of them start every beat.
+    private static let hopFrameInterval = 1.0 / 20.0
+    private static let hopWindow = 2 * AgentPetMotion.hopLength + 0.05
 
     var body: some View {
         Group {
             if let frozenAt {
                 figure(time: frozenAt, moving: true)
             } else {
-                TimelineView(.animation(minimumInterval: Self.frameInterval, paused: !moves)) { context in
+                TimelineView(schedule) { context in
                     figure(time: context.date.timeIntervalSinceReferenceDate, moving: moves)
                 }
             }
@@ -320,6 +357,19 @@ struct AgentPet: View {
 
     private var isNeedsInput: Bool {
         if case .needsInput = state { true } else { false }
+    }
+
+    /// When the pet has to be redrawn: always at the stir's pace while it works; only
+    /// during the hops while it needs input.
+    private var schedule: FrameSchedule {
+        if isNeedsInput, moves {
+            return FrameSchedule(
+                interval: Self.hopFrameInterval,
+                pulse: .init(
+                    anchor: Date(timeIntervalSinceReferenceDate: 0), period: AgentPetMotion.hopPeriod,
+                    length: Self.hopWindow))
+        }
+        return FrameSchedule(interval: stirInterval, paused: !moves)
     }
 
     private var moves: Bool {
@@ -336,8 +386,9 @@ struct AgentPet: View {
     }
 
     private func figure(time: TimeInterval, moving: Bool) -> some View {
-        let lines = AgentPetArt.lines(for: tool, strength: strength)
-        let grounds = AgentPetArt.grounds(for: tool, strength: strength)
+        let art = AgentPetArt.art(for: tool, strength: strength)
+        let lines = art.lines
+        let grounds = art.grounds
         let stirs = moving && state == .working
         let hop = moving && isNeedsInput ? AgentPetMotion.hop(at: time) : 0
         return Canvas { context, canvas in
@@ -386,24 +437,36 @@ private enum AgentPetArt {
         let strength: Int
     }
 
-    private static var cache: [Key: [[Stretch]]] = [:]
+    /// Everything about a pet that does not depend on time.
+    struct Art {
+        let lines: [[Stretch]]
+        let grounds: [Color]
+    }
+
+    private static var cache: [Key: Art] = [:]
 
     /// Where a line stands across the pet, from 0 at the left to 1 at the right.
     private static func position(ofLine index: Int) -> Double {
         Double(index) / Double(max(AgentPetFigure.lineCount - 1, 1))
     }
 
+    static func art(for tool: AgentTool, strength: Double) -> Art {
+        let key = Key(tool: tool, strength: Int((strength * 100).rounded()))
+        if let known = cache[key] { return known }
+        let art = Art(lines: lines(for: tool, strength: strength), grounds: grounds(for: tool, strength: strength))
+        cache[key] = art
+        return art
+    }
+
     /// The colour of each line where there is no figure.
-    static func grounds(for tool: AgentTool, strength: Double) -> [Color] {
+    private static func grounds(for tool: AgentTool, strength: Double) -> [Color] {
         (0..<AgentPetFigure.lineCount).map {
             AgentPalette.tint(
                 for: tool, strength: strength * AgentPetFigure.groundStrength, across: position(ofLine: $0))
         }
     }
 
-    static func lines(for tool: AgentTool, strength: Double) -> [[Stretch]] {
-        let key = Key(tool: tool, strength: Int((strength * 100).rounded()))
-        if let known = cache[key] { return known }
+    private static func lines(for tool: AgentTool, strength: Double) -> [[Stretch]] {
         let figure = AgentPetFigure.figure(for: tool)
         let lines = figure.lines.indices.map { index in
             figure.stretches(ofLine: index).map { stretch in
@@ -419,7 +482,6 @@ private enum AgentPetArt {
                 return Stretch(top: stretch.top, bottom: stretch.bottom, gradient: Gradient(stops: stops))
             }
         }
-        cache[key] = lines
         return lines
     }
 }
@@ -786,9 +848,22 @@ struct TabStrip: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(tab.title)
+                .accessibilityValue(pipText(for: tab))
                 .accessibilityAddTraits(tab == selected ? .isSelected : [])
             }
         }
+    }
+
+    /// Whether the pip is showing on this tab's glyph: the agents want attention while
+    /// another tab is looked at.
+    private func showsPip(_ tab: IslandTab) -> Bool {
+        tab == .agents && selected != .agents && attention != .none
+    }
+
+    /// What the pip says, for VoiceOver; empty while there is no pip.
+    private func pipText(for tab: IslandTab) -> String {
+        guard showsPip(tab) else { return "" }
+        return attention == .needsInput ? "Needs input" : "Finished"
     }
 
     private func glyph(_ tab: IslandTab) -> some View {
@@ -797,7 +872,7 @@ struct TabStrip: View {
                 .font(.system(size: 11, weight: .semibold))
                 .overlay(alignment: .topTrailing) {
                     // The agents want attention while another tab is looked at.
-                    if tab == .agents, selected != .agents, attention != .none {
+                    if showsPip(tab) {
                         Circle()
                             .fill(attention == .needsInput ? AgentPalette.alert : AgentPalette.mint)
                             .frame(width: 5, height: 5)
@@ -1063,7 +1138,7 @@ struct ExpandedIsland: View {
             ) { tab in
                 state.selectTab(tab)
             }
-            .padding(.leading, 12)
+            .padding(.leading, 14)
             .frame(width: metrics.leading, alignment: .leading)
 
             Color.clear.frame(width: metrics.gap)
@@ -1482,7 +1557,8 @@ struct AgentNotchFace: View {
             AgentStatusMark(state: row.state)
                 .frame(maxWidth: .infinity)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(AgentFaceLabel.text(for: row))
     }
 }
 
@@ -1512,7 +1588,8 @@ struct AgentFloatingFace: View {
             }
         }
         .padding(.horizontal, row == nil ? 14 : 10)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(AgentFaceLabel.text(for: row))
     }
 }
 
@@ -1538,7 +1615,23 @@ struct AgentSideFace: View {
         }
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(AgentFaceLabel.text(for: row))
+    }
+}
+
+/// What VoiceOver says for a face: the tool, the session and its state.
+private enum AgentFaceLabel {
+    static func text(for row: AgentRow?) -> String {
+        guard let row else { return "No agents running" }
+        let state: String = switch row.state {
+        case .needsInput: "Needs input"
+        case .working: "Working"
+        case .finished: "Finished"
+        case .running: "Running"
+        case .idle: "Idle"
+        }
+        return "\(row.session.tool.displayName), \(row.session.title), \(state)"
     }
 }
 ```
@@ -1573,6 +1666,8 @@ struct RimLight: View {
     private static let breathPeriod: TimeInterval = 1.8
     private static let passPeriod: TimeInterval = 3.6
     private static let passLength: TimeInterval = 0.9
+    /// The highlight crosses the island in under a second and needs more while it does.
+    private static let passInterval: TimeInterval = 1.0 / 30.0
 
     var body: some View {
         Group {
@@ -1580,8 +1675,21 @@ struct RimLight: View {
                 EmptyView()
             } else if let frozenAt {
                 light(elapsed: frozenAt, moving: true)
+            } else if breathes {
+                // The breath never rests, so Core Animation plays it; the highlight crosses
+                // the rim in under a second and is redrawn only while it does.
+                ZStack {
+                    Breathing(dimmest: Float(Self.dimmestLevel / Self.brightestLevel), period: Self.breathPeriod) {
+                        glow(color: AgentPalette.alert, level: Self.brightestLevel)
+                    }
+                    TimelineView(passSchedule) { context in
+                        highlightLayer(
+                            pass: Self.pass(
+                                elapsed: context.date.timeIntervalSince(appeared), repeating: true))
+                    }
+                }
             } else {
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !moves)) { context in
+                TimelineView(FrameSchedule(interval: Self.passInterval, paused: !moves)) { context in
                     light(elapsed: context.date.timeIntervalSince(appeared), moving: moves)
                 }
             }
@@ -1590,6 +1698,19 @@ struct RimLight: View {
         .accessibilityHidden(true)
         .onAppear { restart() }
         .onChange(of: attention) { restart() }
+    }
+
+    private static let dimmestLevel = 0.35
+    private static let brightestLevel = 0.9
+
+    /// Whether the needs-input light is breathing.
+    private var breathes: Bool { attention == .needsInput && !reduceMotion }
+
+    /// The highlight's passes, one every `passPeriod`.
+    private var passSchedule: FrameSchedule {
+        FrameSchedule(
+            interval: Self.passInterval,
+            pulse: .init(anchor: appeared, period: Self.passPeriod, length: Self.passLength + 0.05))
     }
 
     private var moves: Bool {
@@ -1614,6 +1735,13 @@ struct RimLight: View {
             style: .continuous)
     }
 
+    /// How far the highlight has crossed, 0...1; nil while it is not on its way.
+    private static func pass(elapsed: TimeInterval, repeating: Bool) -> Double? {
+        let beat = repeating ? elapsed.truncatingRemainder(dividingBy: passPeriod) : elapsed
+        return beat >= 0 && beat < passLength ? beat / passLength : nil
+    }
+
+    /// The whole light at one moment: the glow, and the highlight if it is on its way.
     private func light(elapsed: TimeInterval, moving: Bool) -> some View {
         let color = attention == .needsInput ? AgentPalette.alert : AgentPalette.mint
         let level: Double
@@ -1621,22 +1749,47 @@ struct RimLight: View {
         switch attention {
         case .needsInput:
             // Breathes between 35 % and 90 %.
-            level = moving ? 0.625 + 0.275 * sin(2 * .pi * elapsed / Self.breathPeriod) : 0.8
-            let beat = elapsed.truncatingRemainder(dividingBy: Self.passPeriod)
-            pass = moving && beat < Self.passLength ? beat / Self.passLength : nil
+            level = moving
+                ? 0.625 + 0.275 * sin(2 * .pi * elapsed / Self.breathPeriod) : 0.8
+            pass = moving ? Self.pass(elapsed: elapsed, repeating: true) : nil
         case .finished, .none:
             level = 0.5
-            pass = moving && elapsed < Self.passLength ? elapsed / Self.passLength : nil
+            pass = moving ? Self.pass(elapsed: elapsed, repeating: false) : nil
         }
         return ZStack {
-            outline.strokeBorder(color.opacity(level * 0.7), lineWidth: 3).blur(radius: 3)
+            glow(color: color, level: level)
+            highlightLayer(pass: pass)
+        }
+    }
+
+    /// A glow without a blur: wider strokes under the line, each fainter, which add up to
+    /// a soft falloff. Only the first reaches no further in than the edges that are cut.
+    private func glow(color: Color, level: Double) -> some View {
+        ZStack {
+            outline.strokeBorder(color.opacity(level * 0.10), lineWidth: 7)
+            outline.strokeBorder(color.opacity(level * 0.16), lineWidth: 5)
+            outline.strokeBorder(color.opacity(level * 0.30), lineWidth: 3)
             outline.strokeBorder(color.opacity(level), lineWidth: 1.5)
-            if let pass {
-                outline.strokeBorder(.white.opacity(0.85), lineWidth: 1.5)
-                    .mask { band(at: pass) }
-            }
         }
         .mask { Rectangle().padding(edgeInsets) }
+    }
+
+    @ViewBuilder
+    private func highlightLayer(pass: Double?) -> some View {
+        if let pass {
+            outline.strokeBorder(highlight, lineWidth: 1.5)
+                .mask { band(at: pass) }
+                .mask { Rectangle().padding(edgeInsets) }
+        }
+    }
+
+    /// `AgentPalette.mint` a third of the way to white.
+    private static let brightMint = Color(red: 154.0 / 255.0, green: 239.0 / 255.0, blue: 200.0 / 255.0)
+
+    /// The travelling highlight: nearly white when input is needed, a brightened mint when
+    /// the session has finished.
+    private var highlight: Color {
+        attention == .needsInput ? .white.opacity(0.85) : Self.brightMint
     }
 
     /// Hides the stroke on the edges that touch the screen: a notch has no line there.
@@ -1704,7 +1857,7 @@ In `Symbiodock/Island/IslandView.swift`:
     private func collapsedFace(atNotch: Bool) -> some View {
         let lead = state.board.lead
         // On the media face an agent that wants attention still gets its mark.
-        let attention = state.board.attention == .none ? nil : lead?.state
+        let attention = state.board.attentionRow?.state
         // A docked island never hides: with no face it shows the paused track if there is
         // one, otherwise the first tab's idle text.
         let agentsSpeak = state.face == .agents
@@ -1915,6 +2068,7 @@ git push origin main
 `Symbiodock/Agents/FileReading.swift`:
 
 ```swift
+import Darwin
 import Foundation
 
 /// A file's size and modification time: enough to tell whether it has to be read again.
@@ -1925,13 +2079,14 @@ struct FileStamp: Equatable, Sendable {
 
 /// Reads of other tools' files. Every read is bounded and read-only; a failure is nil.
 enum FileReading {
+    /// A plain `stat`: `FileManager.attributesOfItem` also reads extended attributes,
+    /// which made it the most expensive part of a scan.
     static func stamp(of url: URL) -> FileStamp? {
-        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-              attributes[.type] as? FileAttributeType == .typeRegular,
-              let size = (attributes[.size] as? NSNumber)?.intValue,
-              let modified = attributes[.modificationDate] as? Date
-        else { return nil }
-        return FileStamp(size: size, modified: modified)
+        var info = stat()
+        guard stat(url.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return nil }
+        let seconds = TimeInterval(info.st_mtimespec.tv_sec)
+        let fraction = TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000
+        return FileStamp(size: Int(info.st_size), modified: Date(timeIntervalSince1970: seconds + fraction))
     }
 
     /// The whole file, or nil if it is larger than `maxBytes`.
@@ -1942,19 +2097,34 @@ enum FileReading {
 
     /// At most the first `maxBytes` bytes.
     static func head(of url: URL, maxBytes: Int) -> Data? {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        guard maxBytes > 0, let handle = openRegularFile(url) else { return nil }
         defer { try? handle.close() }
         return try? handle.read(upToCount: maxBytes)
     }
 
     /// At most the last `maxBytes` bytes.
     static func tail(of url: URL, maxBytes: Int) -> Data? {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        guard maxBytes > 0, let handle = openRegularFile(url) else { return nil }
         defer { try? handle.close() }
         guard let end = try? handle.seekToEnd() else { return nil }
         let start = end > UInt64(maxBytes) ? end - UInt64(maxBytes) : 0
         guard (try? handle.seek(toOffset: start)) != nil else { return nil }
         return try? handle.read(upToCount: maxBytes)
+    }
+
+    /// Opens a file for reading only if it is a regular file. The check is made on the
+    /// open descriptor, so what was checked is what is read. A pipe or a device at the
+    /// path would block the scan; it is opened without waiting (`O_NONBLOCK` lets the
+    /// open of a pipe return at once) and then turned away.
+    private static func openRegularFile(_ url: URL) -> FileHandle? {
+        let descriptor = open(url.path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
+        guard descriptor >= 0 else { return nil }
+        var info = stat()
+        guard fstat(descriptor, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else {
+            close(descriptor)
+            return nil
+        }
+        return FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
     }
 }
 ```
@@ -1972,40 +2142,70 @@ import SymbiodockCore
 /// Every process is listed with its parent, because the way from a tool up to its terminal
 /// app passes through `login`, which belongs to root; the details (path, arguments,
 /// folder) are read only for the current user's own processes.
-enum ProcessScanner {
+///
+/// An actor, because the path of a process is asked for only once and remembered: the
+/// scan runs off the main actor, one scan at a time, and the memory belongs to it.
+actor ProcessScanner {
     private static let pathBufferSize = 4096
     /// No command line of an agent tool needs more than its first arguments.
     private static let maximumArguments = 16
 
-    static func snapshot() -> [ProcessSnapshot] {
+    /// A process is told apart from a later one that got its pid by the pair of both.
+    private struct Identity: Hashable {
+        let pid: pid_t
+        let seconds: Int
+        let microseconds: Int
+    }
+
+    /// Executable paths already read, for the processes still running.
+    private var paths: [Identity: String] = [:]
+
+    func snapshot() -> [ProcessSnapshot] {
         let uid = getuid()
         var processes: [ProcessSnapshot] = []
-        for entry in processTable() {
+        var seen: Set<Identity> = []
+        for entry in Self.processTable() {
             let pid = entry.kp_proc.p_pid
             guard pid > 0 else { continue }
             let isOwn = entry.kp_eproc.e_ucred.cr_uid == uid
             let device = entry.kp_eproc.e_tdev
             let started = entry.kp_proc.p_un.__p_starttime
+            let identity = Identity(
+                pid: pid, seconds: Int(started.tv_sec), microseconds: Int(started.tv_usec))
+            var path = ""
+            if isOwn {
+                seen.insert(identity)
+                if let known = paths[identity] {
+                    path = known
+                } else if let read = Self.executablePath(of: pid) {
+                    paths[identity] = read
+                    path = read
+                }
+            }
             processes.append(
                 ProcessSnapshot(
                     pid: pid,
                     parentPID: entry.kp_eproc.e_ppid,
-                    executablePath: isOwn ? executablePath(of: pid) ?? "" : "",
+                    executablePath: path,
                     startTime: Date(
                         timeIntervalSince1970: TimeInterval(started.tv_sec)
                             + TimeInterval(started.tv_usec) / 1_000_000),
                     // -1 is NODEV: no controlling terminal.
                     terminal: isOwn && device != -1 && device != 0 ? device : nil))
         }
+        // Forget the processes that are gone.
+        if paths.count > seen.count {
+            paths = paths.filter { seen.contains($0.key) }
+        }
 
         // The expensive parts only where they can matter.
         for index in processes.indices where !processes[index].executablePath.isEmpty {
             if processes[index].terminal != nil,
                AgentProcessMatcher.isInterpreter(processes[index].executablePath) {
-                processes[index].arguments = arguments(of: processes[index].pid)
+                processes[index].arguments = Self.arguments(of: processes[index].pid)
             }
             if AgentProcessMatcher.tool(for: processes[index]) != nil {
-                processes[index].workingDirectory = workingDirectory(of: processes[index].pid)
+                processes[index].workingDirectory = Self.workingDirectory(of: processes[index].pid)
             }
         }
         return processes
@@ -2014,14 +2214,21 @@ enum ProcessScanner {
     /// The kernel's process table, as `ps` reads it.
     private static func processTable() -> [kinfo_proc] {
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL]
-        var size = 0
-        guard sysctl(&mib, UInt32(mib.count), nil, &size, nil, 0) == 0, size > 0 else { return [] }
         let stride = MemoryLayout<kinfo_proc>.stride
-        // Room for processes that start between the two calls.
-        var table = [kinfo_proc](repeating: kinfo_proc(), count: size / stride + 32)
-        var used = table.count * stride
-        guard sysctl(&mib, UInt32(mib.count), &table, &used, nil, 0) == 0 else { return [] }
-        return Array(table.prefix(used / stride))
+        // If many processes start between asking for the size and asking for the table,
+        // the second call fails with ENOMEM. Ask again once, with more room, rather than
+        // report an empty list, which would make every session vanish for a scan.
+        for attempt in 0..<2 {
+            var size = 0
+            guard sysctl(&mib, UInt32(mib.count), nil, &size, nil, 0) == 0, size > 0 else { return [] }
+            // Room for processes that start between the two calls.
+            var table = [kinfo_proc](repeating: kinfo_proc(), count: size / stride + 32 + attempt * 256)
+            var used = table.count * stride
+            if sysctl(&mib, UInt32(mib.count), &table, &used, nil, 0) == 0 {
+                return Array(table.prefix(used / stride))
+            }
+        }
+        return []
     }
 
     private static func executablePath(of pid: pid_t) -> String? {
@@ -2082,17 +2289,34 @@ import SymbiodockCore
 
 /// Claude Code keeps one small JSON file per running session in `~/.claude/sessions`,
 /// with its name, folder and whether it is busy, idle or waiting for the user.
-struct ClaudeCodeProvider: AgentSessionProvider {
-    let tool = AgentTool.claudeCode
+actor ClaudeCodeProvider: AgentSessionProvider {
+    nonisolated let tool = AgentTool.claudeCode
     /// `~/.claude`
-    let home: URL
+    private let home: URL
+
+    /// What was read from a waiting session's transcript, until the file changes.
+    private struct Asked {
+        let stamp: FileStamp
+        let question: String?
+    }
+
+    private var asked: [String: Asked] = [:]
+
+    init(home: URL) {
+        self.home = home
+    }
 
     func sessions(in context: AgentScanContext) async -> [AgentSession] {
         let directory = home.appendingPathComponent("sessions", isDirectory: true)
         guard let files = try? FileManager.default.contentsOfDirectory(
             at: directory, includingPropertiesForKeys: nil)
-        else { return [] }
+        else {
+            asked.removeAll()
+            return []
+        }
 
+        var stillAsking: [String: Asked] = [:]
+        defer { asked = stillAsking }
         return files.compactMap { url in
             guard url.pathExtension == "json",
                   let stamp = FileReading.stamp(of: url),
@@ -2102,24 +2326,35 @@ struct ClaudeCodeProvider: AgentSessionProvider {
             else { return nil }
             return ClaudeSessionParser.session(
                 from: record,
-                prompt: record.status == "waiting" ? question(of: record) : nil,
+                prompt: record.status == "waiting" ? question(of: record, remembering: &stillAsking) : nil,
                 fallbackSince: stamp.modified)
         }
     }
 
-    /// The question the session is waiting on, if its transcript shows one.
-    private func question(of record: ClaudeSessionRecord) -> String? {
+    /// The question the session is waiting on, if its transcript shows one. The transcript
+    /// is read again only when its size or modification time changed; `remembering`
+    /// collects what is still in use, so that the questions of sessions that are gone are
+    /// forgotten.
+    private func question(
+        of record: ClaudeSessionRecord, remembering kept: inout [String: Asked]
+    ) -> String? {
         guard let cwd = record.cwd, let sessionID = record.sessionID,
-              let path = ClaudeSessionParser.transcriptRelativePath(cwd: cwd, sessionID: sessionID),
-              let tail = FileReading.tail(
-                  of: home.appendingPathComponent(path),
-                  maxBytes: ClaudeTranscriptPromptReader.tailSize)
+              let path = ClaudeSessionParser.transcriptRelativePath(cwd: cwd, sessionID: sessionID)
         else { return nil }
-        return ClaudeTranscriptPromptReader.pendingQuestion(inTail: tail)
+        let url = home.appendingPathComponent(path)
+        guard let stamp = FileReading.stamp(of: url) else { return nil }
+        if let known = asked[path], known.stamp == stamp {
+            kept[path] = known
+            return known.question
+        }
+        let question = FileReading.tail(of: url, maxBytes: ClaudeTranscriptPromptReader.tailSize)
+            .flatMap(ClaudeTranscriptPromptReader.pendingQuestion(inTail:))
+        kept[path] = Asked(stamp: stamp, question: question)
+        return question
     }
 
     /// A session file can outlive a process that was killed.
-    private static func isAlive(_ pid: Int32) -> Bool {
+    private nonisolated static func isAlive(_ pid: Int32) -> Bool {
         kill(pid, 0) == 0 || errno == EPERM
     }
 }
@@ -2181,11 +2416,12 @@ final class AgentSessionCoordinator {
     func start() {
         guard task == nil else { return }
         let providers = providers
+        let scanner = ProcessScanner()
         task = Task { [weak self] in
             var lastCount = -1
             while !Task.isCancelled {
                 // One scan at a time: the next starts only after this one has ended.
-                let sessions = await Self.scan(providers)
+                let sessions = await Self.scan(providers, with: scanner)
                 guard !Task.isCancelled, let self else { return }
                 self.onUpdate(sessions)
                 if sessions.count != lastCount {
@@ -2209,14 +2445,15 @@ final class AgentSessionCoordinator {
 
     /// Runs off the main actor: it reads files and the process list.
     nonisolated private static func scan(
-        _ providers: [any AgentSessionProvider]
+        _ providers: [any AgentSessionProvider], with scanner: ProcessScanner
     ) async -> [AgentSession] {
-        let context = AgentScanContext(now: Date(), processes: ProcessScanner.snapshot())
+        let processes = await scanner.snapshot()
+        let context = AgentScanContext(now: Date(), processes: processes)
         var sessions: [AgentSession] = []
         for provider in providers {
             sessions += await provider.sessions(in: context)
         }
-        return sessions
+        return sessions.map { HostApp.resolving($0, in: processes) }
     }
 }
 ```
@@ -2652,3 +2889,236 @@ To look at every state without running an agent: `pkill -x Symbiodock; open --en
 | 10 Off-screen renders, hand checklist | 1, 2, 3, this file |
 
 Spec section 6.3's research task per process-level tool is not a code task: it is done alongside, and its outcome is recorded in `CLAUDE.md`.
+
+## Animation cost (added after review)
+
+The island is always on screen, so animation must cost almost nothing. Measured: while a view redraws more often than about every 0.35 s, SwiftUI keeps the full-screen panel's update cycle running at the screen's rate, which costs about 5 % of a core whatever the view draws. Redrawing every 0.4 s or less often costs nothing measurable. So the pets stir at 2.5 frames a second (24 pt; the stir moves under a point), bursts such as hops, knocks and the rim's passing highlight redraw only while they last (`FrameSchedule` with a `Pulse`), and motion that must be smooth and never rests (the working spinner, the rim's breath) is played by Core Animation. Never replace these with `TimelineView(.animation)` without measuring again.
+
+`Symbiodock/Island/FrameSchedule.swift`:
+
+```swift
+import SwiftUI
+
+// How the island's animations are paced.
+//
+// Measured on the always-on island: while a view redraws more often than about every
+// 0.35 s, SwiftUI keeps the full-screen panel's update cycle running at the screen's rate,
+// and that alone costs about 5 % of a core, whatever the view draws (an empty `Canvas`
+// costs the same). Redrawing every 0.4 s or less often costs nothing measurable. So:
+// motion that is slow enough for a few frames a second uses `FrameSchedule`; short
+// motions that repeat with rests between use `FrameSchedule` with a `Pulse`, which draws
+// only while the motion lasts; and motion that has to be smooth and never rests is handed to Core
+// Animation (see `SpinningArc`, `Breathing`), which runs in the render server and costs
+// the app nothing.
+
+/// Draws a `TimelineView` from a timer, `interval` seconds apart. With a `pulse` it draws
+/// only while the motion lasts and once more at its end, so that the view comes to rest.
+struct FrameSchedule: TimelineSchedule {
+    /// A motion that repeats: it lasts `length` seconds at the start of every `period`,
+    /// counted from `anchor`.
+    struct Pulse {
+        let anchor: Date
+        let period: TimeInterval
+        let length: TimeInterval
+    }
+
+    let interval: TimeInterval
+    var pulse: Pulse?
+    /// A paused schedule gives one date and stops: the view is drawn once.
+    var paused = false
+
+    func entries(from startDate: Date, mode: Mode) -> Entries {
+        return Entries(schedule: self, upcoming: startDate)
+    }
+
+    struct Entries: Sequence, IteratorProtocol {
+        let schedule: FrameSchedule
+        var upcoming: Date
+        var started = false
+
+        mutating func next() -> Date? {
+            if started, schedule.paused { return nil }
+            started = true
+            let current = upcoming
+            // Every step moves on by at least a millisecond, whatever the arithmetic says:
+            // a step of zero would make SwiftUI walk the sequence forever.
+            let following = current.addingTimeInterval(Swift.max(schedule.interval, 0.001))
+            guard let pulse = schedule.pulse else {
+                upcoming = following
+                return current
+            }
+            var phase = current.timeIntervalSince(pulse.anchor).truncatingRemainder(dividingBy: pulse.period)
+            if phase < 0 { phase += pulse.period }
+            // A date that falls a hair before a beat belongs to that beat; otherwise the
+            // next beat would round to this very date and the loop would never move on.
+            if pulse.period - phase < 0.001 { phase = 0 }
+            let beatStart = current.addingTimeInterval(-phase)
+            if phase < pulse.length - 0.001 {
+                // Inside the motion: the next frame, but no later than its end.
+                let end = beatStart.addingTimeInterval(pulse.length)
+                upcoming = following < end ? following : end
+            } else {
+                upcoming = beatStart.addingTimeInterval(pulse.period)
+            }
+            if !(upcoming >= current.addingTimeInterval(0.001)) {
+                upcoming = current.addingTimeInterval(0.001)
+            }
+            return current
+        }
+    }
+}
+```
+
+`Symbiodock/Island/LayerAnimation.swift`:
+
+```swift
+import AppKit
+import SwiftUI
+
+// Motion that must be smooth and never rests, run by Core Animation. The render server
+// plays these; the app does no work per frame (see `FrameSchedule` for why that matters).
+
+/// An arc that turns about its centre: the status mark's working spinner. It fills its
+/// frame the way a SwiftUI `Circle` does and starts at 12 o'clock, going clockwise.
+struct SpinningArc: NSViewRepresentable {
+    let color: Color
+    let lineWidth: CGFloat
+    /// Seconds for one turn.
+    let period: TimeInterval
+    /// The share of the circle that is drawn.
+    var sweep: Double = 0.75
+
+    func makeNSView(context: Context) -> ArcView { ArcView() }
+
+    func updateNSView(_ view: ArcView, context: Context) {
+        view.configure(color: NSColor(color), lineWidth: lineWidth, period: period, sweep: sweep)
+    }
+
+    final class ArcView: NSView {
+        private let arc = CAShapeLayer()
+        private var period: TimeInterval = 1
+        private var sweep = 0.75
+
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            wantsLayer = true
+            arc.fillColor = nil
+            arc.lineCap = .round
+            layer?.addSublayer(arc)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { fatalError("not used") }
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        func configure(color: NSColor, lineWidth: CGFloat, period: TimeInterval, sweep: Double) {
+            arc.strokeColor = color.cgColor
+            arc.lineWidth = lineWidth
+            if self.period != period || self.sweep != sweep {
+                self.period = period
+                self.sweep = sweep
+                needsLayout = true
+            }
+            startSpinning()
+        }
+
+        override func layout() {
+            super.layout()
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            arc.frame = bounds
+            let radius = min(bounds.width, bounds.height) / 2
+            let path = CGMutablePath()
+            // In the layer's own coordinates y points up, so clockwise runs to smaller angles.
+            path.addArc(
+                center: CGPoint(x: bounds.width / 2, y: bounds.height / 2), radius: radius,
+                startAngle: .pi / 2, endAngle: .pi / 2 - 2 * .pi * sweep, clockwise: true)
+            arc.path = path
+            CATransaction.commit()
+            startSpinning()
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            startSpinning()
+        }
+
+        override func viewDidChangeBackingProperties() {
+            super.viewDidChangeBackingProperties()
+            arc.contentsScale = window?.backingScaleFactor ?? 2
+        }
+
+        private func startSpinning() {
+            guard window != nil else { return }
+            if let known = arc.animation(forKey: "spin") as? CABasicAnimation, known.duration == period {
+                return
+            }
+            let spin = CABasicAnimation(keyPath: "transform.rotation.z")
+            spin.fromValue = 0
+            spin.toValue = -2 * Double.pi
+            spin.duration = period
+            spin.repeatCount = .infinity
+            spin.timingFunction = CAMediaTimingFunction(name: .linear)
+            spin.isRemovedOnCompletion = false
+            arc.add(spin, forKey: "spin")
+        }
+    }
+}
+
+/// SwiftUI content whose opacity rises and falls by itself, run by Core Animation:
+/// the rim light's breath. The content is drawn once, at its brightest.
+struct Breathing<Content: View>: NSViewRepresentable {
+    /// The opacity at the dimmest point, 0...1 of the content's own.
+    let dimmest: Float
+    /// Seconds for a whole breath, in and out.
+    let period: TimeInterval
+    @ViewBuilder let content: Content
+
+    func makeNSView(context: Context) -> Host {
+        let host = Host(rootView: content)
+        host.sizingOptions = []
+        host.safeAreaRegions = []
+        return host
+    }
+
+    func updateNSView(_ host: Host, context: Context) {
+        host.rootView = content
+        host.configure(dimmest: dimmest, period: period)
+    }
+
+    final class Host: NSHostingView<Content> {
+        private var dimmest: Float = 1
+        private var period: TimeInterval = 1
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        func configure(dimmest: Float, period: TimeInterval) {
+            let changed = self.dimmest != dimmest || self.period != period
+            self.dimmest = dimmest
+            self.period = period
+            startBreathing(replacing: changed)
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            startBreathing(replacing: false)
+        }
+
+        private func startBreathing(replacing: Bool) {
+            guard window != nil, let layer else { return }
+            if replacing { layer.removeAnimation(forKey: "breath") }
+            if layer.animation(forKey: "breath") != nil { return }
+            let breath = CABasicAnimation(keyPath: "opacity")
+            breath.fromValue = 1.0
+            breath.toValue = dimmest
+            breath.duration = period / 2
+            breath.autoreverses = true
+            breath.repeatCount = .infinity
+            breath.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            breath.isRemovedOnCompletion = false
+            layer.add(breath, forKey: "breath")
+        }
+    }
+}
+```

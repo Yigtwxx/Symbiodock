@@ -18,9 +18,22 @@ struct TabStrip: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(tab.title)
+                .accessibilityValue(pipText(for: tab))
                 .accessibilityAddTraits(tab == selected ? .isSelected : [])
             }
         }
+    }
+
+    /// Whether the pip is showing on this tab's glyph: the agents want attention while
+    /// another tab is looked at.
+    private func showsPip(_ tab: IslandTab) -> Bool {
+        tab == .agents && selected != .agents && attention != .none
+    }
+
+    /// What the pip says, for VoiceOver; empty while there is no pip.
+    private func pipText(for tab: IslandTab) -> String {
+        guard showsPip(tab) else { return "" }
+        return attention == .needsInput ? "Needs input" : "Finished"
     }
 
     private func glyph(_ tab: IslandTab) -> some View {
@@ -29,7 +42,7 @@ struct TabStrip: View {
                 .font(.system(size: 11, weight: .semibold))
                 .overlay(alignment: .topTrailing) {
                     // The agents want attention while another tab is looked at.
-                    if tab == .agents, selected != .agents, attention != .none {
+                    if showsPip(tab) {
                         Circle()
                             .fill(attention == .needsInput ? AgentPalette.alert : AgentPalette.mint)
                             .frame(width: 5, height: 5)
