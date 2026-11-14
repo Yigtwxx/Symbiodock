@@ -6,6 +6,7 @@ struct IslandView: View {
     let geometry: IslandGeometry
     let session: DragSession
     let onCommand: (PlaybackCommand) -> Void
+    let onOpenSession: (AgentSession) -> Void
 
     private static let spring = Animation.spring(response: 0.35, dampingFraction: 0.8)
 
@@ -41,7 +42,7 @@ struct IslandView: View {
 
         return shape
             .fill(.black)
-            .overlay { content(atNotch: atNotch) }
+            .overlay { content(atNotch: atNotch, frame: frame) }
             .frame(width: frame.width, height: frame.height)
             // Content must not draw outside the shape while it springs between sizes.
             .clipShape(shape)
@@ -53,12 +54,12 @@ struct IslandView: View {
     }
 
     @ViewBuilder
-    private func content(atNotch: Bool) -> some View {
+    private func content(atNotch: Bool, frame: CGRect) -> some View {
         switch state.phase {
         case .expanded:
-            ExpandedContent(
-                info: state.nowPlaying, topInset: atNotch ? geometry.notch.height : 8,
-                onCommand: onCommand)
+            ExpandedIsland(
+                state: state, metrics: headerMetrics(atNotch: atNotch, frame: frame),
+                onCommand: onCommand, onOpenSession: onOpenSession)
                 .transition(.opacity)
         case .collapsed, .stretching, .detached, .settling:
             if atNotch {
@@ -74,5 +75,21 @@ struct IslandView: View {
                     .transition(.opacity)
             }
         }
+    }
+
+    /// At the notch the header shares its band with the camera housing; elsewhere it has
+    /// a band of its own, split down the middle.
+    private func headerMetrics(atNotch: Bool, frame: CGRect) -> ExpandedHeaderMetrics {
+        guard atNotch else {
+            return ExpandedHeaderMetrics(
+                height: ExpandedIsland.dockedBandHeight,
+                leading: frame.width / 2, gap: 0, trailing: frame.width / 2)
+        }
+        let notch = geometry.notch
+        return ExpandedHeaderMetrics(
+            height: notch.height,
+            leading: max(notch.minX - frame.minX, 0),
+            gap: notch.width,
+            trailing: max(frame.maxX - notch.maxX, 0))
     }
 }

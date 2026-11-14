@@ -878,9 +878,12 @@ struct ExpandedIsland: View {
 
             Color.clear.frame(width: metrics.gap)
 
-            summary
-                .padding(.trailing, 14)
-                .frame(width: metrics.trailing, alignment: .trailing)
+            // The summary can be absent; the column keeps its width regardless.
+            Color.clear
+                .frame(width: metrics.trailing)
+                .overlay(alignment: .trailing) {
+                    summary.padding(.trailing, 14)
+                }
         }
         .frame(height: metrics.height)
     }

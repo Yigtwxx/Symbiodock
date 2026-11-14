@@ -19,15 +19,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let islandMenu = IslandMenu()
         self.islandMenu = islandMenu
 
+        state.setTabOrder(TabOrderStore.load())
+
         let overlayController = OverlayController(
-            state: state, contextMenu: islandMenu.menu
-        ) { [weak self] command in
-            self?.nowPlaying?.send(command)
-        }
+            state: state, contextMenu: islandMenu.menu,
+            onCommand: { [weak self] command in
+                self?.nowPlaying?.send(command)
+            },
+            onOpenSession: { _ in })
         overlayController.start()
         self.overlayController = overlayController
         islandMenu.onReturnToNotch = { [weak overlayController] in overlayController?.returnToNotch() }
         islandMenu.canReturnToNotch = { [weak self] in self.map { $0.state.anchor != .notch } ?? false }
+        islandMenu.firstTab = { [weak self] in self?.state.tabOrder.first ?? TabOrder.default[0] }
+        islandMenu.onChooseFirstTab = { [weak self] tab in
+            guard let self else { return }
+            let order = TabOrder.moving(tab, toFrontOf: self.state.tabOrder)
+            self.state.setTabOrder(order)
+            TabOrderStore.save(order)
+            // The collapsed face, and with it the hit rect, may have changed.
+            self.overlayController?.refreshPointer()
+        }
+
+        #if DEBUG
+        if let demo = DemoAgents.requested {
+            DemoAgents.apply(demo, to: state)
+            overlayController.refreshPointer()
+        }
+        #endif
 
         let nowPlaying = NowPlayingCoordinator(
             onUpdate: { [weak self] info in

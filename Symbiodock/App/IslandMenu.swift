@@ -1,4 +1,5 @@
 import AppKit
+import SymbiodockCore
 
 /// The island's context menu, shown on a secondary click.
 ///
@@ -11,6 +12,13 @@ final class IslandMenu: NSObject, NSMenuDelegate {
     private let musicAccessSeparator = NSMenuItem.separator()
     private let launchAtLoginItem: NSMenuItem
     private let returnToNotchItem: NSMenuItem
+    private let firstTabItem = NSMenuItem(title: "First tab", action: nil, keyEquivalent: "")
+    private var tabItems: [(tab: IslandTab, item: NSMenuItem)] = []
+
+    /// Set by the app: the tab that is first now.
+    var firstTab: () -> IslandTab = { TabOrder.default[0] }
+    /// Set by the app: the user chose a tab to be first.
+    var onChooseFirstTab: ((IslandTab) -> Void)?
 
     /// Set by the app: puts the island back on the notch.
     var onReturnToNotch: (() -> Void)?
@@ -37,6 +45,18 @@ final class IslandMenu: NSObject, NSMenuDelegate {
         returnToNotchItem.target = self
         menu.addItem(returnToNotchItem)
 
+        let tabMenu = NSMenu()
+        for tab in TabOrder.default {
+            let item = NSMenuItem(
+                title: tab.title, action: #selector(chooseFirstTab(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = tab.rawValue
+            tabMenu.addItem(item)
+            tabItems.append((tab, item))
+        }
+        firstTabItem.submenu = tabMenu
+        menu.addItem(firstTabItem)
+
         launchAtLoginItem.target = self
         menu.addItem(launchAtLoginItem)
         menu.addItem(.separator())
@@ -61,10 +81,18 @@ final class IslandMenu: NSObject, NSMenuDelegate {
         // A dash means it is registered but waiting for the user's approval in System Settings.
         launchAtLoginItem.state = LoginItem.isEnabled ? .on : (LoginItem.needsApproval ? .mixed : .off)
         returnToNotchItem.isEnabled = canReturnToNotch()
+        let first = firstTab()
+        for (tab, item) in tabItems { item.state = tab == first ? .on : .off }
     }
 
     @objc private func returnToNotch() {
         onReturnToNotch?()
+    }
+
+    @objc private func chooseFirstTab(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let tab = IslandTab(rawValue: raw)
+        else { return }
+        onChooseFirstTab?(tab)
     }
 
     @objc private func toggleLaunchAtLogin() {

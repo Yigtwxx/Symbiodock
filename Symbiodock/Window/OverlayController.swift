@@ -19,6 +19,7 @@ final class OverlayController {
     private let session = DragSession()
     private let contextMenu: NSMenu
     private let onCommand: (PlaybackCommand) -> Void
+    private let onOpenSession: (AgentSession) -> Void
     private var panel: OverlayPanel?
     private var metrics: ScreenMetrics?
     private var screenObserver: NSObjectProtocol?
@@ -38,11 +39,13 @@ final class OverlayController {
 
     init(
         state: IslandState, contextMenu: NSMenu,
-        onCommand: @escaping (PlaybackCommand) -> Void
+        onCommand: @escaping (PlaybackCommand) -> Void,
+        onOpenSession: @escaping (AgentSession) -> Void
     ) {
         self.state = state
         self.contextMenu = contextMenu
         self.onCommand = onCommand
+        self.onOpenSession = onOpenSession
         session.onCatch = {
             Self.dragLog.notice("strands caught a surface")
             Self.haptic(.alignment)
@@ -124,7 +127,8 @@ final class OverlayController {
 
         let panel = OverlayPanel(screenFrame: metrics.frame)
         let hostingView = IslandHostingView(rootView: IslandView(
-            state: state, geometry: geometry, session: session, onCommand: onCommand))
+            state: state, geometry: geometry, session: session, onCommand: onCommand,
+            onOpenSession: onOpenSession))
         hostingView.contextMenu = contextMenu
         // A menu opened mid-drag would freeze the island where it is.
         hostingView.allowsContextMenu = { [weak self] in self?.isIdle ?? false }

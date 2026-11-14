@@ -14,6 +14,21 @@ enum DebugRender {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         write(StatusMarkGallery(), size: CGSize(width: 560, height: 150), named: "status-marks", to: directory)
         write(PetGallery(), size: CGSize(width: 760, height: 360), named: "pets", to: directory)
+        for (name, tab) in [("expanded-agents", IslandTab.agents), ("expanded-media", .media)] {
+            let state = IslandState()
+            DemoAgents.apply("1", to: state)
+            state.setHovering(true)
+            state.selectTab(tab)
+            write(
+                ExpandedPreview(state: state), size: CGSize(width: 520, height: 180),
+                named: name, to: directory)
+        }
+        let empty = IslandState()
+        empty.setHovering(true)
+        empty.selectTab(.agents)
+        write(
+            ExpandedPreview(state: empty), size: CGSize(width: 520, height: 180),
+            named: "expanded-agents-empty", to: directory)
         exit(0)
     }
 
@@ -104,6 +119,23 @@ private struct PetGallery: View {
         }
         .padding(18)
         .background(.black, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+/// The open island as it is at the notch: 480 × 134, with a 200 × 32 camera housing.
+private struct ExpandedPreview: View {
+    let state: IslandState
+
+    var body: some View {
+        let shape = UnevenRoundedRectangle(
+            bottomLeadingRadius: 24, bottomTrailingRadius: 24, style: .continuous)
+        ExpandedIsland(
+            state: state,
+            metrics: ExpandedHeaderMetrics(height: 32, leading: 140, gap: 200, trailing: 140),
+            onCommand: { _ in }, onOpenSession: { _ in })
+            .frame(width: 480, height: 134)
+            .background(.black, in: shape)
+            .clipShape(shape)
     }
 }
 #endif
