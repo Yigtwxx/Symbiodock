@@ -78,7 +78,7 @@ Spec: `docs/superpowers/specs/2026-11-14-side-docking-design.md`.
 ```
 
 - [x] **Step 2:** `swift test --package-path Packages/SymbiodockCore --filter IslandLayoutTests` → fails to compile (`sideCollapsedSize` missing).
-- [x] **Step 3: Implement.** Add the constant and `isSideDocked`; in `frame(anchor:…)` replace `place(isExpanded ? expandedSize : floatingCollapsedSize)` with `place(isExpanded ? expandedSize : collapsedSize(at: anchor))`, where `collapsedSize(at:)` returns `sideCollapsedSize` when side-docked. The expanded size on a side edge is 480 × max(134, 170), so the open island always contains the strip; extend `hoveringADockedIslandNeverMovesItFromUnderThePointer` to the left and right edges. Fix any existing test that assumed 200 × 36 on a left/right edge.
+- [x] **Step 3: Implement.** Add the constant and `isSideDocked`; in `frame(anchor:…)` replace `place(isExpanded ? expandedSize : floatingCollapsedSize)` with `place(isExpanded ? expandedSize : collapsedSize(at: anchor))`, where `collapsedSize(at:)` returns `sideCollapsedSize` when side-docked. The expanded size on a side edge is 540 × max(134, 170), so the open island always contains the strip; extend `hoveringADockedIslandNeverMovesItFromUnderThePointer` to the left and right edges. Fix any existing test that assumed 200 × 36 on a left/right edge.
 - [x] **Step 4:** tests pass.
 - [x] **Step 5:** commit `feat(core): lay a side-docked island out as a vertical strip`.
 

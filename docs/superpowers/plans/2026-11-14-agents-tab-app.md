@@ -502,14 +502,14 @@ enum DebugRender {
             state.setHovering(true)
             state.selectTab(tab)
             write(
-                ExpandedPreview(state: state), size: CGSize(width: 520, height: 180),
+                ExpandedPreview(state: state), size: CGSize(width: 580, height: 180),
                 named: name, to: directory)
         }
         let empty = IslandState()
         empty.setHovering(true)
         empty.selectTab(.agents)
         write(
-            ExpandedPreview(state: empty), size: CGSize(width: 520, height: 180),
+            ExpandedPreview(state: empty), size: CGSize(width: 580, height: 180),
             named: "expanded-agents-empty", to: directory)
         write(CollapsedGallery(), size: CGSize(width: 620, height: 480), named: "collapsed-faces", to: directory)
         exit(0)
@@ -587,7 +587,7 @@ private struct PetGallery: View {
             }
             HStack(spacing: 18) {
                 caption("working").frame(width: 44)
-                ForEach([0.0, 0.7, 1.4], id: \.self) { time in
+                ForEach([0.3, 0.65, 1.0], id: \.self) { time in
                     AgentPet(tool: .claudeCode, state: .working, size: 48, frozenAt: time)
                     AgentPet(tool: .codex, state: .working, size: 48, frozenAt: time)
                 }
@@ -605,7 +605,7 @@ private struct PetGallery: View {
     }
 }
 
-/// The open island as it is at the notch: 480 × 134, with a 200 × 32 camera housing.
+/// The open island as it is at the notch: 540 × 134, with a 200 × 32 camera housing.
 private struct ExpandedPreview: View {
     let state: IslandState
 
@@ -614,9 +614,9 @@ private struct ExpandedPreview: View {
             bottomLeadingRadius: 24, bottomTrailingRadius: 24, style: .continuous)
         ExpandedIsland(
             state: state,
-            metrics: ExpandedHeaderMetrics(height: 32, leading: 140, gap: 200, trailing: 140),
+            metrics: ExpandedHeaderMetrics(height: 32, leading: 170, gap: 200, trailing: 170),
             onCommand: { _ in }, onOpenSession: { _ in })
-            .frame(width: 480, height: 134)
+            .frame(width: 540, height: 134)
             .background(.black, in: shape)
             .clipShape(shape)
     }
@@ -1383,21 +1383,21 @@ In `Symbiodock/App/DebugRender.swift`, in `runIfRequested()` before `exit(0)`:
             state.setHovering(true)
             state.selectTab(tab)
             write(
-                ExpandedPreview(state: state), size: CGSize(width: 520, height: 180),
+                ExpandedPreview(state: state), size: CGSize(width: 580, height: 180),
                 named: name, to: directory)
         }
         let empty = IslandState()
         empty.setHovering(true)
         empty.selectTab(.agents)
         write(
-            ExpandedPreview(state: empty), size: CGSize(width: 520, height: 180),
+            ExpandedPreview(state: empty), size: CGSize(width: 580, height: 180),
             named: "expanded-agents-empty", to: directory)
 ```
 
 and at the end of the file, inside the `#if DEBUG`:
 
 ```swift
-/// The open island as it is at the notch: 480 × 134, with a 200 × 32 camera housing.
+/// The open island as it is at the notch: 540 × 134, with a 200 × 32 camera housing.
 private struct ExpandedPreview: View {
     let state: IslandState
 
@@ -1406,9 +1406,9 @@ private struct ExpandedPreview: View {
             bottomLeadingRadius: 24, bottomTrailingRadius: 24, style: .continuous)
         ExpandedIsland(
             state: state,
-            metrics: ExpandedHeaderMetrics(height: 32, leading: 140, gap: 200, trailing: 140),
+            metrics: ExpandedHeaderMetrics(height: 32, leading: 170, gap: 200, trailing: 170),
             onCommand: { _ in }, onOpenSession: { _ in })
-            .frame(width: 480, height: 134)
+            .frame(width: 540, height: 134)
             .background(.black, in: shape)
             .clipShape(shape)
     }

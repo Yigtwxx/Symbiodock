@@ -12,35 +12,35 @@ struct IslandLayoutTests {
 
     @Test func expandedIslandIsCenteredOnTheNotchAndHangsFromTheTop() {
         #expect(IslandLayout.frame(phase: .expanded, notch: notch, screenSize: screen, showsWings: false)
-            == CGRect(x: 516, y: 0, width: 480, height: 134))
+            == CGRect(x: 486, y: 0, width: 540, height: 134))
     }
 
     @Test func expandedIslandStaysInsideTheLeftEdge() {
         let leftNotch = CGRect(x: 10, y: 0, width: 200, height: 32)
 
         #expect(IslandLayout.frame(phase: .expanded, notch: leftNotch, screenSize: screen, showsWings: false)
-            == CGRect(x: 0, y: 0, width: 480, height: 134))
+            == CGRect(x: 0, y: 0, width: 540, height: 134))
     }
 
     @Test func expandedIslandStaysInsideTheRightEdge() {
         let rightNotch = CGRect(x: 1302, y: 0, width: 200, height: 32)
 
         #expect(IslandLayout.frame(phase: .expanded, notch: rightNotch, screenSize: screen, showsWings: false)
-            == CGRect(x: 1032, y: 0, width: 480, height: 134))
+            == CGRect(x: 972, y: 0, width: 540, height: 134))
     }
 
     @Test func expandedIslandIsNeverNarrowerThanTheNotch() {
-        let wideNotch = CGRect(x: 500, y: 0, width: 520, height: 32)
+        let wideNotch = CGRect(x: 446, y: 0, width: 620, height: 32)
 
         #expect(IslandLayout.frame(phase: .expanded, notch: wideNotch, screenSize: screen, showsWings: false)
-            == CGRect(x: 500, y: 0, width: 520, height: 134))
+            == CGRect(x: 446, y: 0, width: 620, height: 134))
     }
 
     @Test func hitRectIsTheFrameGrownByFourPoints() {
         #expect(IslandLayout.hitRect(phase: .collapsed, notch: notch, screenSize: screen, showsWings: false)
             == CGRect(x: 658, y: -4, width: 196, height: 40))
         #expect(IslandLayout.hitRect(phase: .expanded, notch: notch, screenSize: screen, showsWings: false)
-            == CGRect(x: 512, y: -4, width: 488, height: 142))
+            == CGRect(x: 482, y: -4, width: 548, height: 142))
     }
 
     @Test func collapsedIslandWithATrackGrowsAWingOnEachSide() {
@@ -63,7 +63,7 @@ struct IslandLayoutTests {
 
     @Test func expandedIslandIgnoresTheTrack() {
         #expect(IslandLayout.frame(phase: .expanded, notch: notch, screenSize: screen, showsWings: true)
-            == CGRect(x: 516, y: 0, width: 480, height: 134))
+            == CGRect(x: 486, y: 0, width: 540, height: 134))
     }
 
     @Test func hitRectFollowsTheWings() {
@@ -134,13 +134,13 @@ struct IslandLayoutTests {
     @Test func expandingGrowsTowardTheInside() {
         #expect(
             floating(.corner(.bottomRight), .expanded)
-                == CGRect(x: 1032, y: 778, width: 480, height: 134))
+                == CGRect(x: 972, y: 778, width: 540, height: 134))
         #expect(
             floating(.edge(.bottom, fraction: 0.5), .expanded)
-                == CGRect(x: 516, y: 778, width: 480, height: 134))
+                == CGRect(x: 486, y: 778, width: 540, height: 134))
         #expect(
             floating(.edge(.right, fraction: 0), .expanded)
-                == CGRect(x: 1032, y: 32, width: 480, height: 170))
+                == CGRect(x: 972, y: 32, width: 540, height: 170))
     }
 
     // MARK: Side docking
