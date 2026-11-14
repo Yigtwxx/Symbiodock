@@ -3,6 +3,10 @@ import SymbiodockCore
 
 /// One glyph for a session's state, used wherever a state is shown. Working turns, needs
 /// input knocks, finished draws a check; the rest stand still.
+///
+/// Nothing here redraws frame by frame: the turning arc, the knocks and the rings are
+/// Core Animation layers (`SpinningArc`, `MarkPulses`). SwiftUI draws the still mark, and
+/// draws it at one given moment when `frozenAt` is set.
 struct AgentStatusMark: View {
     let state: AgentRowState
     var size: CGFloat = 14
@@ -10,48 +14,30 @@ struct AgentStatusMark: View {
     var frozenAt: TimeInterval?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// When the mark last became finished: one ring goes outward from then.
+    /// When the mark last became finished, for a second: one ring goes outward from then.
     @State private var finishedAt: Date?
 
-    /// The knocks and the ring are short; this is plenty for them. The working spinner is
-    /// not drawn frame by frame at all: Core Animation turns it (`SpinningArc`).
-    private static let frameInterval = 1.0 / 20.0
-    /// The knocks and their rings are over this long into each beat; the mark rests after.
-    private static let knockWindow: TimeInterval = 1.25
     private static let stroke: CGFloat = 1.75
     private static let turnPeriod: TimeInterval = 1.1
-    private static let knockPeriod: TimeInterval = 2.4
-    private static let knockLength: TimeInterval = 0.3
-    private static let rippleLength: TimeInterval = 0.9
 
     var body: some View {
-        Group {
-            if let frozenAt {
-                mark(time: frozenAt, burst: nil, moving: true)
-            } else {
-                TimelineView(schedule) { context in
-                    mark(
-                        time: context.date.timeIntervalSinceReferenceDate,
-                        burst: finishedAt.map { context.date.timeIntervalSince($0) },
-                        moving: moves)
+        mark
+            .frame(width: size, height: size)
+            .onChange(of: isFinished) { _, finished in
+                guard finished else {
+                    finishedAt = nil
+                    return
+                }
+                let stamp = Date()
+                finishedAt = stamp
+                Task {
+                    // The ring is over in under a second; the view that played it goes away.
+                    try? await Task.sleep(for: .seconds(1))
+                    if finishedAt == stamp { finishedAt = nil }
                 }
             }
-        }
-        .frame(width: size, height: size)
-        .onChange(of: isFinished) { _, finished in
-            guard finished else {
-                finishedAt = nil
-                return
-            }
-            let stamp = Date()
-            finishedAt = stamp
-            Task {
-                try? await Task.sleep(for: .seconds(1))
-                if finishedAt == stamp { finishedAt = nil }
-            }
-        }
-        .accessibilityElement()
-        .accessibilityLabel(accessibilityText)
+            .accessibilityElement()
+            .accessibilityLabel(accessibilityText)
     }
 
     private var isFinished: Bool { state == .finished }
@@ -60,29 +46,13 @@ struct AgentStatusMark: View {
         if case .needsInput = state { true } else { false }
     }
 
-    /// Whether anything is in motion right now.
-    private var moves: Bool {
-        !reduceMotion && (state == .working || isNeedsInput || finishedAt != nil)
-    }
+    private var animates: Bool { !reduceMotion && frozenAt == nil }
 
     /// Whether Core Animation is turning the arc.
-    private var spins: Bool {
-        !reduceMotion && state == .working && frozenAt == nil
-    }
+    private var spins: Bool { animates && state == .working }
 
-    /// When the mark has to be redrawn: while it knocks, and while the finished ring goes
-    /// out. The turning arc needs no redraws.
-    private var schedule: FrameSchedule {
-        if isNeedsInput, !reduceMotion {
-            return FrameSchedule(
-                interval: Self.frameInterval,
-                pulse: .init(
-                    anchor: Date(timeIntervalSinceReferenceDate: 0), period: Self.knockPeriod,
-                    length: Self.knockWindow))
-        }
-        return FrameSchedule(
-            interval: Self.frameInterval, paused: reduceMotion || finishedAt == nil)
-    }
+    /// Whether Core Animation is knocking the dot.
+    private var knocks: Bool { animates && isNeedsInput }
 
     private var color: Color {
         switch state {
@@ -98,14 +68,25 @@ struct AgentStatusMark: View {
         isNeedsInput || state == .running
     }
 
-    private func mark(time: TimeInterval, burst: TimeInterval?, moving: Bool) -> some View {
-        let turn = moving && state == .working
-            ? time.truncatingRemainder(dividingBy: Self.turnPeriod) / Self.turnPeriod * 360 : 0
-        let beat = time.truncatingRemainder(dividingBy: Self.knockPeriod)
-        let knocking = moving && isNeedsInput
+    /// The mark itself. With a `frozenAt` it is drawn at that moment of its motion; live,
+    /// it is the still mark and the layers add the motion.
+    private var mark: some View {
+        let time = frozenAt
+        let turn = time.map { state == .working ? $0.truncatingRemainder(dividingBy: Self.turnPeriod) / Self.turnPeriod * 360 : 0 } ?? 0
+        let beat = (time ?? 0).truncatingRemainder(dividingBy: AgentMarkMotion.knockPeriod)
+        let frozenKnock = time != nil && isNeedsInput
         return ZStack {
-            ripple(knocking ? Self.progress(beat, from: 0) : burst.flatMap { Self.progress($0, from: 0) })
-            ripple(knocking ? Self.progress(beat, from: Self.knockLength) : nil)
+            if frozenKnock {
+                ripple(AgentMarkMotion.ripple(atBeat: beat, from: 0))
+                ripple(AgentMarkMotion.ripple(atBeat: beat, from: AgentMarkMotion.knockLength))
+            }
+            if knocks {
+                MarkPulses(kind: .knock, color: color, dotSide: dotSide)
+                    .transition(.opacity)
+            }
+            if finishedAt != nil, animates {
+                MarkPulses(kind: .ripple, color: color, dotSide: dotSide)
+            }
             Circle()
                 .trim(from: 0, to: state == .working ? 0.75 : 1)
                 .stroke(color, style: StrokeStyle(lineWidth: Self.stroke, lineCap: .round))
@@ -117,9 +98,9 @@ struct AgentStatusMark: View {
             }
             Circle()
                 .fill(color)
-                .frame(width: size * 0.29, height: size * 0.29)
-                .scaleEffect(knocking ? Self.knockScale(beat) : 1)
-                .opacity(hasDot ? 1 : 0)
+                .frame(width: dotSide, height: dotSide)
+                .scaleEffect(frozenKnock ? AgentMarkMotion.dotScale(atBeat: beat) : 1)
+                .opacity(hasDot && !knocks ? 1 : 0)
             CheckShape()
                 .trim(from: 0, to: isFinished ? 1 : 0)
                 .stroke(
@@ -131,24 +112,13 @@ struct AgentStatusMark: View {
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: state)
     }
 
-    /// A ring that grows to twice the mark's size while it fades; nothing for nil.
+    private var dotSide: CGFloat { size * 0.29 }
+
+    /// A drawn ring that grows to twice the mark's size while it fades; nothing for nil.
     private func ripple(_ progress: Double?) -> some View {
         Circle()
             .stroke(color.opacity(0.6 * (1 - (progress ?? 1))), lineWidth: 1)
             .scaleEffect(1 + (progress ?? 0))
-    }
-
-    /// 0...1 through a ripple that started at `start` seconds into the beat; nil outside it.
-    private static func progress(_ beat: TimeInterval, from start: TimeInterval) -> Double? {
-        let value = (beat - start) / rippleLength
-        return value >= 0 && value < 1 ? value : nil
-    }
-
-    /// Two knocks at the start of every beat, then rest.
-    private static func knockScale(_ beat: TimeInterval) -> CGFloat {
-        guard beat < 2 * knockLength else { return 1 }
-        let local = beat.truncatingRemainder(dividingBy: knockLength) / knockLength
-        return 1 + 0.35 * sin(.pi * local)
     }
 
     private var accessibilityText: String {

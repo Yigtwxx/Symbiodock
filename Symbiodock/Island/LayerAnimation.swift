@@ -1,8 +1,48 @@
 import AppKit
 import SwiftUI
 
-// Motion that must be smooth and never rests, run by Core Animation. The render server
-// plays these; the app does no work per frame (see `FrameSchedule` for why that matters).
+// Motion run by Core Animation. The render server plays these; the app does no work per
+// frame.
+//
+// Why nothing in the island redraws frame by frame: measured on the always-on island, while
+// any SwiftUI view in the full-screen panel redraws more often than about every 0.35 s,
+// SwiftUI keeps the panel's update cycle running at the screen's rate, and that alone costs
+// about 5 % of a core, whatever the view draws (an empty `Canvas` costs the same). So every
+// motion that repeats or has to be smooth is a layer animation, and SwiftUI draws a view
+// only when its content changes.
+
+/// One fixed moment on the media clock. Repeating animations that start from it keep one
+/// phase: views that play the same motion move in step, and a view that returns to its
+/// window picks the motion up where it is. It is long past, so it is never "now", which
+/// Core Animation reads a begin time of 0 as.
+enum SharedClock {
+    static let base: CFTimeInterval = 1
+
+    /// `base` in the time of `layer`'s own space.
+    @MainActor
+    static func begin(in layer: CALayer) -> CFTimeInterval {
+        layer.convertTime(base, from: nil)
+    }
+}
+
+extension CAKeyframeAnimation {
+    /// A repeating animation of `keyPath` through `value` sampled over one `period`: 120
+    /// samples a second, joined by straight lines, from the fixed `begin` time.
+    static func repeating(
+        _ keyPath: String, period: TimeInterval, begin: CFTimeInterval, value: (TimeInterval) -> Double
+    ) -> CAKeyframeAnimation {
+        let samples = max(8, Int((period * 120).rounded()))
+        let animation = CAKeyframeAnimation(keyPath: keyPath)
+        animation.values = (0...samples).map { value(period * Double($0) / Double(samples)) }
+        animation.keyTimes = (0...samples).map { NSNumber(value: Double($0) / Double(samples)) }
+        animation.calculationMode = .linear
+        animation.duration = period
+        animation.repeatCount = .infinity
+        animation.beginTime = begin
+        animation.isRemovedOnCompletion = false
+        return animation
+    }
+}
 
 /// An arc that turns about its centre: the status mark's working spinner. It fills its
 /// frame the way a SwiftUI `Circle` does and starts at 12 o'clock, going clockwise.
