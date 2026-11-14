@@ -40,6 +40,9 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 | Çentik dışı konum | `visibleFrame` kenarına sıfır mesafe, çentik gibi: kenara değen köşeler köşeli, serbest köşeler yuvarlak (2026-11-14; önceki: 8 pt içeride yüzen kapsül) | Sahibi: "tamamen 0 olsun, kenara direkt çentik gibi dursun"; menü çubuğunu ve Dock'u yine kapatmaz |
 | Yan kenarda dikey ada | Sağ/sol kenarda kapalı ada 36 × 170 pt dikey şerit: üstte platform simgesi, ortada 90° döndürülmüş parça adı, altta seviye çubukları; hover'da kenardan içeri 480 × 170 açılır. Köşeler ve üst/alt kenar yatay kalır (2026-11-14) | Sahibi: "sağa veya sola yapışırsa dikey yapışsın"; açık ada şeritten kısa olursa hover titrer (spec: `2026-11-14-side-docking-design.md`) |
 | Platform simgesi | Yalnızca dikey şeritte. Music/Spotify: uygulama simgesi. Tarayıcı: Safari ve Chrome'a AppleScript ile sekmeler sorulur, YouTube/Kick/Twitch logosu gösterilir (Simple Icons, CC0); izin yoksa tarayıcı simgesi (2026-11-14) | Sahibi: "yt ise yt"; sistem yalnızca tarayıcıyı söylüyor, site için Automation izni şart ve sahibi onayladı |
+| Sekmeler | Açık adada sekme şeridi: `Agents` ve `Media`. Sıra sağ tık menüsünde `First tab` ile seçilir ve saklanır; varsayılan `Agents` birinci. Hover'da birinci sekme açılır; bir agent ilgi bekliyorsa `Agents` açılır (2026-11-14) | Sahibi: "sekmeler halinde olsun... kullanıcı seçebilsin hangisini 1 hangisini 2" |
+| AI agent oturumları | Yalnızca dosya ve süreç listesi okunur; hook yok, hiçbir aracın dizinine yazılmaz. Claude Code ve Codex tam durumla; Gemini CLI, Cursor Agent, OpenCode, Aider, Copilot CLI süreç düzeyinde (`Running`). Satıra tıklayınca oturumun uygulaması öne gelir; adadan cevap verilmez (2026-11-14) | Sahibi: "hook veya herhangi bir hata olmasın"; "hepsi olsun, geri dönüş yaparlar biz düzeltiriz" (spec: `2026-11-14-agents-tab-design.md`) |
+| Agent ilgi belirteci | Soru ya da izin bekleyen oturum adayı kendiliğinden açmaz. Kapalı adada durum işareti (mercan halka, "kapıyı çalan" nokta) ve kenar ışığı; biten oturum için nane yeşili onay işareti, `Agents` sekmesi açılınca silinir (2026-11-14) | Sahibi: "direkt açılmasın, belirtici bir ibare olsun"; düz kırmızı/yeşil noktayı "çok basic" buldu |
 | Mimari | Spec bölüm 4-5 | Sahibi onayladı |
 | Proje üretimi | XcodeGen (`project.yml`), `.xcodeproj` commit edilmez | Komut satırından üretilebilir ve diff'i okunur |
 | Kod yerleşimi | Saf mantık `Packages/SymbiodockCore` paketinde, AppKit/SwiftUI app hedefinde | Mantık uygulama açılmadan `swift test` ile test edilir |
@@ -54,7 +57,7 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 | Menü | Menü çubuğunda öğe yok; menü adaya sağ tıkla açılır (2026-11-14) | Sahibi menü çubuğunda ikon istemedi; ileride başka özellikler için oraya öğe gelebilir |
 | Geri bildirim | Kopma, liflerin bir yüzeye tutunması ve (tutunmadan) bırakma anında trackpad titreşimi, ses yok | Sahibinin tercihi |
 | Arayüz dili | Tamamen İngilizce; çeviri altyapısı kurulmaz | Dil desteği çok sonra gelecek |
-| v1 sonrası widget'lar | Henüz kararlaştırılmadı | Sahibi sonra söyleyecek; sorma, o açana kadar bekle |
+| v1 sonrası widget'lar | İlki: sekmeler ve `Agents` sekmesi (2026-11-14). Sonrakiler kararlaştırılmadı | Sahibi sonra söyleyecek; sorma, o açana kadar bekle |
 | Depo | `Yigtwxx/Symbiodock`, public | Sahibinin isteği |
 
 ## Git
@@ -88,6 +91,9 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
   düzeltilmesi. Dağıtım öncesi sağlamlaştırma listesi `.superpowers/sdd/progress.md` içinde
   (git'e girmez); özeti: yardımcı sürecin zorla öldürülmesi, komut sıralaması, Release ve
   Intel derlemesinin perl altında denenmesi.
+- Faz 7 (sekmeler ve Agents sekmesi, 2026-11-14): tasarım onaylandı, spec yazıldı, kod yok.
+  Sahibi spec'i okuyup onaylayınca plan yazılır. Sahibi aynı gün Faz 3-6'nın elle kontrol
+  listelerini istedi ve kendisi deneyecek.
 - Xcode 27.2 ve XcodeGen 2.45.4 kurulu, `xcode-select` ile seçili.
 
 ## "Yapılacakları yap" denince
@@ -151,8 +157,14 @@ Durmadan devam edilecek durumlar:
       Plan: `docs/superpowers/plans/2026-11-14-m5-launch-at-login.md`. Ada
       menüsünde "Launch at login" aç/kapa.
 
-v1 bunlarla biter. Sonrası (widget'lar, kişiselleştirme, dil desteği, imzalama, site) için
-sahibi ayrıca yön verecek; kendiliğinden başlama.
+v1 bunlarla biter.
+
+- [ ] **Faz 7 — Sekmeler ve Agents sekmesi.** Tasarım onaylı, yazılı spec sahibinin
+      okumasını bekliyor: `docs/superpowers/specs/2026-11-14-agents-tab-design.md`. Plan yok;
+      sahibi spec'i onaylayınca yazılacak. İş sırası spec bölüm 12'de.
+
+Sonrası (başka widget'lar, kişiselleştirme, dil desteği, imzalama, site) için sahibi ayrıca
+yön verecek; kendiliğinden başlama.
 
 ## Doğrulanmamış varsayımlar
 
@@ -165,6 +177,11 @@ spec'te yazılı.
   gerekmiyor; kaynakları doğrudan derlenebiliyor. Canlı yayında `duration` anlamsız büyük
   geliyor (9.2e12); ilerleme çubuğu bunu yok saymalı.
 - `com.apple.Music.playerInfo` bildirimi macOS 27'de geliyor mu.
+- Claude Code oturum dosyası (`~/.claude/sessions/<pid>.json`, sürüm 2.1.325) bir soru
+  açıkken `status: "waiting"`, `waitingFor: "input needed"` yazıyor (2026-11-14'te canlı
+  görüldü). İzin penceresinde de aynısını yazdığı ve `/clear` sonrası `sessionId`'nin
+  güncellendiği denenmedi. Codex rollout'larında onay/soru bekleme olayı bulunmadı.
+  Yedekleri: Agents spec bölüm 11.
 - Fare izleme: `NSEvent` monitörleri macOS 27'de izin istemeden çalışıyor (sahibi 2026-11-14'te
   elle doğruladı; Dock boyutu değişimi maddesi denenmedi).
 
