@@ -58,6 +58,24 @@ public enum ClaudeSessionParser {
         return Int32(double)
     }
 
+    /// Whether the process a session file names is still that session's process. A file
+    /// outlives a crash, a kill or a reboot, and its pid can then belong to anything: so
+    /// the process must exist, be the user's own (the path of another user's process is
+    /// empty), and have started no later than shortly after the file was last written (a
+    /// live session writes its file after it started; a stale file predates the pid's
+    /// new owner).
+    public static func isLive(
+        pid: Int32, fileModified: Date, among processes: [ProcessSnapshot]
+    ) -> Bool {
+        let latestStart = fileModified.addingTimeInterval(startTolerance)
+        return processes.contains {
+            $0.pid == pid && !$0.executablePath.isEmpty && $0.startTime <= latestStart
+        }
+    }
+
+    /// Clock and timestamp resolution slack between a process start and its first write.
+    private static let startTolerance: TimeInterval = 2
+
     /// The session a record stands for; nil for a spare process.
     /// - Parameter prompt: the open question, if one was read from the transcript.
     /// - Parameter fallbackSince: used when the file does not say when the status began.

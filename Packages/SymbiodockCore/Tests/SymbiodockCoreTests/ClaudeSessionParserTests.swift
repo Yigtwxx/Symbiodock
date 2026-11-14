@@ -126,4 +126,59 @@ struct ClaudeSessionParserTests {
         #expect(ClaudeSessionParser.transcriptRelativePath(cwd: "/a", sessionID: "") == nil)
         #expect(ClaudeSessionParser.transcriptRelativePath(cwd: "", sessionID: "id1") == nil)
     }
+
+    // MARK: liveness
+
+    private func process(
+        _ pid: Int32, path: String = "/usr/local/bin/claude", started: Date
+    ) -> ProcessSnapshot {
+        ProcessSnapshot(
+            pid: pid, parentPID: 1, executablePath: path, startTime: started, terminal: nil)
+    }
+
+    private let written = Date(timeIntervalSinceReferenceDate: 800_000_000)
+
+    @Test func aProcessThatStartedBeforeTheFileIsLive() {
+        let processes = [process(4242, started: written.addingTimeInterval(-3600))]
+        #expect(ClaudeSessionParser.isLive(pid: 4242, fileModified: written, among: processes))
+    }
+
+    @Test func aMissingProcessIsNotLive() {
+        let processes = [process(1, started: written.addingTimeInterval(-3600))]
+        #expect(!ClaudeSessionParser.isLive(pid: 4242, fileModified: written, among: processes))
+    }
+
+    @Test func anotherUsersProcessIsNotLive() {
+        let processes = [process(4242, path: "", started: written.addingTimeInterval(-3600))]
+        #expect(!ClaudeSessionParser.isLive(pid: 4242, fileModified: written, among: processes))
+    }
+
+    @Test func aPidReusedAfterTheFileWasWrittenIsNotLive() {
+        let processes = [process(4242, started: written.addingTimeInterval(60))]
+        #expect(!ClaudeSessionParser.isLive(pid: 4242, fileModified: written, among: processes))
+    }
+
+    @Test func aProcessStartedJustBeforeOrAroundTheFileIsLive() {
+        for offset in [-0.5, 0, 1.9, 2] {
+            let processes = [process(4242, started: written.addingTimeInterval(offset))]
+            #expect(
+                ClaudeSessionParser.isLive(pid: 4242, fileModified: written, among: processes),
+                "\(offset)")
+        }
+        let late = [process(4242, started: written.addingTimeInterval(2.5))]
+        #expect(!ClaudeSessionParser.isLive(pid: 4242, fileModified: written, among: late))
+    }
+
+    @Test func withDuplicatePidsOneMatchingProcessIsEnough() {
+        let processes = [
+            process(4242, started: written.addingTimeInterval(60)),
+            process(4242, started: written.addingTimeInterval(-60)),
+        ]
+        #expect(ClaudeSessionParser.isLive(pid: 4242, fileModified: written, among: processes))
+        let reused = [
+            process(4242, path: "", started: written.addingTimeInterval(-60)),
+            process(4242, started: written.addingTimeInterval(60)),
+        ]
+        #expect(!ClaudeSessionParser.isLive(pid: 4242, fileModified: written, among: reused))
+    }
 }

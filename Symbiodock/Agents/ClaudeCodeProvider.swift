@@ -37,7 +37,7 @@ actor ClaudeCodeProvider: AgentSessionProvider {
                   let stamp = FileReading.stamp(of: url),
                   let data = FileReading.whole(url, maxBytes: ClaudeSessionParser.maximumFileSize),
                   let record = ClaudeSessionParser.record(from: data),
-                  Self.isAlive(record.pid)
+                  Self.isLive(record.pid, modified: stamp.modified, among: context.processes)
             else { return nil }
             return ClaudeSessionParser.session(
                 from: record,
@@ -68,8 +68,15 @@ actor ClaudeCodeProvider: AgentSessionProvider {
         return question
     }
 
-    /// A session file can outlive a process that was killed.
-    private nonisolated static func isAlive(_ pid: Int32) -> Bool {
-        kill(pid, 0) == 0 || errno == EPERM
+    /// A session file can outlive its process, and its pid can then belong to anything.
+    /// The process list the scan already has decides (see `ClaudeSessionParser.isLive`).
+    /// Only when that list is empty, because the scan failed, is the pid probed, so that
+    /// a failed scan does not make every session vanish. `EPERM` does not count: that pid
+    /// belongs to another user.
+    private nonisolated static func isLive(
+        _ pid: Int32, modified: Date, among processes: [ProcessSnapshot]
+    ) -> Bool {
+        if processes.isEmpty { return kill(pid, 0) == 0 }
+        return ClaudeSessionParser.isLive(pid: pid, fileModified: modified, among: processes)
     }
 }
