@@ -38,41 +38,45 @@ public struct AgentPetGlyph: Equatable, Sendable {
     public static func glyph(for tool: AgentTool) -> AgentPetGlyph {
         switch tool {
         case .claudeCode:
-            // A blocky body with a flat top, two eyes, a stub arm on each side, two legs.
+            // A blocky body with a flat top, two eyes, a stub arm on each side, and two legs
+            // that carry on below the eyes.
             mirrored(
-                [[(0.40, 0.60)], [(0.16, 1.00)], [(0.16, 0.34), (0.48, 0.80)]],
-                middle: [(0.16, 0.80)])
+                [[(0.42, 0.62)], [(0.12, 0.70)], [(0.12, 0.30), (0.42, 0.88)]],
+                middle: [(0.12, 0.70)])
         case .codex:
-            // A cloud: a flat base under uneven bumps, with two eyes.
+            // A cloud: a flat base with rounded ends under a small bump and a bigger one,
+            // with two eyes under the bigger one.
             AgentPetGlyph([
-                [(0.52, 0.84)], [(0.36, 0.84)], [(0.20, 0.46), (0.58, 0.84)], [(0.30, 0.84)],
-                [(0.14, 0.46), (0.58, 0.84)], [(0.30, 0.84)], [(0.48, 0.84)],
+                [(0.56, 0.76)], [(0.38, 0.82)], [(0.40, 0.82)], [(0.24, 0.50), (0.60, 0.82)],
+                [(0.18, 0.82)], [(0.24, 0.50), (0.60, 0.82)], [(0.48, 0.76)],
             ])
         case .geminiCLI:
-            // A four-pointed star.
-            mirrored([[(0.44, 0.56)], [(0.40, 0.60)], [(0.32, 0.68)]], middle: [(0.04, 0.96)])
+            // A four-pointed star: one tall bar, quickly shorter towards the sides.
+            mirrored([[(0.45, 0.55)], [(0.38, 0.62)], [(0.26, 0.74)]], middle: [(0.05, 0.95)])
         case .cursorAgent:
-            // A hexagon whose middle bar is split, like the near corner of a cube.
+            // A hexagon with upright sides whose middle bar is split, like the near corner
+            // of a cube.
             mirrored(
-                [[(0.36, 0.64)], [(0.24, 0.76)], [(0.14, 0.86)]],
-                middle: [(0.06, 0.44), (0.56, 0.94)])
+                [[(0.27, 0.73)], [(0.20, 0.80)], [(0.13, 0.87)]],
+                middle: [(0.06, 0.42), (0.58, 0.94)])
         case .openCode:
-            // An empty frame with a cursor block inside.
+            // An empty frame with a tall cursor block inside, where a prompt would start.
             AgentPetGlyph([
                 [(0.14, 0.86)], [(0.14, 0.26), (0.74, 0.86)],
-                [(0.14, 0.26), (0.42, 0.58), (0.74, 0.86)], [(0.14, 0.26), (0.74, 0.86)],
+                [(0.14, 0.26), (0.38, 0.62), (0.74, 0.86)], [(0.14, 0.26), (0.74, 0.86)],
                 [(0.14, 0.26), (0.74, 0.86)], [(0.14, 0.26), (0.74, 0.86)], [(0.14, 0.86)],
             ])
         case .aider:
             // An "A": steps rising to a peak, with a crossbar.
             mirrored(
-                [[(0.72, 0.96)], [(0.44, 0.96)], [(0.20, 0.64)]],
-                middle: [(0.04, 0.30), (0.52, 0.64)])
+                [[(0.64, 0.94)], [(0.36, 0.94)], [(0.16, 0.64)]],
+                middle: [(0.06, 0.26), (0.46, 0.64)])
         case .copilotCLI:
-            // A domed head with two large goggle openings and an ear on each side.
+            // A domed head with two large goggle openings, each two bars wide, and an ear
+            // on each side.
             mirrored(
-                [[(0.38, 0.70)], [(0.20, 0.88)], [(0.12, 0.30), (0.62, 0.92)]],
-                middle: [(0.10, 0.92)])
+                [[(0.32, 0.66)], [(0.16, 0.32), (0.52, 0.80)], [(0.10, 0.32), (0.52, 0.88)]],
+                middle: [(0.08, 0.90)])
         }
     }
 }

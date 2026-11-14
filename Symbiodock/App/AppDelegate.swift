@@ -11,6 +11,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var wingsExpiry: Task<Void, Never>?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        DebugRender.runIfRequested()
+        #endif
         installTerminationHandler()
 
         let islandMenu = IslandMenu()
