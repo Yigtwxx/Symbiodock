@@ -27,7 +27,9 @@ struct AgentPetFigureTests {
         #expect(AgentPetFigure.groundStrength < AgentPetFigure.faintestShade)
         for tool in AgentTool.allCases {
             let shades = ink(AgentPetFigure.figure(for: tool))
-            let inRange = shades.allSatisfy { $0 >= AgentPetFigure.faintestShade && $0 <= 1 && $0.isFinite }
+            let inRange = shades.allSatisfy {
+                ($0 >= AgentPetFigure.faintestShade && $0 <= 1) || $0 == AgentPetFigure.glowShade
+            }
             #expect(inRange, "\(tool)")
         }
     }
@@ -42,7 +44,8 @@ struct AgentPetFigureTests {
 
     @Test func everyFigureHasLightAndShade() {
         for tool in AgentTool.allCases {
-            let shades = ink(AgentPetFigure.figure(for: tool))
+            // What the light does, leaving aside the parts that glow by themselves.
+            let shades = ink(AgentPetFigure.figure(for: tool)).filter { $0 <= 1 }
             let range = (shades.max() ?? 0) - (shades.min() ?? 0)
             #expect(range >= 0.3, "\(tool): \(range)")
             #expect((shades.max() ?? 0) >= 0.9, "\(tool)")
@@ -60,7 +63,23 @@ struct AgentPetFigureTests {
         #expect(AgentPetFigure.figure(for: .codex) == AgentPetFigure.figure(for: .codex))
         #expect(
             AgentPetFigure.figure(for: .aider)
-                == AgentPetFigure(relief: AgentPetReliefs.relief(for: .aider)))
+                == AgentPetFigure(model: AgentPetReliefs.model(for: .aider)))
+    }
+
+    @Test func aGlowingPartIsBrighterThanAnythingLit() {
+        #expect(AgentPetFigure.glowShade > 1)
+        // The prompt on the Codex cloud glows; a few lines carry it, not the whole figure.
+        let codex = ink(AgentPetFigure.figure(for: .codex))
+        let glowing = codex.filter { $0 == AgentPetFigure.glowShade }.count
+        #expect(glowing > 0)
+        #expect(Double(glowing) < 0.2 * Double(codex.count))
+        // Glow shows only on the figure, never on the ground beside it.
+        let model = AgentPetModel({ x, _ in x < 0.5 ? 0.3 : 0 }, glow: { _, _ in 1 })
+        let figure = AgentPetFigure(model: model)
+        let left = figure.lines[0].allSatisfy { $0 == AgentPetFigure.glowShade }
+        let right = figure.lines[AgentPetFigure.lineCount - 1].allSatisfy { $0 == 0 }
+        #expect(left)
+        #expect(right)
     }
 
     @Test func aLineIsCutIntoItsStretches() {

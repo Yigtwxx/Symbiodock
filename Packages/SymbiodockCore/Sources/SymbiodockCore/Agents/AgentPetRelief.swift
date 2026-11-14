@@ -4,6 +4,18 @@ import Foundation
 /// (x to the right, y downward). 0 means there is nothing there.
 typealias AgentPetRelief = @Sendable (_ x: Double, _ y: Double) -> Double
 
+/// A pet as it is modelled: its relief, and the parts of it that give off light of their
+/// own (a prompt on a screen) and are therefore brighter than anything the light falls on.
+struct AgentPetModel: Sendable {
+    let relief: AgentPetRelief
+    var glow: AgentPetRelief?
+
+    init(_ relief: @escaping AgentPetRelief, glow: AgentPetRelief? = nil) {
+        self.relief = relief
+        self.glow = glow
+    }
+}
+
 /// The pieces the pets are modelled from, and the pets themselves. A pet is the figure its
 /// tool is known by, shaped as a small relief so that light can fall on it.
 enum AgentPetReliefs {
@@ -102,50 +114,44 @@ enum AgentPetReliefs {
 
     // MARK: Pets
 
-    static func relief(for tool: AgentTool) -> AgentPetRelief {
+    static func model(for tool: AgentTool) -> AgentPetModel {
         switch tool {
-        case .claudeCode: claudeCode
+        case .claudeCode: AgentPetModel(claudeCode)
         case .codex: codex
-        case .geminiCLI: geminiCLI
-        case .cursorAgent: cursorAgent
-        case .openCode: openCode
-        case .aider: aider
-        case .copilotCLI: copilotCLI
+        case .geminiCLI: AgentPetModel(geminiCLI)
+        case .cursorAgent: AgentPetModel(cursorAgent)
+        case .openCode: AgentPetModel(openCode)
+        case .aider: AgentPetModel(aider)
+        case .copilotCLI: AgentPetModel(copilotCLI)
         }
     }
 
-    /// A blocky creature: a flat-topped body with two eyes, an arm on each side, four
-    /// legs, the far pair standing back.
+    /// A plump creature: a round body ringed by eight lobes, like a burst, with two tall
+    /// narrow eyes, each one line wide.
     private static var claudeCode: AgentPetRelief {
-        let body = slab(0.14, 0.20, 0.86, 0.66, radius: 0.07, bevel: 0.12, 0.46)
-        let arms = union(
-            slab(0.02, 0.36, 0.20, 0.52, radius: 0.04, bevel: 0.06, 0.22),
-            slab(0.80, 0.36, 0.98, 0.52, radius: 0.04, bevel: 0.06, 0.22))
-        let nearLegs = union(
-            slab(0.18, 0.58, 0.30, 0.86, radius: 0.04, bevel: 0.05, 0.36),
-            slab(0.70, 0.58, 0.82, 0.86, radius: 0.04, bevel: 0.05, 0.36))
-        let farLegs = union(
-            slab(0.36, 0.58, 0.46, 0.82, radius: 0.04, bevel: 0.05, 0.16),
-            slab(0.54, 0.58, 0.64, 0.82, radius: 0.04, bevel: 0.05, 0.16))
+        let body = dome(0.50, 0.50, 0.31, 0.29, 0.56)
+        let lobes = union(
+            dome(0.50, 0.22, 0.16, 0.15, 0.42), dome(0.50, 0.78, 0.16, 0.15, 0.42),
+            dome(0.19, 0.50, 0.15, 0.16, 0.40), dome(0.81, 0.50, 0.15, 0.16, 0.40),
+            dome(0.28, 0.30, 0.16, 0.16, 0.42), dome(0.72, 0.30, 0.16, 0.16, 0.42),
+            dome(0.28, 0.70, 0.16, 0.16, 0.42), dome(0.72, 0.70, 0.16, 0.16, 0.42))
         return cut(
-            union(body, arms, nearLegs, farLegs),
-            box(0.30, 0.32, 0.37, 0.46), box(0.63, 0.32, 0.70, 0.46))
+            union(body, lobes),
+            box(0.38, 0.39, 0.43, 0.59), box(0.57, 0.39, 0.62, 0.59))
     }
 
-    /// A cloud with a prompt cut into it, ">" and "_", and a second cloud behind it.
-    private static var codex: AgentPetRelief {
-        let far = union(
-            dome(0.76, 0.34, 0.20, 0.20, 0.22),
-            slab(0.56, 0.36, 0.98, 0.60, radius: 0.12, bevel: 0.10, 0.17))
-        let near = union(
-            dome(0.36, 0.44, 0.24, 0.24, 0.50), dome(0.60, 0.50, 0.20, 0.20, 0.46),
-            dome(0.18, 0.58, 0.16, 0.16, 0.40),
-            slab(0.04, 0.50, 0.80, 0.80, radius: 0.15, bevel: 0.15, 0.42))
+    /// A plump cloud of round lobes with a prompt glowing on its front: ">" and "_".
+    private static var codex: AgentPetModel {
+        let body = union(
+            dome(0.50, 0.51, 0.34, 0.31, 0.56),
+            dome(0.33, 0.37, 0.21, 0.20, 0.44), dome(0.63, 0.33, 0.23, 0.22, 0.48),
+            dome(0.18, 0.55, 0.17, 0.17, 0.38), dome(0.82, 0.53, 0.17, 0.18, 0.40),
+            dome(0.34, 0.68, 0.22, 0.19, 0.44), dome(0.67, 0.68, 0.22, 0.19, 0.44))
         let prompt = union(
-            tube(0.22, 0.58, 0.31, 0.65, radius: 0.024, 1),
-            tube(0.31, 0.65, 0.22, 0.72, radius: 0.024, 1),
-            tube(0.40, 0.72, 0.54, 0.72, radius: 0.024, 1))
-        return union(far, cut(near, prompt))
+            tube(0.33, 0.46, 0.45, 0.55, radius: 0.034, 1),
+            tube(0.45, 0.55, 0.33, 0.64, radius: 0.034, 1),
+            tube(0.53, 0.64, 0.69, 0.64, radius: 0.034, 1))
+        return AgentPetModel(body, glow: prompt)
     }
 
     /// A four-pointed star, and a small one far behind it.

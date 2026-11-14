@@ -51,7 +51,7 @@ struct AgentPet: View {
 
     private func figure(time: TimeInterval, moving: Bool) -> some View {
         let lines = AgentPetArt.lines(for: tool, strength: strength)
-        let ground = AgentPalette.tint(for: tool, strength: strength * AgentPetFigure.groundStrength)
+        let grounds = AgentPetArt.grounds(for: tool, strength: strength)
         let stirs = moving && state == .working
         let hop = moving && isNeedsInput ? AgentPetMotion.hop(at: time) : 0
         return Canvas { context, canvas in
@@ -63,7 +63,7 @@ struct AgentPet: View {
                 let reach = stirs ? AgentPetMotion.sway(column: column, at: time) : 0
                 let inset = side * (AgentPetMotion.swayAmplitude - reach)
                 let whole = CGRect(x: x, y: inset, width: bar, height: side - 2 * inset)
-                context.fill(Path(roundedRect: whole, cornerRadius: bar / 2), with: .color(ground))
+                context.fill(Path(roundedRect: whole, cornerRadius: bar / 2), with: .color(grounds[column]))
                 for stretch in stretches {
                     let rect = CGRect(
                         x: x, y: side * stretch.top, width: bar,
@@ -102,6 +102,19 @@ private enum AgentPetArt {
 
     private static var cache: [Key: [[Stretch]]] = [:]
 
+    /// Where a line stands across the pet, from 0 at the left to 1 at the right.
+    private static func position(ofLine index: Int) -> Double {
+        Double(index) / Double(max(AgentPetFigure.lineCount - 1, 1))
+    }
+
+    /// The colour of each line where there is no figure.
+    static func grounds(for tool: AgentTool, strength: Double) -> [Color] {
+        (0..<AgentPetFigure.lineCount).map {
+            AgentPalette.tint(
+                for: tool, strength: strength * AgentPetFigure.groundStrength, across: position(ofLine: $0))
+        }
+    }
+
     static func lines(for tool: AgentTool, strength: Double) -> [[Stretch]] {
         let key = Key(tool: tool, strength: Int((strength * 100).rounded()))
         if let known = cache[key] { return known }
@@ -111,7 +124,10 @@ private enum AgentPetArt {
                 let last = max(stretch.shades.count - 1, 1)
                 let stops = stretch.shades.enumerated().map { position, shade in
                     Gradient.Stop(
-                        color: AgentPalette.tint(for: tool, strength: strength * shade),
+                        // A part that glows keeps glowing however far the pet steps back.
+                        color: AgentPalette.tint(
+                            for: tool, strength: shade > 1 ? 1 + (shade - 1) * strength : strength * shade,
+                            across: Self.position(ofLine: index)),
                         location: CGFloat(position) / CGFloat(last))
                 }
                 return Stretch(top: stretch.top, bottom: stretch.bottom, gradient: Gradient(stops: stops))

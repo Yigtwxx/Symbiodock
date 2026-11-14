@@ -288,13 +288,15 @@ line is a little wider than the gap beside it, so the colour stays strong.
 The brightness comes from a model, not from a picture: each figure is a small relief
 (domes, plates, tubes, holes) lit from the upper left. What faces the light shows the
 tool's colour at full strength; what turns away, lies in a hollow or stands farther back
-is dimmer, never below 30 %. The shading is deliberately gentle. None of the tool colours
-is the red or the mint that a state uses.
+is dimmer, never below 30 %. The shading is deliberately gentle. A part that gives off
+light of its own (the prompt on the Codex cloud) is brighter than anything lit: most of
+the way from the colour to white. None of the tool colours is the red or the mint that a
+state uses.
 
 | Tool | Colour | Pet |
 |---|---|---|
-| Claude Code | `#D97757` | A blocky creature: a flat-topped body with two eyes, an arm on each side, four legs, the far pair standing back |
-| Codex | `#4F9CF9` | A rounded cloud with a prompt cut into it, `>` and `_`, and a second cloud behind it |
+| Claude Code | `#D97757` | A plump creature: a round body ringed by eight lobes, like a burst, with two tall narrow eyes |
+| Codex | `#4F9CF9` → `#8B5CF6` | A plump cloud of round lobes, blue at its left and violet at its right, with a prompt glowing on its front: `>` and `_` |
 | Gemini CLI | `#9D7BFF` | A four-pointed star, faceted like a cut stone, and a small one far behind it |
 | Cursor Agent | `#D7D7DB` | A cube seen from a corner; the light gives each of its three faces its own tone |
 | OpenCode | `#F0D9A8` | A terminal window with a sunken screen and a prompt, `>` and `_`, and a second window behind it |

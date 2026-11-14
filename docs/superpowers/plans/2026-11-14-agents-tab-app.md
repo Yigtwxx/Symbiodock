@@ -66,7 +66,7 @@ Modified: `IslandView.swift`, `CollapsedContent.swift`, `FloatingCollapsedConten
 
 **Interfaces:**
 - Consumes: `AgentRowState`, `AgentTool`, `AgentPetFigure`, `AgentPetMotion` (core).
-- Produces: `AgentPalette.alert`, `AgentPalette.mint`, `AgentPalette.tint(for:)`; `AgentStatusMark(state:size:frozenAt:)`; `AgentPet(tool:state:size:frozenAt:)`; `DebugRender.runIfRequested()`, `DebugRender.write(_:size:named:to:)`.
+- Produces: `AgentPalette.alert`, `AgentPalette.mint`, `AgentPalette.tint(for:strength:across:)`; `AgentStatusMark(state:size:frozenAt:)`; `AgentPet(tool:state:size:frozenAt:)`; `DebugRender.runIfRequested()`, `DebugRender.write(_:size:named:to:)`.
 
 The pets matter to the owner more than anything else in this feature: he asked for each tool's figure to be drawn from vertical bars, in the manner of the ElevenLabs mark, each in its tool's own colour, and to look clean and beautiful. Treat Step 5 as real design work: render, look, adjust the figures in `AgentPetRelief.swift`, render again, until each figure reads at 60 pt and still reads at 18 pt.
 
@@ -87,26 +87,42 @@ enum AgentPalette {
     static let mint = Color(red: 99.0 / 255.0, green: 230.0 / 255.0, blue: 169.0 / 255.0)
 
     /// The colour a tool is known by, as red, green and blue from 0 to 1. None of them is
-    /// the alert red or the finished mint.
-    private static func components(for tool: AgentTool) -> (red: Double, green: Double, blue: Double) {
+    /// the alert red or the finished mint. `position` runs from 0 at a pet's left edge to
+    /// 1 at its right: Codex goes from blue to violet across its pet.
+    private static func components(
+        for tool: AgentTool, across position: Double
+    ) -> (red: Double, green: Double, blue: Double) {
         switch tool {
-        case .claudeCode: (217.0 / 255.0, 119.0 / 255.0, 87.0 / 255.0)  // #D97757
-        case .codex: (79.0 / 255.0, 156.0 / 255.0, 249.0 / 255.0)  // #4F9CF9
-        case .geminiCLI: (157.0 / 255.0, 123.0 / 255.0, 1.0)  // #9D7BFF
-        case .cursorAgent: (215.0 / 255.0, 215.0 / 255.0, 219.0 / 255.0)  // #D7D7DB
-        case .openCode: (240.0 / 255.0, 217.0 / 255.0, 168.0 / 255.0)  // #F0D9A8
-        case .aider: (163.0 / 255.0, 230.0 / 255.0, 53.0 / 255.0)  // #A3E635
-        case .copilotCLI: (242.0 / 255.0, 127.0 / 255.0, 192.0 / 255.0)  // #F27FC0
+        case .claudeCode: return (217.0 / 255.0, 119.0 / 255.0, 87.0 / 255.0)  // #D97757
+        case .codex:
+            let blue = (79.0 / 255.0, 156.0 / 255.0, 249.0 / 255.0)  // #4F9CF9
+            let violet = (139.0 / 255.0, 92.0 / 255.0, 246.0 / 255.0)  // #8B5CF6
+            let part = min(max(position, 0), 1)
+            return (
+                blue.0 + (violet.0 - blue.0) * part, blue.1 + (violet.1 - blue.1) * part,
+                blue.2 + (violet.2 - blue.2) * part
+            )
+        case .geminiCLI: return (157.0 / 255.0, 123.0 / 255.0, 1.0)  // #9D7BFF
+        case .cursorAgent: return (215.0 / 255.0, 215.0 / 255.0, 219.0 / 255.0)  // #D7D7DB
+        case .openCode: return (240.0 / 255.0, 217.0 / 255.0, 168.0 / 255.0)  // #F0D9A8
+        case .aider: return (163.0 / 255.0, 230.0 / 255.0, 53.0 / 255.0)  // #A3E635
+        case .copilotCLI: return (242.0 / 255.0, 127.0 / 255.0, 192.0 / 255.0)  // #F27FC0
         }
     }
 
-    /// A tool's colour at the given strength, 1 being the colour itself. Weaker is the
-    /// colour mixed towards the island's black: an opaque colour, so that lines drawn over
-    /// each other do not add up.
-    static func tint(for tool: AgentTool, strength: Double = 1) -> Color {
-        let color = components(for: tool)
-        let amount = min(max(strength, 0), 1)
-        return Color(red: color.red * amount, green: color.green * amount, blue: color.blue * amount)
+    /// A tool's colour at the given strength. 1 is the colour itself. Below 1 it is mixed
+    /// towards the island's black, above 1 towards white (a part that glows), up to 2.
+    /// The result is opaque, so that lines drawn over each other do not add up.
+    static func tint(for tool: AgentTool, strength: Double = 1, across position: Double = 0.5) -> Color {
+        let color = components(for: tool, across: position)
+        let amount = min(max(strength, 0), 2)
+        guard amount > 1 else {
+            return Color(red: color.red * amount, green: color.green * amount, blue: color.blue * amount)
+        }
+        let white = amount - 1
+        return Color(
+            red: color.red + (1 - color.red) * white, green: color.green + (1 - color.green) * white,
+            blue: color.blue + (1 - color.blue) * white)
     }
 }
 ```
@@ -321,7 +337,7 @@ struct AgentPet: View {
 
     private func figure(time: TimeInterval, moving: Bool) -> some View {
         let lines = AgentPetArt.lines(for: tool, strength: strength)
-        let ground = AgentPalette.tint(for: tool, strength: strength * AgentPetFigure.groundStrength)
+        let grounds = AgentPetArt.grounds(for: tool, strength: strength)
         let stirs = moving && state == .working
         let hop = moving && isNeedsInput ? AgentPetMotion.hop(at: time) : 0
         return Canvas { context, canvas in
@@ -333,7 +349,7 @@ struct AgentPet: View {
                 let reach = stirs ? AgentPetMotion.sway(column: column, at: time) : 0
                 let inset = side * (AgentPetMotion.swayAmplitude - reach)
                 let whole = CGRect(x: x, y: inset, width: bar, height: side - 2 * inset)
-                context.fill(Path(roundedRect: whole, cornerRadius: bar / 2), with: .color(ground))
+                context.fill(Path(roundedRect: whole, cornerRadius: bar / 2), with: .color(grounds[column]))
                 for stretch in stretches {
                     let rect = CGRect(
                         x: x, y: side * stretch.top, width: bar,
@@ -372,6 +388,19 @@ private enum AgentPetArt {
 
     private static var cache: [Key: [[Stretch]]] = [:]
 
+    /// Where a line stands across the pet, from 0 at the left to 1 at the right.
+    private static func position(ofLine index: Int) -> Double {
+        Double(index) / Double(max(AgentPetFigure.lineCount - 1, 1))
+    }
+
+    /// The colour of each line where there is no figure.
+    static func grounds(for tool: AgentTool, strength: Double) -> [Color] {
+        (0..<AgentPetFigure.lineCount).map {
+            AgentPalette.tint(
+                for: tool, strength: strength * AgentPetFigure.groundStrength, across: position(ofLine: $0))
+        }
+    }
+
     static func lines(for tool: AgentTool, strength: Double) -> [[Stretch]] {
         let key = Key(tool: tool, strength: Int((strength * 100).rounded()))
         if let known = cache[key] { return known }
@@ -381,7 +410,10 @@ private enum AgentPetArt {
                 let last = max(stretch.shades.count - 1, 1)
                 let stops = stretch.shades.enumerated().map { position, shade in
                     Gradient.Stop(
-                        color: AgentPalette.tint(for: tool, strength: strength * shade),
+                        // A part that glows keeps glowing however far the pet steps back.
+                        color: AgentPalette.tint(
+                            for: tool, strength: shade > 1 ? 1 + (shade - 1) * strength : strength * shade,
+                            across: Self.position(ofLine: index)),
                         location: CGFloat(position) / CGFloat(last))
                 }
                 return Stretch(top: stretch.top, bottom: stretch.bottom, gradient: Gradient(stops: stops))
@@ -664,7 +696,7 @@ Open `status-marks.png` with the Read tool and check, one by one: the working ma
 Open `pets.png` with the Read tool. This is the design step; do it properly:
 
 - Every pet is a square field of fine, evenly spaced vertical lines in its tool's colour. Where there is no figure the lines are faint; the figure shows as the lines growing brighter and dimmer along their length.
-- Each figure reads as a lit form at 84 pt: Claude Code as a blocky creature with two eyes, arms and four legs (the far pair dimmer); Codex as a rounded cloud with `>_` cut into it and a dimmer cloud behind; Gemini as a faceted four-pointed star with a small one behind; Cursor as a cube whose three faces have three tones; OpenCode as a terminal window with a sunken screen and `>_`, and a dimmer window behind; Aider as an `A` of three tubes; Copilot as a round head with sunken goggles and two eyes.
+- Each figure reads as a lit form at 84 pt: Claude Code as a plump creature, a round body ringed by lobes, with two tall narrow eyes; Codex as a plump cloud of round lobes, blue on the left and violet on the right, with `>_` glowing white on its front; Gemini as a faceted four-pointed star with a small one behind; Cursor as a cube whose three faces have three tones; OpenCode as a terminal window with a sunken screen and `>_`, and a dimmer window behind; Aider as an `A` of three tubes; Copilot as a round head with sunken goggles and two eyes.
 - Each is still recognisable at 24 pt, and no two can be mistaken for each other.
 - The colours are strong, not washed out: the lit parts of a figure show the tool's colour at or near full strength.
 - In the `working` row the ends of the lines differ only slightly between the three frames: the pet stirs, it does not dance. In the `states` row the hopping pet sits a little higher than its neighbours, and running and idle are dimmer.

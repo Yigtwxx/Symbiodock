@@ -11,7 +11,8 @@ public struct AgentPetFigure: Equatable, Sendable {
         /// 0 is the top of the figure, 1 its bottom.
         public let top: Double
         public let bottom: Double
-        /// Brightness from `top` to `bottom`, evenly spaced, each above 0 and at most 1.
+        /// Brightness from `top` to `bottom`, evenly spaced, each above 0. Up to 1 it is
+        /// how much of the tool's colour shows; above 1 the part glows, towards white.
         public let shades: [Double]
     }
 
@@ -27,9 +28,11 @@ public struct AgentPetFigure: Equatable, Sendable {
     public static let groundStrength = 0.085
     /// The dimmest a part of a figure can be, so that it always stands out from the ground.
     public static let faintestShade = 0.3
+    /// The brightness of a part that gives off light of its own: most of the way to white.
+    public static let glowShade = 1.8
 
     /// Brightness along each line, left to right and top to bottom; 0 where the line shows
-    /// only the ground.
+    /// only the ground, `glowShade` where the figure glows.
     public let lines: [[Double]]
 
     init(lines: [[Double]]) {
@@ -38,12 +41,12 @@ public struct AgentPetFigure: Equatable, Sendable {
 
     /// The figure of a tool. Each is worked out once and kept.
     public static func figure(for tool: AgentTool) -> AgentPetFigure {
-        figures[tool] ?? AgentPetFigure(relief: AgentPetReliefs.relief(for: tool))
+        figures[tool] ?? AgentPetFigure(model: AgentPetReliefs.model(for: tool))
     }
 
     private static let figures: [AgentTool: AgentPetFigure] = Dictionary(
         uniqueKeysWithValues: AgentTool.allCases.map {
-            ($0, AgentPetFigure(relief: AgentPetReliefs.relief(for: $0)))
+            ($0, AgentPetFigure(model: AgentPetReliefs.model(for: $0)))
         })
 
     /// The stretches of one line where the figure is, top to bottom.
@@ -76,12 +79,21 @@ extension AgentPetFigure {
     private static let step = 0.006
 
     /// Lights a relief and records what each line sees of it.
-    init(relief: AgentPetRelief) {
-        let peak = Self.peak(of: relief)
+    init(relief: @escaping AgentPetRelief) {
+        self.init(model: AgentPetModel(relief))
+    }
+
+    /// Lights a model and records what each line sees of it. Where the model glows, on
+    /// the figure, the line is at `glowShade` whatever the light does.
+    init(model: AgentPetModel) {
+        let peak = Self.peak(of: model.relief)
         lines = (0..<Self.lineCount).map { column in
             let x = Double(column) * Self.pitch + Self.barWidth / 2
             return (0..<Self.samplesPerLine).map { row in
-                Self.shade(of: relief, x: x, y: (Double(row) + 0.5) / Double(Self.samplesPerLine), peak: peak)
+                let y = (Double(row) + 0.5) / Double(Self.samplesPerLine)
+                let shade = Self.shade(of: model.relief, x: x, y: y, peak: peak)
+                guard shade > 0, let glow = model.glow, glow(x, y) > 0 else { return shade }
+                return Self.glowShade
             }
         }
     }
