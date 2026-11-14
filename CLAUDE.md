@@ -61,10 +61,10 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 
 ## Durum
 
-- `main` üzerinde: onaylı tasarım dokümanı, milestone 0-1 uygulama planı, LICENSE, README.
-- Uygulama kodu yok. Xcode projesi yok. Faz 0 tamam; Faz 1 başlamadı.
-- Xcode 27.2 kurulu ve `xcode-select` ile seçili; ilk açılış kurulumu tamam, macOS 27.2 SDK
-  mevcut, XcodeGen 2.45.4 kurulu (2026-11-14'te doğrulandı).
+- Faz 0-1 tamam: çekirdek paket (geometri, durum, yerleşim) testleriyle; agent uygulama
+  açılıyor, menü çubuğu öğesinden çıkılabiliyor.
+- Çentik paneli, hover, müzik verisi, sürükleme ve symbiote efekti yok. Faz 2 başlamadı.
+- Xcode 27.2 ve XcodeGen 2.45.4 kurulu, `xcode-select` ile seçili.
 
 ## "Yapılacakları yap" denince
 
@@ -106,7 +106,7 @@ Durmadan devam edilecek durumlar:
 
 - [x] **Faz 0 — Ön koşullar.** `xcodebuild -version` ve `xcodegen --version` çalışıyor.
       Plan: milestone 0-1 planı, Görev 0.
-- [ ] **Faz 1 — Milestone 0: iskelet.** Çekirdek paket (geometri, durum, yerleşim) testleriyle;
+- [x] **Faz 1 — Milestone 0: iskelet.** Çekirdek paket (geometri, durum, yerleşim) testleriyle;
       agent uygulama açılıyor; menü çubuğu öğesinden çıkılabiliyor.
       Plan: `docs/superpowers/plans/2026-11-14-m0-m1-notch-island.md`, Görev 1-3.
 - [ ] **Faz 2 — Milestone 1: çentik adası.** Şeffaf panel çentikte; hover ile büyüyor ve
@@ -139,16 +139,24 @@ spec'te yazılı.
 
 ## Doğrulama
 
-`xcodebuild -version` hata verirse Xcode seçili değildir. Sahibi şunu çalıştırır:
-
 ```bash
-sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+swift test --package-path Packages/SymbiodockCore
 ```
 
-O yapılana kadar sudo'suz geçici çözüm, her komuttan önce:
-
 ```bash
-export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock -configuration Debug -derivedDataPath build build 2>&1 | tail -3
 ```
 
-Build, çalıştırma ve test komutları Faz 1 bitince buraya eklenecek (plan Görev 3, Adım 7).
+```bash
+open build/Build/Products/Debug/Symbiodock.app
+```
+
+```bash
+swift scripts/list-windows.swift
+```
+
+```bash
+pkill -x Symbiodock
+```
+
+`Symbiodock.xcodeproj` commit edilmez; `project.yml` değişince `xcodegen generate` yeniden çalıştırılır.

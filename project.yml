@@ -1,0 +1,43 @@
+name: Symbiodock
+options:
+  bundleIdPrefix: com.yigtwxx
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+packages:
+  SymbiodockCore:
+    path: Packages/SymbiodockCore
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+targets:
+  Symbiodock:
+    type: application
+    platform: macOS
+    sources:
+      - path: Symbiodock
+    dependencies:
+      - package: SymbiodockCore
+    info:
+      path: Symbiodock/Info.plist
+      properties:
+        LSUIElement: true
+        CFBundleDisplayName: Symbiodock
+        LSApplicationCategoryType: public.app-category.utilities
+        NSHumanReadableCopyright: "Copyright © 2026 Yigtwxx"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yigtwxx.Symbiodock
+        ENABLE_HARDENED_RUNTIME: NO
+schemes:
+  Symbiodock:
+    build:
+      targets:
+        Symbiodock: all
+    run:
+      config: Debug
