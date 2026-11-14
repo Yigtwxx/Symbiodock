@@ -281,7 +281,8 @@ final class OverlayController {
     }
 
     private func beginDrag(from press: CGPoint) {
-        // The island is always collapsed while it is dragged.
+        // The island is always collapsed while it is dragged; it shrinks from what it is now.
+        let current = islandFrame(phase: state.phase)
         let resting = islandFrame(phase: .collapsed)
         let atNotch = state.anchor == .notch
         state.beginDrag(at: press, from: CGPoint(x: resting.midX, y: resting.midY))
@@ -292,7 +293,7 @@ final class OverlayController {
         pointerInside = false
         Self.dragLog.notice("drag began; at notch: \(atNotch)")
         session.begin(
-            restingFrame: resting, press: press,
+            currentFrame: current, restingFrame: resting, press: press,
             // Pulled off the notch, the goo hangs from the notch itself, not from the wings.
             rootRect: atNotch ? geometry.notch : resting,
             rootAtNotch: atNotch,

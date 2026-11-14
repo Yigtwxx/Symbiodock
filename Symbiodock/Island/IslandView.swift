@@ -62,8 +62,8 @@ struct IslandView: View {
                     CollapsedContent(info: info, notchWidth: geometry.notch.width)
                         .transition(.opacity)
                 }
-            } else if let info = state.nowPlaying {
-                FloatingCollapsedContent(info: info)
+            } else {
+                FloatingCollapsedContent(info: state.nowPlaying)
                     .transition(.opacity)
             }
         }

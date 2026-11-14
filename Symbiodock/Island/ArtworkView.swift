@@ -8,7 +8,7 @@ struct ArtworkView: View {
 
     var body: some View {
         Group {
-            if let data, let image = NSImage(data: data) {
+            if let data, let image = ArtworkCache.image(for: data) {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -23,5 +23,25 @@ struct ArtworkView: View {
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
+        // A hairline keeps dark artwork from melting into the black island.
+        .overlay {
+            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                .strokeBorder(.white.opacity(0.1), lineWidth: 0.5)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// The last artwork decoded. Views are re-evaluated on every hover and progress tick;
+/// decoding a few hundred kilobytes of JPEG each time would be wasted work.
+@MainActor
+private enum ArtworkCache {
+    private static var last: (data: Data, image: NSImage)?
+
+    static func image(for data: Data) -> NSImage? {
+        if let last, last.data == data { return last.image }
+        guard let image = NSImage(data: data) else { return nil }
+        last = (data, image)
+        return image
     }
 }

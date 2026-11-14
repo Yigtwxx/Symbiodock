@@ -39,6 +39,11 @@ final class DragSession {
     /// 0 while attached; springs to 1 after the tear, bringing the body under the pointer.
     private var grabBlend: CGFloat = 0
     private var grabBlendVelocity: CGFloat = 0
+    /// From the resting center to where the island's middle was when it was grabbed
+    /// (it may have been expanded); eases to nothing so the grab does not make it jump.
+    private var startOffset: CGSize = .zero
+    private var startBlend: CGFloat = 0
+    private var startBlendVelocity: CGFloat = 0
     /// Set while settling into the notch: the capsule squares its top as it arrives.
     private var settlesIntoNotch = false
     private var settleDistance: CGFloat = 0
@@ -51,9 +56,11 @@ final class DragSession {
     ///   - rootAtNotch: the root is the notch, so its top is flush with the display edge.
     ///   - rootIsPhysicalNotch: the root is real hardware and stays after the island leaves;
     ///     any other root is the island's old place and shrinks away once the goo tears.
+    /// - Parameter currentFrame: the island as it is on screen at the grab; it shrinks from
+    ///   there to `restingFrame`, the collapsed island that is actually dragged.
     func begin(
-        restingFrame: CGRect, press: CGPoint, rootRect: CGRect, rootAtNotch: Bool,
-        rootIsPhysicalNotch: Bool
+        currentFrame: CGRect, restingFrame: CGRect, press: CGPoint, rootRect: CGRect,
+        rootAtNotch: Bool, rootIsPhysicalNotch: Bool
     ) {
         var configuration = SymbioteSimulation.Configuration()
         configuration.rootSpread = CGSize(width: rootRect.width * 0.33, height: rootRect.height * 0.22)
@@ -70,8 +77,12 @@ final class DragSession {
         grabBlend = 0
         grabBlendVelocity = 0
         settlesIntoNotch = false
-        bodyCenter = restCenter
-        bodySize = restingFrame.size
+        startOffset = CGSize(
+            width: currentFrame.midX - restCenter.x, height: currentFrame.midY - restCenter.y)
+        startBlend = 1
+        startBlendVelocity = 0
+        bodySize = currentFrame.size
+        placeBody()
         targetSize = restingFrame.size
         targetCenter = nil
         centerVelocity = .zero
@@ -91,8 +102,10 @@ final class DragSession {
     /// the gap to the pointer, so a grab at the island's corner ends with it under the pointer.
     private func placeBody() {
         bodyCenter = CGPoint(
-            x: restCenter.x + pointerOffset.width + grabOffset.width * grabBlend,
-            y: restCenter.y + pointerOffset.height + grabOffset.height * grabBlend)
+            x: restCenter.x + pointerOffset.width + grabOffset.width * grabBlend
+                + startOffset.width * startBlend,
+            y: restCenter.y + pointerOffset.height + grabOffset.height * grabBlend
+                + startOffset.height * startBlend)
     }
 
     /// The island came off: every strand breaks, and the body becomes a free-floating capsule.
@@ -125,8 +138,11 @@ final class DragSession {
             if let targetCenter {
                 Self.spring(&bodyCenter.x, &centerVelocity.x, toward: targetCenter.x, h)
                 Self.spring(&bodyCenter.y, &centerVelocity.y, toward: targetCenter.y, h)
-            } else if simulation.isTorn {
-                Self.spring(&grabBlend, &grabBlendVelocity, toward: 1, h)
+            } else {
+                Self.spring(&startBlend, &startBlendVelocity, toward: 0, h)
+                if simulation.isTorn {
+                    Self.spring(&grabBlend, &grabBlendVelocity, toward: 1, h)
+                }
             }
         }
         if targetCenter == nil { placeBody() }
