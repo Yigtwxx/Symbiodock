@@ -58,4 +58,16 @@ struct AppleMusicPayloadParserTests {
 
         #expect(info?.duration == 10020)
     }
+
+    @Test func missingValuesAreTreatedAsEmpty() {
+        let info = AppleMusicPayloadParser.info(
+            fromScriptOutput: "Radio\u{1F}missing value\u{1F}missing value\u{1F}missing value\u{1F}3\u{1F}playing",
+            at: now)
+
+        #expect(info?.artist == "")
+        #expect(info?.album == nil)
+        #expect(info?.duration == nil)
+        #expect(AppleMusicPayloadParser.info(
+            fromScriptOutput: "missing value\u{1F}A\u{1F}B\u{1F}1\u{1F}1\u{1F}playing", at: now) == nil)
+    }
 }

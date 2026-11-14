@@ -5,7 +5,9 @@ import Foundation
 /// or the word "stopped". A unit separator cannot appear in a track name, a newline can.
 public enum AppleMusicPayloadParser {
     public static func info(fromScriptOutput output: String, at now: Date) -> NowPlayingInfo? {
-        let lines = output.split(separator: "\u{1F}", omittingEmptySubsequences: false).map(String.init)
+        // A field Music has no value for arrives as the literal text "missing value".
+        let lines = output.split(separator: "\u{1F}", omittingEmptySubsequences: false)
+            .map { $0 == "missing value" ? "" : String($0) }
         guard lines.count == 6, !lines[0].isEmpty else { return nil }
 
         return NowPlayingInfo(
