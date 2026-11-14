@@ -25,23 +25,26 @@ struct MediaRemoteProvider: NowPlayingProvider {
     }
 
     private static let perl = URL(fileURLWithPath: "/usr/bin/perl")
-    private static let maxRestarts = 3
+    private static let oneShotTimeLimit: TimeInterval = 10
     private static let logger = Logger(
         subsystem: "com.yigtwxx.Symbiodock", category: "MediaRemoteProvider")
 
     let paths: Paths
+    let helpers: HelperProcesses
 
     func isAvailable() async -> Bool {
-        await Self.runToExit(arguments: [
+        await Self.runToExit(helpers: helpers, arguments: [
             paths.script.path, paths.framework.path, paths.testClient.path, "test",
         ]) == 0
     }
 
     var updates: AsyncStream<NowPlayingInfo?> {
         let paths = paths
+        let helpers = helpers
         return AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
             let task = Task.detached {
-                await Self.streamLoop(paths: paths, continuation: continuation)
+                await Self.streamLoop(
+                    paths: paths, helpers: helpers, continuation: continuation)
                 continuation.finish()
             }
             continuation.onTermination = { _ in task.cancel() }
@@ -55,41 +58,42 @@ struct MediaRemoteProvider: NowPlayingProvider {
         case .next: "4"
         case .previous: "5"
         }
-        _ = await Self.runToExit(arguments: [
+        _ = await Self.runToExit(helpers: helpers, arguments: [
             paths.script.path, paths.framework.path, "send", id,
         ])
     }
 
-    /// Keeps the helper running. Returns when it has been restarted `maxRestarts` times
-    /// without staying up, or when the task is cancelled.
+    /// Keeps the helper running. Returns when `RestartPolicy` gives up on it, or when the
+    /// task is cancelled.
     private static func streamLoop(
-        paths: Paths, continuation: AsyncStream<NowPlayingInfo?>.Continuation
+        paths: Paths, helpers: HelperProcesses,
+        continuation: AsyncStream<NowPlayingInfo?>.Continuation
     ) async {
-        var restarts = 0
+        var policy = RestartPolicy()
+        let clock = ContinuousClock()
         while !Task.isCancelled {
-            let startedAt = Date()
-            await streamOnce(paths: paths, continuation: continuation)
+            let startedAt = clock.now
+            await streamOnce(paths: paths, helpers: helpers, continuation: continuation)
             if Task.isCancelled { return }
 
-            // A helper that ran for a while was working; start counting again.
-            if Date().timeIntervalSince(startedAt) > 60 { restarts = 0 }
-            guard restarts < maxRestarts else {
+            guard let delay = policy.delayAfterRun(lasting: clock.now - startedAt) else {
                 logger.error("The MediaRemote helper keeps exiting; giving up on it.")
                 return
             }
-            restarts += 1
-            try? await Task.sleep(for: .seconds(1 << (restarts - 1)))  // 1 s, 2 s, 4 s
+            try? await Task.sleep(for: delay)
         }
     }
 
     private static func streamOnce(
-        paths: Paths, continuation: AsyncStream<NowPlayingInfo?>.Continuation
+        paths: Paths, helpers: HelperProcesses,
+        continuation: AsyncStream<NowPlayingInfo?>.Continuation
     ) async {
         let process = Process()
         process.executableURL = perl
         process.arguments = [
             paths.script.path, paths.framework.path, "stream", "--no-diff", "--debounce=100",
         ]
+        process.environment = HelperProcesses.minimalEnvironment()
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
@@ -100,6 +104,8 @@ struct MediaRemoteProvider: NowPlayingProvider {
             logger.error("Could not launch the MediaRemote helper.")
             return
         }
+        helpers.register(process)
+        defer { helpers.unregister(process) }
 
         await withTaskCancellationHandler {
             do {
@@ -124,28 +130,72 @@ struct MediaRemoteProvider: NowPlayingProvider {
                 logger.error("Reading from the MediaRemote helper failed.")
             }
         } onCancel: {
-            process.terminate()
+            HelperProcesses.terminateEscalating(process)
         }
+        // Output closed but the process may linger; make sure the wait below ends.
+        HelperProcesses.terminateEscalating(process)
         process.waitUntilExit()
     }
 
-    /// Runs perl with the given arguments and returns its exit status, or -1 if it did not start.
-    private static func runToExit(arguments: [String]) async -> Int32 {
-        await withCheckedContinuation { continuation in
-            let process = Process()
-            process.executableURL = perl
-            process.arguments = arguments
-            process.standardOutput = FileHandle.nullDevice
-            process.standardError = FileHandle.nullDevice
-            process.terminationHandler = { finished in
-                continuation.resume(returning: finished.terminationStatus)
+    /// Resumes a continuation exactly once, whichever of exit, timeout or cancel gets there first.
+    private final class Gate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<Int32, Never>?
+        private var timer: DispatchWorkItem?
+
+        init(_ continuation: CheckedContinuation<Int32, Never>) { self.continuation = continuation }
+
+        func setTimer(_ item: DispatchWorkItem) { lock.withLock { timer = item } }
+
+        func finish(_ status: Int32) {
+            let (pending, item) = lock.withLock {
+                defer { continuation = nil; timer = nil }
+                return (continuation, timer)
             }
-            do {
-                try process.run()
-            } catch {
-                process.terminationHandler = nil
-                continuation.resume(returning: -1)
+            item?.cancel()
+            pending?.resume(returning: status)
+        }
+    }
+
+    /// Runs perl with the given arguments and returns its exit status, or -1 if it did not
+    /// start, ran out of time (`oneShotTimeLimit`) or was cancelled.
+    private static func runToExit(helpers: HelperProcesses, arguments: [String]) async -> Int32 {
+        if Task.isCancelled { return -1 }
+        let process = Process()
+        process.executableURL = perl
+        process.arguments = arguments
+        process.environment = HelperProcesses.minimalEnvironment()
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Int32, Never>) in
+                let gate = Gate(continuation)
+                process.terminationHandler = { finished in
+                    helpers.unregister(finished)
+                    gate.finish(finished.terminationStatus)
+                }
+                do {
+                    try process.run()
+                } catch {
+                    process.terminationHandler = nil
+                    gate.finish(-1)
+                    return
+                }
+                helpers.register(process)
+                let timeout = DispatchWorkItem {
+                    HelperProcesses.terminateEscalating(process)
+                    helpers.unregister(process)
+                    gate.finish(-1)
+                }
+                gate.setTimer(timeout)
+                DispatchQueue.global().asyncAfter(
+                    deadline: .now() + oneShotTimeLimit, execute: timeout)
+                // Cancelled while launching: the handler below ran before the process existed.
+                if Task.isCancelled { HelperProcesses.terminateEscalating(process) }
             }
+        } onCancel: {
+            HelperProcesses.terminateEscalating(process)
         }
     }
 }
