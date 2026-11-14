@@ -4,7 +4,7 @@
 
 **Goal:** Show running AI coding agent sessions in the island: tabs in the expanded island, an Agents tab, a status mark and rim light on the collapsed island, and a click that brings a session's app forward.
 
-**Architecture:** The core package (plan `2026-11-14-agents-tab-core.md`, must be finished first) holds the model, the board, the tab logic and the parsers. This plan adds what touches the system: file and process reading under `Symbiodock/Agents/`, SwiftUI views under `Symbiodock/Island/`, and the wiring in `AppDelegate`. A coordinator polls the providers off the main thread and hands the list to `IslandState`.
+**Architecture:** The core package (plan `2026-11-14-agents-tab-core.md`, all six tasks, must be finished first) holds the model, the board, the tab logic and the parsers. This plan adds what touches the system: file and process reading under `Symbiodock/Agents/`, SwiftUI views under `Symbiodock/Island/`, and the wiring in `AppDelegate`. A coordinator polls the providers off the main thread and hands the list to `IslandState`.
 
 **Tech Stack:** Swift 6, SwiftUI, AppKit, `libproc` and `sysctl` through `Darwin`, XcodeGen.
 
@@ -16,7 +16,7 @@ Spec: `docs/superpowers/specs/2026-11-14-agents-tab-design.md`.
 - Never log or print session titles, project paths, question text or process arguments. Logs carry counts, tool names and state names only.
 - Interface text is English. Code, identifiers and comments are English.
 - Minimum macOS 14.0. Swift 6 strict concurrency.
-- Colours: coral `#FF6A5C` (needs input), mint `#63E6A9` (finished). Everything else white on black.
+- Colours: red `#FF4D4F` (needs input), mint `#63E6A9` (finished), and one colour per tool for its pet. Everything else white on black.
 - With Reduce Motion on, nothing travels, knocks, turns or breathes.
 - Verify after every task:
   - `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -1` passes.
@@ -31,9 +31,9 @@ Spec: `docs/superpowers/specs/2026-11-14-agents-tab-design.md`.
 
 | File | Responsibility |
 |---|---|
-| `Symbiodock/Island/Agents/AgentPalette.swift` | The two accent colours |
+| `Symbiodock/Island/Agents/AgentPalette.swift` | The state colours and each tool's colour |
 | `Symbiodock/Island/Agents/AgentStatusMark.swift` | The 14 pt mark and its looks |
-| `Symbiodock/Island/Agents/AgentToolIcon.swift` | A tool's glyph or monogram |
+| `Symbiodock/Island/Agents/AgentPet.swift` | A tool's pet, drawn from bars |
 | `Symbiodock/Island/Agents/AgentsContent.swift` | The Agents tab: rows, empty state |
 | `Symbiodock/Island/Agents/AgentFaces.swift` | Collapsed faces for the notch, the capsule and the strip |
 | `Symbiodock/Island/RimLight.swift` | The light along the collapsed island's rim |
@@ -50,22 +50,25 @@ Spec: `docs/superpowers/specs/2026-11-14-agents-tab-design.md`.
 | `Symbiodock/App/DebugRender.swift` | Debug only: draws the agent views to PNG files |
 | `Symbiodock/Agents/DemoAgents.swift` | Debug only: a fixed set of sessions |
 
-Modified: `IslandView.swift`, `CollapsedContent.swift`, `FloatingCollapsedContent.swift`, `SideCollapsedContent.swift`, `OverlayController.swift`, `IslandMenu.swift`, `AppDelegate.swift`, `ThirdPartyNotices.txt`.
+Modified: `IslandView.swift`, `CollapsedContent.swift`, `FloatingCollapsedContent.swift`, `SideCollapsedContent.swift`, `OverlayController.swift`, `IslandMenu.swift`, `AppDelegate.swift`.
 
 ---
 
-### Task 1: Status mark, tool icon and the render harness
+### Task 1: Status mark, pets and the render harness
 
 **Files:**
 - Create: `Symbiodock/Island/Agents/AgentPalette.swift`
 - Create: `Symbiodock/Island/Agents/AgentStatusMark.swift`
-- Create: `Symbiodock/Island/Agents/AgentToolIcon.swift`
+- Create: `Symbiodock/Island/Agents/AgentPet.swift`
 - Create: `Symbiodock/App/DebugRender.swift`
+- Modify (only if a figure needs tuning): `Packages/SymbiodockCore/Sources/SymbiodockCore/Agents/AgentPetGlyph.swift`
 - Modify: `Symbiodock/App/AppDelegate.swift`
 
 **Interfaces:**
-- Consumes: `AgentRowState`, `AgentTool` (core).
-- Produces: `AgentPalette.coral`, `AgentPalette.mint`; `AgentStatusMark(state:size:frozenAt:)`; `AgentToolIcon(tool:size:)`; `AgentTool.monogram`; `DebugRender.runIfRequested()`, `DebugRender.write(_:size:named:to:)`.
+- Consumes: `AgentRowState`, `AgentTool`, `AgentPetGlyph`, `AgentPetMotion` (core).
+- Produces: `AgentPalette.alert`, `AgentPalette.mint`, `AgentPalette.tint(for:)`; `AgentStatusMark(state:size:frozenAt:)`; `AgentPet(tool:state:size:frozenAt:)`; `DebugRender.runIfRequested()`, `DebugRender.write(_:size:named:to:)`.
+
+The pets matter to the owner more than anything else in this feature: he asked for each tool's figure to be drawn from vertical bars, in the manner of the ElevenLabs mark, each in its tool's own colour, and to look clean and beautiful. Treat Step 5 as real design work: render, look, adjust the figures in `AgentPetGlyph.swift`, render again, until each figure reads at 60 pt and still reads at 18 pt.
 
 - [ ] **Step 1: Write the palette**
 
@@ -73,13 +76,28 @@ Modified: `IslandView.swift`, `CollapsedContent.swift`, `FloatingCollapsedConten
 
 ```swift
 import SwiftUI
+import SymbiodockCore
 
-/// The two accents the agents bring to the black island.
+/// The colours the agents bring to the black island: two for what a session's state
+/// says, and one for each tool's pet.
 enum AgentPalette {
-    /// A session waits for the user. #FF6A5C
-    static let coral = Color(red: 1.0, green: 106.0 / 255.0, blue: 92.0 / 255.0)
+    /// A session waits for the user. #FF4D4F
+    static let alert = Color(red: 1.0, green: 77.0 / 255.0, blue: 79.0 / 255.0)
     /// A session has finished. #63E6A9
     static let mint = Color(red: 99.0 / 255.0, green: 230.0 / 255.0, blue: 169.0 / 255.0)
+
+    /// The colour a tool is known by. None of them is the alert red or the finished mint.
+    static func tint(for tool: AgentTool) -> Color {
+        switch tool {
+        case .claudeCode: Color(red: 217.0 / 255.0, green: 119.0 / 255.0, blue: 87.0 / 255.0)  // #D97757
+        case .codex: Color(red: 79.0 / 255.0, green: 156.0 / 255.0, blue: 249.0 / 255.0)  // #4F9CF9
+        case .geminiCLI: Color(red: 157.0 / 255.0, green: 123.0 / 255.0, blue: 1.0)  // #9D7BFF
+        case .cursorAgent: Color(red: 215.0 / 255.0, green: 215.0 / 255.0, blue: 219.0 / 255.0)  // #D7D7DB
+        case .openCode: Color(red: 242.0 / 255.0, green: 230.0 / 255.0, blue: 200.0 / 255.0)  // #F2E6C8
+        case .aider: Color(red: 163.0 / 255.0, green: 230.0 / 255.0, blue: 53.0 / 255.0)  // #A3E635
+        case .copilotCLI: Color(red: 242.0 / 255.0, green: 127.0 / 255.0, blue: 192.0 / 255.0)  // #F27FC0
+        }
+    }
 }
 ```
 
@@ -153,7 +171,7 @@ struct AgentStatusMark: View {
     private var color: Color {
         switch state {
         case .working: .white.opacity(0.9)
-        case .needsInput: AgentPalette.coral
+        case .needsInput: AgentPalette.alert
         case .finished: AgentPalette.mint
         case .running: .white.opacity(0.5)
         case .idle: .white.opacity(0.28)
@@ -235,76 +253,87 @@ private struct CheckShape: Shape {
 }
 ```
 
-- [ ] **Step 3: Write the tool icon**
+- [ ] **Step 3: Write the pet**
 
-`Symbiodock/Island/Agents/AgentToolIcon.swift`:
+`Symbiodock/Island/Agents/AgentPet.swift`:
 
 ```swift
-import AppKit
 import SwiftUI
 import SymbiodockCore
 
-/// A tool's glyph: a bundled monochrome mark when there is one, otherwise two letters.
-struct AgentToolIcon: View {
+/// A tool's pet: its figure drawn from seven vertical bars with round ends, in the tool's
+/// colour. It moves with its session: a wave runs through it while the session works, and
+/// it hops while the session needs input.
+struct AgentPet: View {
     let tool: AgentTool
+    var state: AgentRowState = .finished
     let size: CGFloat
+    /// Draws the pet at this moment and never moves; for previews and renders.
+    var frozenAt: TimeInterval?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
-            if let image = AgentIconCache.image(for: tool) {
-                Image(nsImage: image)
-                    .renderingMode(.template)
-                    .resizable()
-                    .interpolation(.high)
-                    .aspectRatio(contentMode: .fit)
-                    .foregroundStyle(.white.opacity(0.92))
+            if let frozenAt {
+                figure(time: frozenAt, moving: true)
             } else {
-                Text(tool.monogram)
-                    .font(.system(size: size * 0.5, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.92))
-                    .frame(width: size, height: size)
-                    .background(
-                        .white.opacity(0.16),
-                        in: RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !moves)) { context in
+                    figure(time: context.date.timeIntervalSinceReferenceDate, moving: moves)
+                }
             }
         }
         .frame(width: size, height: size)
+        .accessibilityElement()
         .accessibilityLabel(tool.displayName)
     }
-}
 
-extension AgentTool {
-    /// Two letters that stand for the tool where no mark is bundled.
-    var monogram: String {
-        switch self {
-        case .claudeCode: "Cc"
-        case .codex: "Cx"
-        case .geminiCLI: "Ge"
-        case .cursorAgent: "Cu"
-        case .openCode: "Oc"
-        case .aider: "Ai"
-        case .copilotCLI: "Co"
+    private var isNeedsInput: Bool {
+        if case .needsInput = state { true } else { false }
+    }
+
+    private var moves: Bool {
+        !reduceMotion && (state == .working || isNeedsInput)
+    }
+
+    /// A pet whose session is doing nothing steps back.
+    private var strength: Double {
+        switch state {
+        case .working, .needsInput, .finished: 1
+        case .running: 0.7
+        case .idle: 0.45
         }
     }
-}
 
-/// Marks already loaded; a tool without a bundled mark is remembered as nil.
-@MainActor
-private enum AgentIconCache {
-    private static var images: [AgentTool: NSImage?] = [:]
-
-    static func image(for tool: AgentTool) -> NSImage? {
-        if let cached = images[tool] { return cached }
-        let image = Bundle.main.url(forResource: "agent-\(tool.rawValue)", withExtension: "svg")
-            .flatMap { NSImage(contentsOf: $0) }
-        image?.isTemplate = true
-        images[tool] = image
-        return image
+    private func figure(time: TimeInterval, moving: Bool) -> some View {
+        let glyph = AgentPetGlyph.glyph(for: tool)
+        let waves = moving && state == .working
+        let hop = moving && isNeedsInput ? AgentPetMotion.hop(at: time) : 0
+        let color = AgentPalette.tint(for: tool).opacity(strength)
+        return Canvas { context, canvas in
+            let side = min(canvas.width, canvas.height)
+            let bar = side * AgentPetGlyph.barWidth
+            for (column, segments) in glyph.columns.enumerated() {
+                // Only the figure's upper outline moves; it stands on what is below.
+                let rise = waves ? AgentPetMotion.sway(column: column, at: time) : 0
+                for (index, segment) in segments.enumerated() {
+                    let top = max(index == 0 ? segment.top - rise : segment.top, 0)
+                    let rect = CGRect(
+                        x: side * AgentPetGlyph.pitch * CGFloat(column),
+                        y: side * top,
+                        width: bar,
+                        height: max(side * (segment.bottom - top), bar))
+                    context.fill(
+                        Path(roundedRect: rect, cornerRadius: bar / 2), with: .color(color))
+                }
+            }
+        }
+        .offset(y: -size * hop)
     }
 }
 ```
 
-No SVG is bundled yet, so every tool shows its monogram until Task 7.
+The figures themselves come from `AgentPetGlyph` in the core package.
 
 - [ ] **Step 4: Write the render harness**
 
@@ -326,6 +355,7 @@ enum DebugRender {
         let directory = URL(fileURLWithPath: path, isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         write(StatusMarkGallery(), size: CGSize(width: 560, height: 150), named: "status-marks", to: directory)
+        write(PetGallery(), size: CGSize(width: 700, height: 300), named: "pets", to: directory)
         exit(0)
     }
 
@@ -349,7 +379,7 @@ enum DebugRender {
     }
 }
 
-/// Every look of the status mark, large and at its real size, with the tool glyphs.
+/// Every look of the status mark, large and at its real size.
 private struct StatusMarkGallery: View {
     private static let states: [(String, AgentRowState, TimeInterval)] = [
         ("working", .working, 0.2),
@@ -372,11 +402,45 @@ private struct StatusMarkGallery: View {
                     }
                 }
             }
-            HStack(spacing: 10) {
-                ForEach(AgentTool.allCases, id: \.self) { AgentToolIcon(tool: $0, size: 16) }
-            }
         }
         .padding(12)
+        .background(.black, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+/// Every pet: large, at the size of a row, at the size of a wing, and in each state.
+private struct PetGallery: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 18) {
+                ForEach(AgentTool.allCases, id: \.self) { tool in
+                    VStack(spacing: 8) {
+                        AgentPet(tool: tool, size: 60, frozenAt: 0)
+                        HStack(spacing: 8) {
+                            AgentPet(tool: tool, size: 30, frozenAt: 0)
+                            AgentPet(tool: tool, size: 18, frozenAt: 0)
+                        }
+                        Text(tool.displayName).font(.system(size: 9)).foregroundStyle(.white.opacity(0.6))
+                    }
+                    .frame(width: 76)
+                }
+            }
+            HStack(spacing: 18) {
+                Text("working").font(.system(size: 9)).foregroundStyle(.white.opacity(0.6)).frame(width: 44)
+                ForEach([0.0, 0.4, 0.8], id: \.self) { time in
+                    AgentPet(tool: .claudeCode, state: .working, size: 40, frozenAt: time)
+                    AgentPet(tool: .codex, state: .working, size: 40, frozenAt: time)
+                }
+            }
+            HStack(spacing: 18) {
+                Text("states").font(.system(size: 9)).foregroundStyle(.white.opacity(0.6)).frame(width: 44)
+                AgentPet(tool: .claudeCode, state: .needsInput(prompt: nil), size: 40, frozenAt: 0.15)
+                AgentPet(tool: .claudeCode, state: .finished, size: 40, frozenAt: 0)
+                AgentPet(tool: .claudeCode, state: .running, size: 40, frozenAt: 0)
+                AgentPet(tool: .claudeCode, state: .idle, size: 40, frozenAt: 0)
+            }
+        }
+        .padding(16)
         .background(.black, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
@@ -398,15 +462,26 @@ xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock
 SYMBIODOCK_RENDER_DIR=build/render build/Build/Products/Debug/Symbiodock.app/Contents/MacOS/Symbiodock; ls -l build/render
 ```
 
-Expected: `** BUILD SUCCEEDED **`, the process exits by itself, `build/render/status-marks.png` exists.
+Expected: `** BUILD SUCCEEDED **`, the process exits by itself, `build/render/status-marks.png` and `build/render/pets.png` exist.
 
-Open the PNG with the Read tool and check, one by one: the working mark is an open arc; the needs-input mark is a coral ring with a centre dot, and its two frames differ (a bigger dot in `knock`, an outer ring in `ripple`); finished is a mint ring with a check mark inside it, not touching the ring; running is a dim ring with a dot; idle is a dimmer ring; seven monogram tiles sit below. If a shape is off (the check mark crooked, clipped, or outside the ring), fix the numbers and render again. If the picture is empty, the capture ran before SwiftUI drew: raise the run-loop wait, or call `window.displayIfNeeded()` before capturing.
+Open `status-marks.png` with the Read tool and check, one by one: the working mark is an open arc; the needs-input mark is a red ring with a centre dot, and its two frames differ (a bigger dot in `knock`, an outer ring in `ripple`); finished is a mint ring with a check mark inside it, not touching the ring; running is a dim ring with a dot; idle is a dimmer ring. If a shape is off (the check mark crooked, clipped, or outside the ring), fix the numbers and render again. If a picture is empty, the capture ran before SwiftUI drew: raise the run-loop wait, or call `window.displayIfNeeded()` before capturing.
+
+Open `pets.png` with the Read tool. This is the design step; do it properly:
+
+- Every figure is seven evenly spaced bars with fully round ends, in its tool's colour. No bar is clipped at the picture's edge and no stretch is a flattened blob.
+- Each figure reads as what it is meant to be at 60 pt: the Claude Code pet as a blocky creature with a flat top, two eyes, arms and two legs; Codex as a cloud with a flat base; Gemini as a four-pointed star; Cursor as a hexagon with a split middle; OpenCode as a frame with a cursor in it; Aider as a peaked `A`; Copilot as a domed head with two big goggle openings.
+- No two figures can be mistaken for each other at 18 pt. Look especially at Claude Code against Copilot, and Gemini against Cursor and Aider.
+- The figures look like one family: similar weight, similar footprint, each roughly centred in its square.
+- The seven colours are clearly different from each other, and none of them reads as the alert red or the finished mint of the status marks.
+- In the `working` row the tops of the bars differ between the three frames, like a wave, and the figure is still recognisable. In the `states` row the hopping pet sits higher than its neighbours, and running and idle are dimmer.
+
+Where a figure falls short, change its numbers in `Packages/SymbiodockCore/Sources/SymbiodockCore/Agents/AgentPetGlyph.swift` (keep seven columns, keep every stretch and every break at least 0.1 tall, keep the comments true), run `swift test --package-path Packages/SymbiodockCore --filter AgentPetGlyphTests`, build and render again. Expect several rounds. In your report, say for each tool what you changed and why, and what you would still improve.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Symbiodock docs/superpowers/plans
-git commit -m "feat: draw the agent status mark and tool icon"
+git add Symbiodock Packages docs/superpowers/plans
+git commit -m "feat: draw the agent status mark and the pets"
 git push origin main
 ```
 
@@ -427,7 +502,7 @@ git push origin main
 - Modify: `Symbiodock/App/DebugRender.swift`
 
 **Interfaces:**
-- Consumes: core `IslandState` (`board`, `tabOrder`, `selectedTab`, `selectTab(_:)`, `setTabOrder(_:)`, `setAgentSessions(_:)`), `TabOrder`, `AgentRow`, `AgentLabels`; `AgentStatusMark`, `AgentToolIcon`, `AgentPalette` (Task 1).
+- Consumes: core `IslandState` (`board`, `tabOrder`, `selectedTab`, `selectTab(_:)`, `setTabOrder(_:)`, `setAgentSessions(_:)`), `TabOrder`, `AgentRow`, `AgentLabels`; `AgentStatusMark`, `AgentPet`, `AgentPalette` (Task 1).
 - Produces:
   - `TabOrderStore.load() -> [IslandTab]`, `TabOrderStore.save(_:)`.
   - `TabStrip(order:selected:attention:onSelect:)`, `IslandTab.symbol`, `IslandTab.title`.
@@ -498,7 +573,7 @@ struct TabStrip: View {
                     // The agents want attention while another tab is looked at.
                     if tab == .agents, selected != .agents, attention != .none {
                         Circle()
-                            .fill(attention == .needsInput ? AgentPalette.coral : AgentPalette.mint)
+                            .fill(attention == .needsInput ? AgentPalette.alert : AgentPalette.mint)
                             .frame(width: 5, height: 5)
                             .offset(x: 4, y: -3)
                     }
@@ -539,12 +614,16 @@ extension IslandTab {
 import SwiftUI
 import SymbiodockCore
 
-/// The Agents tab: one row per session, or an idle message.
+/// The Agents tab: the sessions one under the other, two at a time, or an idle message.
 struct AgentsContent: View {
     let rows: [AgentRow]
     /// Height of the header band; nothing can be shown behind it.
     let topInset: CGFloat
     let onOpen: (AgentSession) -> Void
+
+    /// How many sessions are visible at once; the rest are reached by scrolling.
+    private static let visibleRows = 2
+    private static let rowSpacing: CGFloat = 4
 
     var body: some View {
         Group {
@@ -569,23 +648,48 @@ struct AgentsContent: View {
         }
     }
 
+    /// As tall as the rows it shows, so one or two rows sit centred below the header.
+    private var viewportHeight: CGFloat {
+        let shown = CGFloat(min(rows.count, Self.visibleRows))
+        return shown * AgentRowView.height + (shown - 1) * Self.rowSpacing
+    }
+
     private var list: some View {
         // The labels count minutes; they are redrawn on their own now and then.
         TimelineView(.periodic(from: .now, by: 20)) { context in
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 2) {
+                VStack(spacing: Self.rowSpacing) {
                     ForEach(rows) { row in
                         AgentRowView(row: row, now: context.date, onOpen: onOpen)
                     }
                 }
-                .padding(.horizontal, 10)
-                .padding(.bottom, 8)
+                .scrollTargetLayout()
             }
+            // The list comes to rest on a row, never between two.
+            .scrollTargetBehavior(.viewAligned)
+            .frame(height: viewportHeight)
+            .mask {
+                // Fading out at the lower edge says that the list goes on.
+                if rows.count > Self.visibleRows {
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black, location: 0),
+                            .init(color: .black, location: 0.84),
+                            .init(color: .black.opacity(0.25), location: 1),
+                        ],
+                        startPoint: .top, endPoint: .bottom)
+                } else {
+                    Rectangle()
+                }
+            }
+            .padding(.horizontal, 10)
         }
     }
 }
 
 private struct AgentRowView: View {
+    static let height: CGFloat = 46
+
     let row: AgentRow
     let now: Date
     let onOpen: (AgentSession) -> Void
@@ -614,56 +718,54 @@ private struct AgentRowView: View {
 
     private var labelColor: Color {
         switch row.state {
-        case .needsInput: AgentPalette.coral
+        case .needsInput: AgentPalette.alert
         case .finished: AgentPalette.mint
         case .working, .running, .idle: .white.opacity(0.6)
         }
     }
 
+    /// The tool and the project folder: "Claude Code · storefront".
+    private var origin: String {
+        guard let project = row.session.projectName, project != row.session.title else {
+            return row.session.tool.displayName
+        }
+        return "\(row.session.tool.displayName) · \(project)"
+    }
+
     private var content: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 8) {
-                AgentToolIcon(tool: row.session.tool, size: 16)
+        HStack(spacing: 10) {
+            AgentPet(tool: row.session.tool, state: row.state, size: 30)
+            VStack(alignment: .leading, spacing: 2) {
                 Text(row.session.title)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.white.opacity(row.state == .idle ? 0.6 : 1))
                     .lineLimit(1)
-                    .layoutPriority(1)
-                if let project = row.session.projectName, project != row.session.title {
-                    Text(project)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.white.opacity(0.5))
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 8)
-                Text(AgentLabels.status(row.state, since: row.session.since, now: now))
-                    .font(.system(size: 11, weight: .medium).monospacedDigit())
-                    .foregroundStyle(labelColor)
-                    .lineLimit(1)
-                    .fixedSize()
-                AgentStatusMark(state: row.state)
-            }
-            if let prompt {
-                Text(prompt)
+                Text(prompt ?? origin)
                     .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.75))
+                    .foregroundStyle(.white.opacity(prompt == nil ? 0.5 : 0.75))
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .padding(.leading, 24)
             }
+            Spacer(minLength: 8)
+            Text(AgentLabels.status(row.state, since: row.session.since, now: now))
+                .font(.system(size: 11, weight: .medium).monospacedDigit())
+                .foregroundStyle(labelColor)
+                .lineLimit(1)
+                .fixedSize()
+            AgentStatusMark(state: row.state)
         }
-        .padding(.horizontal, 8)
-        .frame(height: prompt == nil ? 30 : 44)
+        .padding(.horizontal, 10)
+        .frame(height: Self.height)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             if needsInput {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(AgentPalette.coral.opacity(0.12))
+                    .fill(AgentPalette.alert.opacity(0.12))
             }
         }
         .overlay(alignment: .leading) {
             if needsInput {
-                Capsule().fill(AgentPalette.coral).frame(width: 2).padding(.vertical, 6)
+                Capsule().fill(AgentPalette.alert).frame(width: 2).padding(.vertical, 8)
             }
         }
         .contentShape(Rectangle())
@@ -1023,7 +1125,7 @@ private struct ExpandedPreview: View {
 }
 ```
 
-Note: selecting `.media` after the Agents tab clears the finished mark, which is the designed behaviour; the media render therefore shows no pip for it but still shows the coral pip for the session that needs input.
+Note: selecting `.media` after the Agents tab clears the finished mark, which is the designed behaviour; the media render therefore shows no pip for it but still shows the red pip for the session that needs input.
 
 - [ ] **Step 11: Build, render and look**
 
@@ -1035,11 +1137,11 @@ SYMBIODOCK_RENDER_DIR=build/render build/Build/Products/Debug/Symbiodock.app/Con
 Open `expanded-agents.png`, `expanded-media.png` and `expanded-agents-empty.png` with the Read tool and check:
 
 - Two tab glyphs at the top left; the selected one is bright with a dot under it.
-- `expanded-agents`: rows are ordered needs input, working, done, running, idle. The first row has the coral bar and tint and its question on a second line. Labels read `Needs input`, `Working 2m`, `Done <1m`, `Running`, `Idle 12m`. Nothing overlaps or is cut off horizontally. `1 needs input · 1 working` is at the top right.
-- `expanded-media`: `Nothing playing`, and a coral pip on the Agents glyph.
+- `expanded-agents`: exactly two rows are visible, the one that needs input and the working one, each with its tool's pet at the left in the tool's colour, a title, a second line, a label and the status mark. The first row has the red bar and tint and shows its question as the second line; the second reads `Codex · dotfiles`. Labels read `Needs input` and `Working 2m`. The rows sit centred between the header band and the island's lower edge, the second fading slightly at its lower edge. Nothing overlaps or is cut off horizontally. `1 needs input · 1 working` is at the top right.
+- `expanded-media`: `Nothing playing`, and a red pip on the Agents glyph.
 - `expanded-agents-empty`: the sparkles glyph and `No agents running`.
 
-Rows below the island's lower edge are expected (the list scrolls). If a `ScrollView` draws nothing in the render, check the live app instead (next step) before changing anything.
+The other three sessions are below the fold (the list scrolls). If a `ScrollView` draws nothing in the render, check the live app instead (next step) before changing anything.
 
 - [ ] **Step 12: Check it in the running app**
 
@@ -1071,7 +1173,7 @@ git push origin main
 - Modify: `Symbiodock/App/DebugRender.swift`
 
 **Interfaces:**
-- Consumes: `IslandState.face`, `IslandState.board` (`lead`, `attention`), `IslandLayout.dockedEdges(anchor:)`, `IslandCornerRadii`; `AgentStatusMark`, `AgentToolIcon`, `AgentPalette`.
+- Consumes: `IslandState.face`, `IslandState.board` (`lead`, `attention`), `IslandLayout.dockedEdges(anchor:)`, `IslandCornerRadii`; `AgentStatusMark`, `AgentPet`, `AgentPalette`.
 - Produces: `AgentNotchFace(row:notchWidth:)`, `AgentFloatingFace(row:)`, `AgentSideFace(row:)` (the last two take `AgentRow?`; nil shows the idle text); `RimLight(attention:radii:dockedEdges:isVertical:frozenAt:)`; an `attention: AgentRowState?` parameter on `CollapsedContent`, `FloatingCollapsedContent` and `SideCollapsedContent`; `RotatedLine` becomes internal.
 
 - [ ] **Step 1: Let the media faces carry the status mark**
@@ -1136,7 +1238,7 @@ In `SideCollapsedContent.swift` do the same (add the property, replace the same 
 import SwiftUI
 import SymbiodockCore
 
-/// The collapsed island speaking for the agents at the notch: the lead session's tool in
+/// The collapsed island speaking for the agents at the notch: the lead session's pet in
 /// the left wing, its state in the right wing.
 struct AgentNotchFace: View {
     let row: AgentRow
@@ -1144,7 +1246,7 @@ struct AgentNotchFace: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            AgentToolIcon(tool: row.session.tool, size: 16)
+            AgentPet(tool: row.session.tool, state: row.state, size: 18)
                 .frame(maxWidth: .infinity)
             Color.clear
                 .frame(width: notchWidth)
@@ -1163,7 +1265,7 @@ struct AgentFloatingFace: View {
     var body: some View {
         HStack(spacing: 8) {
             if let row {
-                AgentToolIcon(tool: row.session.tool, size: 18)
+                AgentPet(tool: row.session.tool, state: row.state, size: 18)
                 Text(row.session.title)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.white)
@@ -1192,7 +1294,7 @@ struct AgentSideFace: View {
     var body: some View {
         VStack(spacing: 8) {
             if let row {
-                AgentToolIcon(tool: row.session.tool, size: 18)
+                AgentPet(tool: row.session.tool, state: row.state, size: 18)
                 RotatedLine(text: row.session.title)
                     .foregroundStyle(.white)
                 AgentStatusMark(state: row.state)
@@ -1283,7 +1385,7 @@ struct RimLight: View {
     }
 
     private func light(elapsed: TimeInterval, moving: Bool) -> some View {
-        let color = attention == .needsInput ? AgentPalette.coral : AgentPalette.mint
+        let color = attention == .needsInput ? AgentPalette.alert : AgentPalette.mint
         let level: Double
         let pass: Double?
         switch attention {
@@ -1515,9 +1617,9 @@ SYMBIODOCK_RENDER_DIR=build/render build/Build/Products/Debug/Symbiodock.app/Con
 
 Open `build/render/collapsed-faces.png` with the Read tool and check:
 
-- At the notch, the tool glyph is centred in the left wing and the status mark in the right wing; nothing is drawn in the 200 pt middle.
+- At the notch, the pet is centred in the left wing and the status mark in the right wing; nothing is drawn in the 200 pt middle. The pet is recognisable at this size.
 - The rim light follows the island's outline on the free edges only: no line along the top of the notch island, none on the bottom edge of the capsule, none on the right edge of the strip.
-- Needs input: a coral line; in the frame at 0.45 s a brighter stretch is visible part of the way across (down, on the strip); at 1.4 s there is none.
+- Needs input: a red line; in the frame at 0.45 s a brighter stretch is visible part of the way across (down, on the strip); at 1.4 s there is none.
 - Finished: a mint line; a brighter stretch at 0.45 s, a plain line at 2 s.
 - The working face has no rim light.
 - Text in the strip runs along it and is not cut at the ends.
@@ -2244,70 +2346,6 @@ git push origin main
 
 ---
 
-### Task 7: Tool marks
-
-**Files:**
-- Create: `Symbiodock/Resources/AgentIcons/agent-<tool>.svg` (one per tool that has a usable mark)
-- Modify: `Symbiodock/Resources/ThirdPartyNotices.txt`
-
-**Interfaces:**
-- Consumes: `AgentToolIcon` loads `agent-<AgentTool.rawValue>.svg` from the bundle (Task 1).
-- Produces: bundled marks; tools without one keep their monogram.
-
-- [ ] **Step 1: Fetch the marks that Simple Icons offers under CC0**
-
-Simple Icons (https://github.com/simple-icons/simple-icons) is already the source of the site logos in `Symbiodock/Resources/PlatformIcons/`. Its files are CC0, but single icons can carry their own licence or guidelines, recorded in the package's `data/simple-icons.json` (older versions: `_data/simple-icons.json`).
-
-```bash
-mkdir -p build/icons && cd build/icons
-curl -fsSL https://cdn.jsdelivr.net/npm/simple-icons@latest/package.json | python3 -c 'import sys,json; print(json.load(sys.stdin)["version"])'
-for slug in claude openai googlegemini cursor githubcopilot opencode aider; do
-  curl -fsSL -o "$slug.svg" "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/$slug.svg" && echo "ok $slug" || echo "missing $slug"
-done
-curl -fsSL -o data.json https://cdn.jsdelivr.net/npm/simple-icons@latest/data/simple-icons.json || curl -fsSL -o data.json https://cdn.jsdelivr.net/npm/simple-icons@latest/_data/simple-icons.json
-python3 -c '
-import json
-data = json.load(open("data.json"))
-icons = data["icons"] if isinstance(data, dict) else data
-for icon in icons:
-    if icon.get("title") in ("Claude", "OpenAI", "Google Gemini", "Cursor", "GitHub Copilot", "OpenCode", "Aider"):
-        print(icon.get("title"), "| license:", icon.get("license"), "| guidelines:", icon.get("guidelines"))
-'
-cd ../..
-```
-
-Mapping: `claude` → `claudeCode`, `openai` → `codex`, `googlegemini` → `geminiCLI`, `cursor` → `cursorAgent`, `githubcopilot` → `copilotCLI`, `opencode` → `openCode`, `aider` → `aider`.
-
-Take a mark only if the file was downloaded **and** its entry has no `license` field (it is then CC0 like the collection). A tool whose mark is missing, or carries a licence other than CC0, keeps its monogram: do not look for a logo elsewhere.
-
-- [ ] **Step 2: Add the usable marks to the bundle**
-
-For each usable mark, copy it as `Symbiodock/Resources/AgentIcons/agent-<tool rawValue>.svg` (for example `agent-claudeCode.svg`). Each file must be a single-colour `<svg viewBox="0 0 24 24">` with one `<path>`; leave its content as downloaded. Check that no two resource files in `Symbiodock/Resources` share a file name: resources are copied flat into the bundle.
-
-- [ ] **Step 3: List them in the notices**
-
-Read `Symbiodock/Resources/ThirdPartyNotices.txt`, find how the Simple Icons site logos are listed there, and add the new files to that entry in the same form, with the Simple Icons version printed in Step 1.
-
-- [ ] **Step 4: Build, render and look**
-
-```bash
-xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock -configuration Debug -derivedDataPath build build 2>&1 | tail -3
-ls build/Build/Products/Debug/Symbiodock.app/Contents/Resources | grep '^agent-'
-SYMBIODOCK_RENDER_DIR=build/render build/Build/Products/Debug/Symbiodock.app/Contents/MacOS/Symbiodock
-```
-
-Open `build/render/status-marks.png` and `build/render/expanded-agents.png` with the Read tool: each bundled mark is drawn white, sharp and at the same visual size as the monogram tiles beside it. A mark that renders as a black or empty square is not a template image: check that it loaded and that `isTemplate` is set.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add Symbiodock docs/superpowers/plans
-git commit -m "feat: bundle marks for the agent tools"
-git push origin main
-```
-
----
-
 ## Hand checklist for the owner
 
 Build and start:
@@ -2319,14 +2357,15 @@ pkill -x Symbiodock; open build/Build/Products/Debug/Symbiodock.app
 
 Tabs:
 
+0. In every row and on the collapsed island each tool is shown by its pet, a small figure made of vertical bars in the tool's colour: an orange blocky creature for Claude Code, a blue cloud for Codex. They look clean at both sizes. While a session works its pet's bars move like a wave; while it needs input the pet hops.
 1. Hover the island. Two glyphs are at its top left (sparkles, music note); the selected one is bright with a dot under it. Click each: the content changes, the music controls still work.
-2. Right-click → `First tab` → `Media`. Play music and keep a Claude Code session working: the collapsed island shows the artwork and level bars. Choose `Agents`: it shows the tool glyph and the turning mark instead. Quit and relaunch: the choice is kept.
+2. Right-click → `First tab` → `Media`. Play music and keep a Claude Code session working: the collapsed island shows the artwork and level bars. Choose `Agents`: it shows the pet and the turning mark instead. Quit and relaunch: the choice is kept.
 3. With music paused for more than 10 seconds and no agent working, the island at the notch is the bare notch again.
 
 Claude Code:
 
-4. Start a Claude Code session in a terminal and give it a task. Within three seconds the collapsed island widens: tool glyph left, a turning arc right. Hover: the row shows the session's name, its folder, `Working …`.
-5. Let Claude Code ask a question (or a permission). The island does **not** open. The mark turns into a coral ring whose dot knocks twice, and a coral light breathes along the island's lower rim with a highlight passing every few seconds.
+4. Start a Claude Code session in a terminal and give it a task. Within three seconds the collapsed island widens: its pet left, a turning arc right. Hover: the row shows the session's name, its folder, `Working …`.
+5. Let Claude Code ask a question (or a permission). The island does **not** open. The mark turns into a red ring whose dot knocks twice, and a red light breathes along the island's lower rim with a highlight passing every few seconds.
 6. Hover: the Agents tab opens whichever tab is first. The row is tinted, says `Needs input`, and shows the question on a second line. Answer in the terminal: the row goes back to `Working`.
 7. Let the task finish. The mark becomes a mint ring with a check mark that draws itself, and a mint light passes once and stays as a thin line. Hover: the row says `Done …`. Move away: the light and the check mark are gone; the row is `Idle …` the next time.
 8. Click a row. Its terminal (or editor) comes to the front.
@@ -2342,8 +2381,8 @@ Other tools (if you have one of Gemini CLI, Cursor Agent, OpenCode, Aider, Copil
 
 Everywhere:
 
-12. Dock the island on the bottom edge and on the right edge and repeat 4–7: the capsule shows glyph, name and mark; the strip shows them top to bottom; the light runs along the free edges only.
-13. With five or more sessions, the list in the open island scrolls with two fingers.
+12. Dock the island on the bottom edge and on the right edge and repeat 4–7: the capsule shows pet, name and mark; the strip shows them top to bottom; the light runs along the free edges only.
+13. With three or more sessions, two are visible, one under the other; the list scrolls with two fingers and comes to rest on a row.
 14. System Settings → Accessibility → Display → Reduce motion on: marks and light are still, in their colour.
 15. At rest (no hover), Activity Monitor shows Symbiodock near 0 % CPU; with one agent working it stays low.
 16. No macOS permission dialog appeared at any point.
@@ -2365,7 +2404,7 @@ To look at every state without running an agent: `pkill -x Symbiodock; open --en
 | 7.2 Rim light, Reduce Motion | 3 |
 | 7.3 Collapsed faces in three forms | 3 |
 | 7.4 Agents tab rows, labels, empty state | 2 |
-| 7.5 Tool icons | 1, 7 |
+| 7.5 Pets | 1 (figures: core plan Task 6) |
 | 8 Jumping to a session | 6 |
 | 9 Error handling at the file and process boundary | 4, 5 |
 | 10 Off-screen renders, hand checklist | 1, 2, 3, this file |

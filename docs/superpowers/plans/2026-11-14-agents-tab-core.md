@@ -38,6 +38,7 @@ Spec: `docs/superpowers/specs/2026-11-14-agents-tab-design.md`.
 | `Agents/CodexRolloutParser.swift` | Thread meta, turn state, listing rule, session |
 | `Agents/CodexSessionIndex.swift` | Thread titles |
 | `Agents/AgentProcess.swift` | `ProcessSnapshot`, `AgentProcessMatcher`, `ProcessTree`, `AgentScanContext`, `AgentSessionProvider`, `ProcessLevelProvider` |
+| `Agents/AgentPetGlyph.swift` | The pets: each tool's figure as seven bars, and how it moves |
 
 Tests mirror these under `Packages/SymbiodockCore/Tests/SymbiodockCoreTests/`.
 
@@ -1705,6 +1706,10 @@ struct AgentProcessTests {
             AgentProcessMatcher.tool(for: process(1, node, ["node", "/opt/homebrew/lib/node_modules/@openai/codex/bin/codex.js"]))
                 == .codex)
         #expect(
+            AgentProcessMatcher.tool(
+                for: process(1, node, ["node", "/Users/me/.local/share/cursor-agent/versions/2026.01.02/index.js"]))
+                == .cursorAgent)
+        #expect(
             AgentProcessMatcher.tool(for: process(1, "/usr/bin/python3", ["python3", "/Users/me/.local/bin/aider"]))
                 == .aider)
         #expect(
@@ -1848,6 +1853,8 @@ public enum AgentProcessMatcher {
         ("@github/copilot", .copilotCLI),
         ("@openai/codex", .codex),
         ("opencode-ai", .openCode),
+        // Cursor's agent runs as `node …/cursor-agent/versions/<version>/index.js`.
+        ("/cursor-agent/", .cursorAgent),
     ]
     private static let scriptExtensions: Set<String> = ["js", "mjs", "cjs", "py"]
 
@@ -1981,6 +1988,225 @@ git push origin main
 
 ---
 
+### Task 6: Pets
+
+**Files:**
+- Create: `Packages/SymbiodockCore/Sources/SymbiodockCore/Agents/AgentPetGlyph.swift`
+- Test: `Packages/SymbiodockCore/Tests/SymbiodockCoreTests/AgentPetGlyphTests.swift`
+
+**Interfaces:**
+- Consumes: `AgentTool` (Task 1).
+- Produces:
+  - `AgentPetGlyph` (`columns: [[Segment]]`, `Segment { top: Double; bottom: Double }`), `AgentPetGlyph.columnCount` (7), `.barWidth` (0.1), `.pitch` (0.15), `AgentPetGlyph.glyph(for: AgentTool) -> AgentPetGlyph`.
+  - `AgentPetMotion.sway(column: Int, at: TimeInterval) -> Double`, `AgentPetMotion.hop(at: TimeInterval) -> Double`, `.swayAmplitude` (0.05), `.hopHeight` (0.12), `.hopPeriod` (2.4), `.hopLength` (0.3).
+
+A pet is the figure a tool is known by, drawn from seven vertical bars with round ends. All measures are fractions of the figure's side: `top` and `bottom` run from 0 (top) to 1 (bottom); a bar is 0.1 wide and bars are 0.15 apart, so seven bars and six gaps fill the width. A stretch must be at least as tall as a bar is wide, or it could not be drawn as a capsule; the same goes for a break between two stretches.
+
+- [ ] **Step 1: Write the failing tests**
+
+`AgentPetGlyphTests.swift`:
+
+```swift
+import Foundation
+import Testing
+@testable import SymbiodockCore
+
+struct AgentPetGlyphTests {
+    @Test func everyToolHasAFigureOfSevenColumns() {
+        for tool in AgentTool.allCases {
+            let glyph = AgentPetGlyph.glyph(for: tool)
+            #expect(glyph.columns.count == AgentPetGlyph.columnCount, "\(tool)")
+            #expect(glyph.columns.allSatisfy { !$0.isEmpty }, "\(tool)")
+        }
+    }
+
+    @Test func sevenBarsAndSixGapsFillTheWidth() {
+        let width = Double(AgentPetGlyph.columnCount - 1) * AgentPetGlyph.pitch + AgentPetGlyph.barWidth
+        #expect(abs(width - 1) < 1e-9)
+    }
+
+    @Test func everyStretchCanBeDrawnAsACapsule() {
+        let minimum = AgentPetGlyph.barWidth - 1e-9
+        for tool in AgentTool.allCases {
+            for (index, column) in AgentPetGlyph.glyph(for: tool).columns.enumerated() {
+                for segment in column {
+                    #expect(segment.top >= 0 && segment.bottom <= 1, "\(tool) column \(index)")
+                    #expect(segment.bottom - segment.top >= minimum, "\(tool) column \(index)")
+                }
+                for (upper, lower) in zip(column, column.dropFirst()) {
+                    #expect(lower.top - upper.bottom >= minimum, "\(tool) column \(index)")
+                }
+            }
+        }
+    }
+
+    @Test func noTwoToolsShareAFigure() {
+        let glyphs = AgentTool.allCases.map(AgentPetGlyph.glyph(for:))
+        for (index, glyph) in glyphs.enumerated() {
+            #expect(!glyphs[(index + 1)...].contains(glyph))
+        }
+    }
+
+    @Test func theWaveStaysSmallAndDiffersBetweenColumns() {
+        for step in 0..<200 {
+            let time = Double(step) * 0.037
+            let values = (0..<AgentPetGlyph.columnCount).map { AgentPetMotion.sway(column: $0, at: time) }
+            #expect(values.allSatisfy { abs($0) <= AgentPetMotion.swayAmplitude + 1e-9 })
+        }
+        #expect(AgentPetMotion.sway(column: 0, at: 1) != AgentPetMotion.sway(column: 3, at: 1))
+    }
+
+    @Test func thePetHopsTwiceAndThenRests() {
+        let length = AgentPetMotion.hopLength
+        #expect(AgentPetMotion.hop(at: 0) == 0)
+        #expect(abs(AgentPetMotion.hop(at: length / 2) - AgentPetMotion.hopHeight) < 1e-9)
+        #expect(abs(AgentPetMotion.hop(at: length * 1.5) - AgentPetMotion.hopHeight) < 1e-9)
+        #expect(AgentPetMotion.hop(at: length * 2.5) == 0)
+        #expect(AgentPetMotion.hop(at: AgentPetMotion.hopPeriod - 0.01) == 0)
+        // The next beat hops again, and time before the reference date is no exception.
+        #expect(AgentPetMotion.hop(at: AgentPetMotion.hopPeriod + length / 2) > 0)
+        #expect(AgentPetMotion.hop(at: -AgentPetMotion.hopPeriod + length / 2) > 0)
+        for step in 0..<300 {
+            let value = AgentPetMotion.hop(at: Double(step) * 0.017)
+            #expect(value >= 0 && value <= AgentPetMotion.hopHeight + 1e-9)
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -5`
+Expected: compile errors, `cannot find 'AgentPetGlyph' in scope`.
+
+- [ ] **Step 3: Write the implementation**
+
+`Agents/AgentPetGlyph.swift`:
+
+```swift
+import Foundation
+
+/// A tool's pet: the figure the tool is known by, built from seven vertical bars with
+/// round ends, the way the island's level bars are. All measures are fractions of the
+/// figure's side.
+public struct AgentPetGlyph: Equatable, Sendable {
+    /// A solid stretch of a bar. 0 is the top of the figure, 1 its bottom.
+    public struct Segment: Equatable, Sendable {
+        public let top: Double
+        public let bottom: Double
+
+        public init(top: Double, bottom: Double) {
+            self.top = top
+            self.bottom = bottom
+        }
+    }
+
+    public static let columnCount = 7
+    /// A bar is twice as wide as the gap beside it.
+    public static let barWidth = 0.1
+    /// From one bar's leading edge to the next.
+    public static let pitch = 0.15
+
+    /// The bars, left to right. A bar with several stretches has breaks: eyes, openings.
+    public let columns: [[Segment]]
+
+    private init(_ columns: [[(Double, Double)]]) {
+        self.columns = columns.map { $0.map { Segment(top: $0.0, bottom: $0.1) } }
+    }
+
+    /// A figure that is the same on both sides of its middle bar.
+    private static func mirrored(
+        _ side: [[(Double, Double)]], middle: [(Double, Double)]
+    ) -> AgentPetGlyph {
+        AgentPetGlyph(side + [middle] + side.reversed())
+    }
+
+    public static func glyph(for tool: AgentTool) -> AgentPetGlyph {
+        switch tool {
+        case .claudeCode:
+            // A blocky body with a flat top, two eyes, a stub arm on each side, two legs.
+            mirrored(
+                [[(0.40, 0.60)], [(0.16, 1.00)], [(0.16, 0.34), (0.48, 0.80)]],
+                middle: [(0.16, 0.80)])
+        case .codex:
+            // A cloud: a flat base under uneven bumps, with two eyes.
+            AgentPetGlyph([
+                [(0.52, 0.84)], [(0.36, 0.84)], [(0.20, 0.46), (0.58, 0.84)], [(0.30, 0.84)],
+                [(0.14, 0.46), (0.58, 0.84)], [(0.30, 0.84)], [(0.48, 0.84)],
+            ])
+        case .geminiCLI:
+            // A four-pointed star.
+            mirrored([[(0.44, 0.56)], [(0.40, 0.60)], [(0.32, 0.68)]], middle: [(0.04, 0.96)])
+        case .cursorAgent:
+            // A hexagon whose middle bar is split, like the near corner of a cube.
+            mirrored(
+                [[(0.36, 0.64)], [(0.24, 0.76)], [(0.14, 0.86)]],
+                middle: [(0.06, 0.44), (0.56, 0.94)])
+        case .openCode:
+            // An empty frame with a cursor block inside.
+            AgentPetGlyph([
+                [(0.14, 0.86)], [(0.14, 0.26), (0.74, 0.86)],
+                [(0.14, 0.26), (0.42, 0.58), (0.74, 0.86)], [(0.14, 0.26), (0.74, 0.86)],
+                [(0.14, 0.26), (0.74, 0.86)], [(0.14, 0.26), (0.74, 0.86)], [(0.14, 0.86)],
+            ])
+        case .aider:
+            // An "A": steps rising to a peak, with a crossbar.
+            mirrored(
+                [[(0.72, 0.96)], [(0.44, 0.96)], [(0.20, 0.64)]],
+                middle: [(0.04, 0.30), (0.52, 0.64)])
+        case .copilotCLI:
+            // A domed head with two large goggle openings and an ear on each side.
+            mirrored(
+                [[(0.38, 0.70)], [(0.20, 0.88)], [(0.12, 0.30), (0.62, 0.92)]],
+                middle: [(0.10, 0.92)])
+        }
+    }
+}
+
+/// How a pet moves. Pure functions of time, so the views only draw.
+public enum AgentPetMotion {
+    /// How far the top of a bar rises or sinks while its session works.
+    public static let swayAmplitude = 0.05
+    /// How high the pet jumps while its session needs input.
+    public static let hopHeight = 0.12
+    /// The same beat as the status mark's knocks: two hops, then rest.
+    public static let hopPeriod: TimeInterval = 2.4
+    public static let hopLength: TimeInterval = 0.3
+
+    /// The rise (positive) or fall of one bar's top at `time`: a wave passing through
+    /// the figure from left to right.
+    public static func sway(column: Int, at time: TimeInterval) -> Double {
+        swayAmplitude * sin(time * 4.2 - Double(column) * 0.9)
+    }
+
+    /// How far above its place the pet is at `time`.
+    public static func hop(at time: TimeInterval) -> Double {
+        var beat = time.truncatingRemainder(dividingBy: hopPeriod)
+        if beat < 0 { beat += hopPeriod }
+        guard beat < 2 * hopLength else { return 0 }
+        let local = beat.truncatingRemainder(dividingBy: hopLength) / hopLength
+        return hopHeight * sin(.pi * local)
+    }
+}
+```
+
+The figures are a first drawing. They are tuned by eye in Task 1 of the app plan, where they are rendered; any change there must keep these tests passing.
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -1`
+Expected: every test passes (6 more than before).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add Packages/SymbiodockCore
+git commit -m "feat(core): describe each agent tool's pet as seven bars"
+git push origin main
+```
+
+---
+
 ## Spec coverage
 
 | Spec section | Task |
@@ -1992,6 +2218,7 @@ git push origin main
 | 6.3 Process matching, one row per tool and terminal | 5 |
 | 7.3 Faces, `showsWings` | 2 |
 | 7.4 Labels and times | 1 |
+| 7.5 Pets: figures and motion | 6 |
 | 8 Parent walk for the hosting app | 5 |
 | 9 Malformed input, unknown status, damaged tab order | 2, 3, 4 |
 | 10 Core tests | 1–5 |

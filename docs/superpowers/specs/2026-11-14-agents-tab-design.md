@@ -27,7 +27,7 @@ In scope:
 - Session discovery by reading files and the process list. Read-only.
 - Claude Code and Codex with full state. Gemini CLI, Cursor Agent, OpenCode, Aider and
   GitHub Copilot CLI at process level (section 6.3).
-- The status mark, the rim light, the collapsed faces in all three collapsed forms.
+- The status mark, the rim light, the pets, the collapsed faces in all three collapsed forms.
 
 Out of scope:
 
@@ -209,8 +209,9 @@ hands the merged list to the board on the main actor.
 
 ## 7. Appearance
 
-Two accent colours join the black island: **coral** `#FF6A5C` for needs input and
-**mint** `#63E6A9` for finished. Everything else stays white on black.
+Two colours say what a session's state is: **red** `#FF4D4F` for needs input and **mint**
+`#63E6A9` for finished. Each tool's pet has the tool's own colour (section 7.5). Everything
+else stays white on black.
 
 ### 7.1 Status mark
 
@@ -220,7 +221,7 @@ It morphs between its looks with a 0.3 s spring instead of switching.
 | Activity | Look |
 |---|---|
 | working | An open arc (270°), 1.75 pt round-capped stroke, white 90 %, one turn per 1.1 s |
-| needs input | The arc closes into a coral ring around a 4 pt coral dot. Every 2.4 s the dot knocks twice (scale 1 → 1.35 → 1) and each knock sends one ring outward to twice the mark's size while it fades |
+| needs input | The arc closes into a red ring around a 4 pt red dot. Every 2.4 s the dot knocks twice (scale 1 → 1.35 → 1) and each knock sends one ring outward to twice the mark's size while it fades |
 | finished, not yet seen | A mint ring; a check mark draws itself in 0.35 s and one ring goes outward once. Then it is still |
 | running | A ring and a centre dot, white 50 %, still |
 | idle | A ring, white 28 %, still |
@@ -230,7 +231,7 @@ It morphs between its looks with a 0.3 s spring instead of switching.
 Only on the collapsed island, drawn inside its outline (`strokeBorder`, 1.5 pt, plus a
 blurred copy as glow), so the island's frame and hit area do not change.
 
-- Needs input: coral. Its opacity breathes between 35 % and 90 % over 1.8 s, and every
+- Needs input: red. Its opacity breathes between 35 % and 90 % over 1.8 s, and every
   3.6 s a brighter highlight travels along the island's long axis.
 - Finished: one mint highlight travels across in 0.9 s, then a steady mint line at 50 %
   stays until the Agents tab has been looked at.
@@ -247,9 +248,9 @@ when `showsWings` is true; Agents when `hasFace` is true.
 
 | Form | Agents face |
 |---|---|
-| At the notch | Left wing: the lead session's tool icon (16 pt). Right wing: its status mark |
-| Floating capsule (200 × 36) | Tool icon, the lead session's title, status mark |
-| Side strip (36 × 170) | Tool icon on top, the title rotated in the middle, status mark at the bottom |
+| At the notch | Left wing: the lead session's pet (18 pt). Right wing: its status mark |
+| Floating capsule (200 × 36) | Pet, the lead session's title, status mark |
+| Side strip (36 × 170) | Pet on top, the title rotated in the middle, status mark at the bottom |
 
 When the face is Media and `attention` is not `.none`, the status mark of the lead
 session takes the place of the level bars. The rim light shows on either face.
@@ -260,23 +261,48 @@ meaning.
 
 ### 7.4 Agents tab, expanded
 
-- A row is 30 pt: tool icon (16 pt), title (13 pt semibold), project folder name (12 pt,
-  white 50 %), then at the trailing end a label (11 pt) and the status mark.
-- Labels: `Working 2m`, `Needs input` (coral), `Done 1m` (mint), `Running`, `Idle 5m`.
+- At most two sessions are visible at a time, one under the other; the rest are reached
+  by scrolling down, and the list comes to rest on a row. With more than two sessions the
+  list fades out at its lower edge to show that it goes on. One or two rows are centred
+  in the space below the header.
+- A row is 46 pt: the tool's pet (30 pt, section 7.5), then two lines, then at the
+  trailing end a label (11 pt) and the status mark.
+- First line: the session's title (13 pt semibold). Second line (11 pt): the tool's name
+  and the project folder, `Claude Code · storefront`, white 50 %. A row that needs input
+  and has a prompt shows the prompt there instead, white 75 %, one line, truncated at the
+  end; such a row has a red bar (2 pt) on its leading edge and a red background at
+  12 %, 8 pt corner radius.
+- Labels: `Working 2m`, `Needs input` (red), `Done 1m` (mint), `Running`, `Idle 5m`.
   Under a minute the time reads `<1m`; from an hour on, `1h 4m`.
-- A row that needs input and has a prompt is 44 pt: the prompt on a second line, 11 pt,
-  white 75 %, one line, truncated at the end. Such a row has a coral bar (2 pt) on its
-  leading edge and a coral background at 12 %, 8 pt corner radius.
-- The list scrolls vertically when it does not fit (three rows at the notch, four when
-  opened from a side strip).
 - Empty: the `sparkles` glyph and `No agents running`, styled like `Nothing playing`.
 
-### 7.5 Tool icons
+### 7.5 Pets
 
-A monochrome glyph per tool, bundled under `Resources/AgentIcons/`: the Simple Icons
-(CC0) mark where one exists when this is implemented, otherwise a two-letter monogram in
-a rounded square (`Cx`, `Ai`, ...). Nothing is downloaded at run time. Each added file is
-listed in `ThirdPartyNotices.txt`.
+Each tool is shown by its pet: a small figure of what the tool is known by, drawn the way
+the island's level bars are, from seven vertical bars with round ends (a bar is twice as
+wide as the gap beside it). A bar can be broken into several stretches; a break is an
+eye or an opening. Each pet has its tool's colour; none of them is the red or the mint
+that a state uses.
+
+| Tool | Colour | Pet |
+|---|---|---|
+| Claude Code | `#D97757` | A blocky body with a flat top, two eyes, a stub arm on each side, two legs |
+| Codex | `#4F9CF9` | A cloud: a flat base under uneven bumps, with two eyes |
+| Gemini CLI | `#9D7BFF` | A four-pointed star: one tall bar, quickly shorter towards the sides |
+| Cursor Agent | `#D7D7DB` | A hexagon whose middle bar is split, like the near corner of a cube |
+| OpenCode | `#F2E6C8` | An empty frame with a cursor block inside |
+| Aider | `#A3E635` | An `A`: steps rising to a peak, with a crossbar |
+| Copilot CLI | `#F27FC0` | A domed head with two large goggle openings and an ear on each side |
+
+The figures are data in the core package (`AgentPetGlyph`), so every tool is guaranteed
+one and their proportions are tested. No logo file is bundled or downloaded.
+
+The pet moves with its session: while working, the tops of its bars rise and fall like
+a wave passing through it; while input is needed, it hops twice together with the status
+mark's knocks; finished it stands still at full strength; running it is at 70 %, idle at
+45 %. With Reduce Motion on it never moves.
+
+The pet is used in the Agents tab's rows and in every collapsed agents face.
 
 ## 8. Jumping to a session
 
@@ -331,7 +357,7 @@ To be checked first in the implementation; each has its fallback here.
   observed. Fallback: none needed; an unknown status shows `Running`.
 - `sessionId` in the session file follows `/clear`. Fallback: no prompt text.
 - Scroll events reach a `ScrollView` in the overlay panel. Fallback: no scrolling; the
-  rows that fit, then a `+N more` line.
+  two most urgent rows, then a `+N more` line.
 - `NSWorkspace.openApplication(at:)` brings another app forward from an agent app on
   macOS 27. Fallback: `NSRunningApplication.activate()`.
 - Codex writes an event when it waits for an approval. Fallback: Codex shows only
