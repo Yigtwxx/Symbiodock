@@ -215,14 +215,18 @@ hands the merged list to the board on the main actor.
 
 Animation is paced for the same reason. Redrawing a view more often than about every
 0.35 s keeps the full-screen panel's update cycle awake, which costs about 5 % of a core
-whatever is drawn. Motion that
-must be smooth and never rests (the turning arc, the rim's breath, a working pet's wave)
-runs in Core Animation;
-short motions with rests between (knocks, the passing highlight) are drawn only
-while they last. `FramePacer` (core) decides when a frame is due and is tested never to
-give the same moment twice. It also starts again from the present (`next(now:)`) when its
-next frame lies more than a second behind it, as after sleep, or further ahead than it
-could legitimately wait, as after the clock was set back.
+whatever is drawn. So no view redraws frame by frame at rest: every motion is played by
+Core Animation, which runs in the render server and costs the app nothing. Core Animation
+plays the status mark's turning arc, its knocking dot and the rings (the "needs input"
+knocks repeat every 2.4 s; the "finished" ring goes out once), the rim light's breath and
+its travelling highlight (every 3.6 s while a question waits, once when a session
+finishes), a working pet's wave, and the media level bars. The core package holds the
+formulas they are sampled from (`AgentMarkMotion`, `AgentPetMotion`, `LevelBarsMotion`),
+each tested. Repeating animations are keyframe animations anchored to one fixed moment of
+the media clock, so views that play the same motion move in step and a view that returns
+to its window picks the motion up where it is. SwiftUI draws only the still view, and the
+view at one given moment for renders (`frozenAt`). With Reduce Motion the marks and the
+rim light stand still.
 
 ## 7. Appearance
 
