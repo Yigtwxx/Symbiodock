@@ -4,6 +4,7 @@ import SymbiodockCore
 struct IslandView: View {
     let state: IslandState
     let notch: CGRect
+    let onCommand: (PlaybackCommand) -> Void
 
     var body: some View {
         GeometryReader { proxy in
@@ -18,15 +19,7 @@ struct IslandView: View {
                 topTrailingRadius: 0,
                 style: .continuous)
                 .fill(.black)
-                .overlay {
-                    if state.phase == .expanded {
-                        Text("Nothing playing")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.6))
-                            .padding(.top, notch.height)
-                            .transition(.opacity)
-                    }
-                }
+                .overlay { content }
                 .frame(width: frame.width, height: frame.height)
                 .offset(x: frame.minX, y: frame.minY)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -34,5 +27,19 @@ struct IslandView: View {
                 .animation(.spring(response: 0.35, dampingFraction: 0.8), value: state.hasTrack)
         }
         .ignoresSafeArea()
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch state.phase {
+        case .expanded:
+            ExpandedContent(info: state.nowPlaying, topInset: notch.height, onCommand: onCommand)
+                .transition(.opacity)
+        case .collapsed:
+            if let info = state.nowPlaying {
+                CollapsedContent(info: info, notchWidth: notch.width)
+                    .transition(.opacity)
+            }
+        }
     }
 }

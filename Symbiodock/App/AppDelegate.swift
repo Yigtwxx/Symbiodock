@@ -15,7 +15,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let islandMenu = IslandMenu()
         self.islandMenu = islandMenu
 
-        let overlayController = OverlayController(state: state, contextMenu: islandMenu.menu)
+        let overlayController = OverlayController(
+            state: state, contextMenu: islandMenu.menu
+        ) { [weak self] command in
+            self?.nowPlaying?.send(command)
+        }
         overlayController.start()
         self.overlayController = overlayController
 

@@ -11,6 +11,7 @@ final class OverlayController {
 
     private let state: IslandState
     private let contextMenu: NSMenu
+    private let onCommand: (PlaybackCommand) -> Void
     private var panel: OverlayPanel?
     private var metrics: ScreenMetrics?
     private var notch: CGRect = .zero
@@ -19,9 +20,13 @@ final class OverlayController {
     private var pointerInside = false
     private var hoverTask: Task<Void, Never>?
 
-    init(state: IslandState, contextMenu: NSMenu) {
+    init(
+        state: IslandState, contextMenu: NSMenu,
+        onCommand: @escaping (PlaybackCommand) -> Void
+    ) {
         self.state = state
         self.contextMenu = contextMenu
+        self.onCommand = onCommand
     }
 
     func start() {
@@ -66,7 +71,8 @@ final class OverlayController {
         self.notch = notch
 
         let panel = OverlayPanel(screenFrame: metrics.frame)
-        let hostingView = IslandHostingView(rootView: IslandView(state: state, notch: notch))
+        let hostingView = IslandHostingView(
+            rootView: IslandView(state: state, notch: notch, onCommand: onCommand))
         hostingView.contextMenu = contextMenu
         // Keep SwiftUI from resizing the panel to the content's ideal size.
         hostingView.sizingOptions = []
@@ -127,6 +133,10 @@ final class OverlayController {
 /// Hosts the island and shows its context menu on a secondary click.
 private final class IslandHostingView<Content: View>: NSHostingView<Content> {
     var contextMenu: NSMenu?
+
+    /// A click on a panel that never becomes key would otherwise only "activate" it;
+    /// the island's buttons must react to the first click.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func rightMouseDown(with event: NSEvent) {
         guard let contextMenu else {
