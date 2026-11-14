@@ -62,10 +62,9 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 ## Durum
 
 - `main` üzerinde: onaylı tasarım dokümanı, milestone 0-1 uygulama planı, LICENSE, README.
-- Uygulama kodu yok. Xcode projesi yok. Faz 0 dahil hiçbir faz başlamadı.
-- Xcode 27.2 `/Applications/Xcode.app` içinde kurulu (2026-11-14). `xcode-select` hâlâ
-  Command Line Tools'u gösteriyor; komutlar `DEVELOPER_DIR` ile çalışıyor (bkz. Doğrulama).
-- Sahibi 2026-11-14'te Xcode içi bileşen indirmesini yapıyordu; bittiği doğrulanmadı.
+- Uygulama kodu yok. Xcode projesi yok. Faz 0 tamam; Faz 1 başlamadı.
+- Xcode 27.2 kurulu ve `xcode-select` ile seçili; ilk açılış kurulumu tamam, macOS 27.2 SDK
+  mevcut, XcodeGen 2.45.4 kurulu (2026-11-14'te doğrulandı).
 
 ## "Yapılacakları yap" denince
 
@@ -105,7 +104,7 @@ Durmadan devam edilecek durumlar:
 
 ## Yol haritası
 
-- [ ] **Faz 0 — Ön koşullar.** `xcodebuild -version` ve `xcodegen --version` çalışıyor.
+- [x] **Faz 0 — Ön koşullar.** `xcodebuild -version` ve `xcodegen --version` çalışıyor.
       Plan: milestone 0-1 planı, Görev 0.
 - [ ] **Faz 1 — Milestone 0: iskelet.** Çekirdek paket (geometri, durum, yerleşim) testleriyle;
       agent uygulama açılıyor; menü çubuğu öğesinden çıkılabiliyor.
@@ -140,17 +139,16 @@ spec'te yazılı.
 
 ## Doğrulama
 
-`xcode-select` Xcode'u göstermiyorsa her komutun başına şunu ekle (sudo gerektirmez;
-2026-11-14'te Xcode 27.2 ile `swift test` bu şekilde çalıştı):
-
-```bash
-export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-```
-
-Kalıcı çözüm sahibinin çalıştıracağı komuttur:
+`xcodebuild -version` hata verirse Xcode seçili değildir. Sahibi şunu çalıştırır:
 
 ```bash
 sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+```
+
+O yapılana kadar sudo'suz geçici çözüm, her komuttan önce:
+
+```bash
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 ```
 
 Build, çalıştırma ve test komutları Faz 1 bitince buraya eklenecek (plan Görev 3, Adım 7).
