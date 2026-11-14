@@ -25,7 +25,9 @@ Decisions:
 - **The island is a plain black body while it is dragged** (no artwork or controls). It keeps its resting size while attached and becomes the 200 × 36 capsule once it tears off.
 - **State and effect tear on the same event**: `IslandState.drag(to:)` returning true calls `DragSession.tear()`.
 - **Settling ends on a timer** (550 ms), not on an animation callback, so it cannot get lost. A lost mouse-up is caught by the pointer poll (`NSEvent.pressedMouseButtons`). A panel rebuild cancels the drag.
-- **The panel accepts mouse events for the whole drag and while settling.**
+- **The panel accepts mouse events for the whole drag, and gives the display back the moment the island is released.** While it glides into place nothing takes clicks. (An independent review found that holding the panel through the settle could lock every click on the display if a queued drag event arrived after the release; that path is closed three ways: one press starts at most one drag, the settle is not cancelled by a drag that did not begin, and the pointer poll finishes a settle whose timer was lost.)
+- **Grabbed off-center, the body closes the gap to the pointer once it tears off**, so the capsule ends up under the pointer and lands where the user aims.
+- **Returning into the notch, the capsule takes the notch's shape as it arrives**, so nothing pops when the resting island takes over.
 - **Root shape**: pulled off the notch, the goo hangs from the notch rect. Pulled off an edge or corner, it hangs from a copy of the island's old place, which shrinks away after the tear. On a display without a physical notch the stand-in notch shrinks away too.
 - **Haptics**: `.levelChange` when the island tears off, `.alignment` when a torn-off island is released. (The spec said `.generic` for the tear; research suggested `.levelChange` reads better as a "snap". Either is one line to change.)
 
@@ -49,11 +51,21 @@ Decisions:
 9. While dragging, CPU use is modest and the motion is smooth; at rest CPU is about 0 %.
 10. Click (without moving) the play/pause button on the expanded island. It still reacts to the click and does not start a drag.
 
+To see what the drag code decides while you try this, run in a terminal first:
+
+```bash
+log stream --predicate 'subsystem == "com.yigtwxx.Symbiodock" && category == "drag"'
+```
+
+It prints one line per milestone ("drag began", "island tore off", "drag ended", "settled", and a line whenever a lost mouse-up or a lost timer had to be recovered). No track or pointer data is logged.
+
 If a drag ever gets stuck (the body follows nothing, or clicks stop reaching other apps), quit with `pkill -x Symbiodock` and report what you did just before.
 
 ## Known gaps
 
 - With the menu bar set to hide automatically, an island docked at the top edge near the middle can sit under the camera housing.
 - Dragging from the expanded island makes the body jump to its collapsed size at once (no morph).
-- Returning to the notch after a tear has no "re-merging" goo; the capsule just glides in.
+- Returning to the notch after a tear has no "re-merging" goo; the capsule glides in and takes the notch's shape.
+- The island cannot be grabbed again during the 550 ms it takes to settle.
+- Dragged toward another display, the island stops at the edge of its own.
 - The hover delay still lives in `OverlayController`; `HoverDebounce` (tested, in core) is not adopted yet.

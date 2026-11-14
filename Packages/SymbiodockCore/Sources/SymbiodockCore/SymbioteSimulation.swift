@@ -360,6 +360,9 @@ public struct SymbioteSimulation: Sendable {
             // While pinching off, the strand closes to nothing at its break point.
             let fromBreak = (s - breakLength) / 9
             radius *= 1 - pinch * exp(-fromBreak * fromBreak)
+            // With the bodies together there is no gap to bridge; without this the flares
+            // would poke out of a resting island as bumps.
+            radius *= smoothstep(0, 24, distance)
             return radius
         }
         frame.ribbons.append(ribbon(line.points, radii))

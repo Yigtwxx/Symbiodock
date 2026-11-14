@@ -28,15 +28,18 @@ struct SymbioteCanvas: View {
         let root = root.offsetBy(dx: -origin.x, dy: -origin.y)
         let island = island.offsetBy(dx: -origin.x, dy: -origin.y)
         return Canvas(opaque: false, colorMode: .nonLinear, rendersAsynchronously: false) { context, _ in
-            context.drawLayer { goo in
-                // Added first, applied last: blur, then cut the soft edge back to a hard one.
-                goo.addFilter(.alphaThreshold(min: 0.5, color: .black))
-                goo.addFilter(.blur(radius: Self.blurRadius))
-                goo.drawLayer { layer in
-                    layer.fill(ribbons, with: .color(.black))
-                    layer.fill(droplets, with: .color(.black))
-                    layer.fill(root, with: .color(.black))
-                    layer.fill(island, with: .color(.black))
+            // Bodies alone need no goo layer; skipping it keeps a plain carry cheap.
+            if !frame.isEmpty {
+                context.drawLayer { goo in
+                    // Added first, applied last: blur, then cut the soft edge back to a hard one.
+                    goo.addFilter(.alphaThreshold(min: 0.5, color: .black))
+                    goo.addFilter(.blur(radius: Self.blurRadius))
+                    goo.drawLayer { layer in
+                        layer.fill(ribbons, with: .color(.black))
+                        layer.fill(droplets, with: .color(.black))
+                        layer.fill(root, with: .color(.black))
+                        layer.fill(island, with: .color(.black))
+                    }
                 }
             }
             context.fill(ribbons, with: .color(.black))

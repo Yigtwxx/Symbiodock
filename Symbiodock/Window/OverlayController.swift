@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import SymbiodockCore
+import os
 
 /// Owns the overlay panel, keeps it matched to the island's display, and turns the
 /// pointer into hover state, click-through and drags.
@@ -28,6 +29,12 @@ final class OverlayController {
     /// Where the button went down on the island (panel-local), until it comes up again.
     private var pressLocation: CGPoint?
     private var settleTask: Task<Void, Never>?
+    /// When the current settle is due to end; the pointer poll enforces it if the timer is lost.
+    private var settleDeadline: ContinuousClock.Instant?
+
+    /// Drag milestones only (phase names and booleans, never content). Watch with:
+    /// `log stream --predicate 'subsystem == "com.yigtwxx.Symbiodock" && category == "drag"'`
+    private static let dragLog = Logger(subsystem: "com.yigtwxx.Symbiodock", category: "drag")
 
     init(
         state: IslandState, contextMenu: NSMenu,
@@ -62,7 +69,12 @@ final class OverlayController {
 
     /// Puts the island back on the notch. Ignored while it is being dragged or settling.
     func returnToNotch() {
-        guard state.phase == .collapsed || state.phase == .expanded else { return }
+        guard isIdle else { return }
+        // Fly there collapsed; the pointer is on the menu, not on the island.
+        hoverTask?.cancel()
+        hoverTask = nil
+        pointerInside = false
+        state.setHovering(false)
         state.restoreAnchor(.notch)
         AnchorStore.save(.notch)
         refreshPointer()
@@ -110,6 +122,8 @@ final class OverlayController {
         let hostingView = IslandHostingView(rootView: IslandView(
             state: state, geometry: geometry, session: session, onCommand: onCommand))
         hostingView.contextMenu = contextMenu
+        // A menu opened mid-drag would freeze the island where it is.
+        hostingView.allowsContextMenu = { [weak self] in self?.isIdle ?? false }
         // Keep SwiftUI from resizing the panel to the content's ideal size.
         hostingView.sizingOptions = []
         panel.contentView = hostingView
@@ -119,6 +133,11 @@ final class OverlayController {
 
         // The new panel ignores mouse events; re-check in case the pointer is already on the island.
         pointerMoved(toGlobal: NSEvent.mouseLocation)
+    }
+
+    /// Neither dragged nor settling.
+    private var isIdle: Bool {
+        state.phase == .collapsed || state.phase == .expanded
     }
 
     /// The island's frame at its anchor, in panel-local coordinates.
@@ -156,14 +175,34 @@ final class OverlayController {
     private func pointerMoved(toGlobal point: CGPoint) {
         guard let metrics, panel != nil else { return }
 
-        if state.isDragging || state.phase == .settling {
+        if state.isDragging {
             // The island is wherever the pointer takes it; keep receiving its events.
             setAcceptsMouse(true)
             // A mouse-up can get lost (released over a system dialog, during a Space switch).
-            if state.isDragging, NSEvent.pressedMouseButtons & 1 == 0 {
+            if NSEvent.pressedMouseButtons & 1 == 0 {
+                Self.dragLog.notice("mouse-up was lost; ending the drag from the pointer poll")
                 endDrag()
             }
             return
+        }
+        if state.phase == .settling {
+            // Nothing takes clicks while the island glides: the panel covers the whole display,
+            // so holding it here would swallow every click on it.
+            setAcceptsMouse(false)
+            if let settleDeadline, ContinuousClock.now > settleDeadline + .milliseconds(250) {
+                Self.dragLog.notice("settle timer was lost; finishing from the pointer poll")
+                finishSettling()
+            }
+            return
+        }
+        if pressLocation != nil {
+            // The button is down on the island but the drag has not started: keep the events
+            // coming even if the pointer slips off the island within the drag threshold.
+            if NSEvent.pressedMouseButtons & 1 != 0 {
+                setAcceptsMouse(true)
+                return
+            }
+            pressLocation = nil
         }
 
         let hitRect = IslandLayout.hitRect(
@@ -210,21 +249,26 @@ final class OverlayController {
 
     private func handleMouse(_ type: NSEvent.EventType, windowNumber: Int, isControlClick: Bool) {
         guard let metrics, let panel else { return }
-        let point = metrics.localPoint(fromGlobal: NSEvent.mouseLocation)
+        var point = metrics.localPoint(fromGlobal: NSEvent.mouseLocation)
+        // Dragging between displays is not supported: the island stays on its own.
+        point.x = min(max(point.x, 0), geometry.screenSize.width)
+        point.y = min(max(point.y, 0), geometry.screenSize.height)
 
         switch type {
         case .leftMouseDown:
-            let idle = state.phase == .collapsed || state.phase == .expanded
             let onIsland = islandFrame(phase: state.phase)
                 .insetBy(dx: -IslandLayout.hitPadding, dy: -IslandLayout.hitPadding)
                 .contains(point)
             pressLocation =
-                windowNumber == panel.windowNumber && !isControlClick && idle && onIsland ? point : nil
+                windowNumber == panel.windowNumber && !isControlClick && isIdle && onIsland ? point : nil
         case .leftMouseDragged:
             if state.isDragging {
                 continueDrag(to: point)
-            } else if let press = pressLocation,
+            } else if let press = pressLocation, isIdle,
                       hypot(point.x - press.x, point.y - press.y) > Self.dragThreshold {
+                // One press starts at most one drag: a drag event still queued after the
+                // release must not start a second one.
+                pressLocation = nil
                 beginDrag(from: press)
                 continueDrag(to: point)
             }
@@ -237,18 +281,18 @@ final class OverlayController {
     }
 
     private func beginDrag(from press: CGPoint) {
-        hoverTask?.cancel()
-        hoverTask = nil
-        pointerInside = false
-        settleTask?.cancel()
-
         // The island is always collapsed while it is dragged.
         let resting = islandFrame(phase: .collapsed)
         let atNotch = state.anchor == .notch
         state.beginDrag(at: press, from: CGPoint(x: resting.midX, y: resting.midY))
+        // Tear nothing down unless the drag really began.
         guard state.isDragging else { return }
+        hoverTask?.cancel()
+        hoverTask = nil
+        pointerInside = false
+        Self.dragLog.notice("drag began; at notch: \(atNotch)")
         session.begin(
-            restingFrame: resting,
+            restingFrame: resting, press: press,
             // Pulled off the notch, the goo hangs from the notch itself, not from the wings.
             rootRect: atNotch ? geometry.notch : resting,
             rootAtNotch: atNotch,
@@ -264,37 +308,54 @@ final class OverlayController {
         if tore {
             // State and effect tear on the same event, so they cannot disagree.
             session.tear()
+            Self.dragLog.notice("island tore off")
             Self.haptic(.levelChange)
         }
     }
 
     private func endDrag() {
         guard state.isDragging else { return }
+        pressLocation = nil
         let wasDetached = state.phase == .detached
         let resolved = SnapResolver.anchor(
             forRelease: session.bodyCenter, notch: geometry.notch,
             visibleFrame: geometry.visibleFrame)
         state.endDrag(resolvedAnchor: resolved)
-        session.settle(into: islandFrame(phase: .collapsed))
+        session.settle(into: islandFrame(phase: .collapsed), atNotch: state.anchor == .notch)
+        Self.dragLog.notice("drag ended; detached: \(wasDetached)")
         if wasDetached {
             AnchorStore.save(state.anchor)
             Self.haptic(.alignment)
         }
+        // The glide needs no clicks; give the display back at once.
+        setAcceptsMouse(false)
 
-        // Not tied to the animation finishing: a timer cannot get lost.
+        // Not tied to the animation finishing; and if this timer is ever lost, the pointer
+        // poll finishes the settle from `settleDeadline`.
+        settleDeadline = .now + Self.settleDuration
         settleTask?.cancel()
         settleTask = Task { [weak self] in
             try? await Task.sleep(for: Self.settleDuration)
-            guard !Task.isCancelled, let self else { return }
-            self.state.finishSettling()
-            self.refreshPointer()
+            guard !Task.isCancelled else { return }
+            self?.finishSettling()
         }
+    }
+
+    private func finishSettling() {
+        settleTask?.cancel()
+        settleTask = nil
+        settleDeadline = nil
+        guard state.phase == .settling else { return }
+        state.finishSettling()
+        Self.dragLog.notice("settled")
+        refreshPointer()
     }
 
     /// Leaves any drag at once, for when the panel goes away under it.
     private func abortDrag() {
         settleTask?.cancel()
         settleTask = nil
+        settleDeadline = nil
         pressLocation = nil
         state.cancelDrag()
     }
@@ -308,12 +369,15 @@ final class OverlayController {
 /// Hosts the island and shows its context menu on a secondary click.
 private final class IslandHostingView<Content: View>: NSHostingView<Content> {
     var contextMenu: NSMenu?
+    /// Asked before the menu opens.
+    var allowsContextMenu: () -> Bool = { true }
 
     /// A click on a panel that never becomes key would otherwise only "activate" it;
     /// the island's buttons must react to the first click.
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func rightMouseDown(with event: NSEvent) {
+        guard allowsContextMenu() else { return }
         guard let contextMenu else {
             super.rightMouseDown(with: event)
             return
@@ -323,6 +387,6 @@ private final class IslandHostingView<Content: View>: NSHostingView<Content> {
 
     /// Control-click asks for the menu through this hook.
     override func menu(for event: NSEvent) -> NSMenu? {
-        contextMenu
+        allowsContextMenu() ? contextMenu : nil
     }
 }
