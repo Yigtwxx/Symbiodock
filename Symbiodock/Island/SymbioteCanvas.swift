@@ -12,12 +12,19 @@ struct SymbioteCanvas: View {
     /// The shape the island was attached to (the notch, or its old place at an edge).
     let root: Path
     let island: Path
+    /// Where this canvas sits in the coordinate space the shapes are given in.
+    /// The canvas covers only the area around the drag, not the whole display.
+    var origin: CGPoint = .zero
 
     private static let blurRadius: CGFloat = 5
 
     var body: some View {
         // Built once per frame and filled in both layers.
-        let (ribbons, droplets) = strandPaths()
+        let strands = strandPaths()
+        let ribbons = strands.ribbons.offsetBy(dx: -origin.x, dy: -origin.y)
+        let droplets = strands.droplets.offsetBy(dx: -origin.x, dy: -origin.y)
+        let root = root.offsetBy(dx: -origin.x, dy: -origin.y)
+        let island = island.offsetBy(dx: -origin.x, dy: -origin.y)
         return Canvas(opaque: false, colorMode: .nonLinear, rendersAsynchronously: false) { context, _ in
             context.drawLayer { goo in
                 // Added first, applied last: blur, then cut the soft edge back to a hard one.

@@ -10,19 +10,32 @@ final class IslandMenu: NSObject, NSMenuDelegate {
     private let musicAccessItem: NSMenuItem
     private let musicAccessSeparator = NSMenuItem.separator()
     private let launchAtLoginItem: NSMenuItem
+    private let returnToNotchItem: NSMenuItem
+
+    /// Set by the app: puts the island back on the notch.
+    var onReturnToNotch: (() -> Void)?
+    /// Set by the app: whether the island is somewhere other than the notch.
+    var canReturnToNotch: () -> Bool = { false }
 
     override init() {
         musicAccessItem = NSMenuItem(
             title: "Music access needed", action: #selector(openAutomationSettings), keyEquivalent: "")
         launchAtLoginItem = NSMenuItem(
             title: "Launch at login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        returnToNotchItem = NSMenuItem(
+            title: "Return to notch", action: #selector(returnToNotch), keyEquivalent: "")
         super.init()
 
         menu.delegate = self
+        // "Return to notch" is greyed out by hand while the island is already there.
+        menu.autoenablesItems = false
 
         musicAccessItem.target = self
         menu.addItem(musicAccessItem)
         menu.addItem(musicAccessSeparator)
+
+        returnToNotchItem.target = self
+        menu.addItem(returnToNotchItem)
 
         launchAtLoginItem.target = self
         menu.addItem(launchAtLoginItem)
@@ -46,6 +59,11 @@ final class IslandMenu: NSObject, NSMenuDelegate {
     /// The checkmark reflects the system's real status each time the menu opens.
     func menuNeedsUpdate(_ menu: NSMenu) {
         launchAtLoginItem.state = LoginItem.isEnabled ? .on : .off
+        returnToNotchItem.isEnabled = canReturnToNotch()
+    }
+
+    @objc private func returnToNotch() {
+        onReturnToNotch?()
     }
 
     @objc private func toggleLaunchAtLogin() {

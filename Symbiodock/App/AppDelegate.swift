@@ -23,6 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         overlayController.start()
         self.overlayController = overlayController
+        islandMenu.onReturnToNotch = { [weak overlayController] in overlayController?.returnToNotch() }
+        islandMenu.canReturnToNotch = { [weak self] in self.map { $0.state.anchor != .notch } ?? false }
 
         let nowPlaying = NowPlayingCoordinator(
             onUpdate: { [weak self] info in

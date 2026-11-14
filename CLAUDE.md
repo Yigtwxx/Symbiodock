@@ -65,14 +65,19 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 
 - Faz 0-2 tamam ve sahibi elle doğruladı: çekirdek paket, agent uygulama, çentik adası,
   hover, tıklama geçişi.
-- Faz 3 (Now Playing) ve Faz 6 (girişte başlatma) kodu tamam, `main`'de; **sahibinin elle
-  kontrolü bekliyor** (sahibi 2026-11-14 akşamı Mac'in başında değildi). Kontrol listeleri:
-  `docs/superpowers/plans/2026-11-14-m2-now-playing.md` ve
-  `docs/superpowers/plans/2026-11-14-m5-launch-at-login.md` sonunda. Apple Music yedek yolu
-  (AppleScript, izin penceresi) hiç çalıştırılmadı.
-- Menü çubuğunda öğe yok; menü adaya sağ tıkla açılır.
-- Sürükleme ve symbiote efekti yok. Sahibi, Faz 3'ü görmeden Faz 4'ün pencere/sürükleme
-  tarafına başlanmamasını, ama planının ve testli çekirdeğinin yazılmasını onayladı.
+- **Faz 3, 4, 5 ve 6'nın kodu tamam ve `main`'de, ama hiçbiri elle doğrulanmadı.** Sahibi
+  2026-11-14 akşamı Mac'in başında değildi ve "yapabildiğinin en iyisini yap" dedi. Her fazın
+  elle kontrol listesi kendi plan dosyasının sonunda:
+  `2026-11-14-m2-now-playing.md`, `2026-11-14-m5-launch-at-login.md`,
+  `2026-11-14-m3-m4-window-drag-and-effect.md`.
+- Hiç çalıştırılmamış yollar: Apple Music yedeği (AppleScript, izin penceresi), canlı
+  sürükleme (fare olaylarının monitöre ulaşması), trackpad titreşimi.
+- Menü çubuğunda öğe yok; menü adaya sağ tıkla açılır (Return to notch, Launch at login,
+  Quit; gerekince Music access needed).
+- v1'in tüm fazları yazıldı. Sıradaki iş: sahibinin elle kontrolü ve çıkan sorunların
+  düzeltilmesi. Dağıtım öncesi sağlamlaştırma listesi `.superpowers/sdd/progress.md` içinde
+  (git'e girmez); özeti: yardımcı sürecin zorla öldürülmesi, komut sıralaması, Release ve
+  Intel derlemesinin perl altında denenmesi.
 - Xcode 27.2 ve XcodeGen 2.45.4 kurulu, `xcode-select` ile seçili.
 
 ## "Yapılacakları yap" denince
@@ -125,20 +130,13 @@ Durmadan devam edilecek durumlar:
       `mediaremote-adapter` denemesi ve lisansının GPL-3.0 uyum kontrolü. Bitince: en az
       Apple Music'ten gerçek parça bilgisi ve çalışan önceki / oynat-duraklat / sonraki;
       kapalı adada solda kapak, sağda seviye çubukları.
-- [ ] **Faz 4 — Milestone 3: sürükleme ve yapışma.** İki parça. Çekirdek (testli, ekran
-      gerektirmez) planı: `docs/superpowers/plans/2026-11-14-m3-core-drag-and-snap.md`.
-      Pencere/sürükleme tarafının planı yok; sahibi Faz 3'ü ekranda gördükten sonra yazılacak
-      (spec 5.3-5.5, 5.9).
-      İlk görev: hover mantığını (gecikme, `pointerInside`/faz eşlemesi) saati dışarıdan
-      verilen saf bir birim olarak `SymbiodockCore`'a taşı ve test et; şu an
-      `OverlayController` içinde testsiz duruyor ve sürükleme fazlarıyla çakışacak.
-      Ada koparılıyor, kenara ve köşeye yapışıyor, çentiğe dönüyor, konum yeniden açılışta
-      korunuyor; ada menüsünde "Return to notch".
-- [ ] **Faz 5 — Milestone 4: symbiote efekti.** Simülasyon (`SymbioteSimulation`, testli) ve
-      çizim (`SymbioteCanvas`) yazıldı ve ekran dışı görüntülerle doğrulandı (2026-11-14); henüz
-      sürüklemeye bağlı değil, çünkü Faz 4'ün pencere tarafı yok. Kalan işin planı yok,
-      yazılacak (spec 5.5 titreşim, 5.6).
-      Uzama, incelen lifler, kopma ve geri çekilme; kopma ve yapışmada trackpad titreşimi.
+- [x] **Faz 4 — Milestone 3: sürükleme ve yapışma.** Kod tamam, elle kontrol bekliyor.
+      Çekirdek planı: `docs/superpowers/plans/2026-11-14-m3-core-drag-and-snap.md`. Pencere ve
+      sürükleme: `docs/superpowers/plans/2026-11-14-m3-m4-window-drag-and-effect.md` (elle
+      kontrol listesi ve bilinen eksikler orada).
+- [x] **Faz 5 — Milestone 4: symbiote efekti.** Kod tamam, elle kontrol bekliyor. Simülasyon
+      testli; görünüm ve sürüklemenin her aşaması ekran dışı görüntülerle doğrulandı, canlı
+      denenmedi. Aynı plan dosyası.
 - [x] **Faz 6 — Milestone 5: girişte başlatma.** Kod tamam, elle kontrol bekliyor.
       Plan: `docs/superpowers/plans/2026-11-14-m5-launch-at-login.md`. Ada
       menüsünde "Launch at login" aç/kapa.

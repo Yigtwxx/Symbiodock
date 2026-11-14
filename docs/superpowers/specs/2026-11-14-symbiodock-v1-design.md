@@ -195,8 +195,9 @@ transitions and feeds the pointer location to the symbiote simulation.
 The resolved anchor is saved to `UserDefaults` and restored at launch.
 
 Haptics: `DragController` plays a trackpad haptic through
-`NSHapticFeedbackManager` at two moments: `.generic` when the island tears
-off, `.alignment` when it snaps to its anchor. Nothing is played for mouse
+`NSHapticFeedbackManager` at two moments: `.levelChange` when the island tears
+off (changed from `.generic` on 2026-11-14: it reads better as a snap), `.alignment`
+when a torn-off island is released and snaps to its anchor. Nothing is played for mouse
 users, because the system only drives the trackpad.
 
 ### 5.6 Symbiote effect
