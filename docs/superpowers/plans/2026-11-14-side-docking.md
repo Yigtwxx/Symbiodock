@@ -59,7 +59,7 @@ Spec: `docs/superpowers/specs/2026-11-14-side-docking-design.md`.
 @Test func sideStripOpensSidewaysAroundTheSameCenter() {
     let collapsed = floating(.edge(.right, fraction: 0.4))
     let expanded = floating(.edge(.right, fraction: 0.4), .expanded)
-    #expect(expanded.size == IslandLayout.expandedSize)
+    #expect(expanded.width == IslandLayout.expandedSize.width)
     #expect(expanded.maxX == visible.maxX)
     #expect(abs(expanded.midY - collapsed.midY) < 1e-9)
 }
@@ -78,7 +78,7 @@ Spec: `docs/superpowers/specs/2026-11-14-side-docking-design.md`.
 ```
 
 - [ ] **Step 2:** `swift test --package-path Packages/SymbiodockCore --filter IslandLayoutTests` → fails to compile (`sideCollapsedSize` missing).
-- [ ] **Step 3: Implement.** Add the constant and `isSideDocked`; in `frame(anchor:…)` replace `place(isExpanded ? expandedSize : floatingCollapsedSize)` with `place(isExpanded ? expandedSize : collapsedSize(at: anchor))`, where `collapsedSize(at:)` returns `sideCollapsedSize` when side-docked. Fix any existing test that assumed 200 × 36 on a left/right edge.
+- [ ] **Step 3: Implement.** Add the constant and `isSideDocked`; in `frame(anchor:…)` replace `place(isExpanded ? expandedSize : floatingCollapsedSize)` with `place(isExpanded ? expandedSize : collapsedSize(at: anchor))`, where `collapsedSize(at:)` returns `sideCollapsedSize` when side-docked. The expanded size on a side edge is 480 × max(134, 170), so the open island always contains the strip; extend `hoveringADockedIslandNeverMovesItFromUnderThePointer` to the left and right edges. Fix any existing test that assumed 200 × 36 on a left/right edge.
 - [ ] **Step 4:** tests pass.
 - [ ] **Step 5:** commit `feat(core): lay a side-docked island out as a vertical strip`.
 

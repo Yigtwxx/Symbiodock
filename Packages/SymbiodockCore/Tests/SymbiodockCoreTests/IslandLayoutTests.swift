@@ -120,8 +120,8 @@ struct IslandLayoutTests {
         #expect(floating(.edge(.top, fraction: 0)) == CGRect(x: 0, y: 32, width: 200, height: 36))
         #expect(floating(.edge(.top, fraction: 1)) == CGRect(x: 1312, y: 32, width: 200, height: 36))
         #expect(floating(.edge(.top, fraction: 0.5)) == CGRect(x: 656, y: 32, width: 200, height: 36))
-        #expect(floating(.edge(.left, fraction: 0.5)) == CGRect(x: 0, y: 454, width: 200, height: 36))
-        #expect(floating(.edge(.right, fraction: 1)) == CGRect(x: 1312, y: 876, width: 200, height: 36))
+        #expect(floating(.edge(.left, fraction: 0.5)) == CGRect(x: 0, y: 387, width: 36, height: 170))
+        #expect(floating(.edge(.right, fraction: 1)) == CGRect(x: 1476, y: 742, width: 36, height: 170))
         #expect(floating(.edge(.bottom, fraction: 0)) == CGRect(x: 0, y: 876, width: 200, height: 36))
     }
 
@@ -134,7 +134,49 @@ struct IslandLayoutTests {
                 == CGRect(x: 516, y: 778, width: 480, height: 134))
         #expect(
             floating(.edge(.right, fraction: 0), .expanded)
-                == CGRect(x: 1032, y: 32, width: 480, height: 134))
+                == CGRect(x: 1032, y: 32, width: 480, height: 170))
+    }
+
+    // MARK: Side docking
+
+    @Test func onlyLeftAndRightEdgesAreSideDocked() {
+        #expect(IslandLayout.isSideDocked(.edge(.left, fraction: 0.5)))
+        #expect(IslandLayout.isSideDocked(.edge(.right, fraction: 0.2)))
+        for anchor in [IslandAnchor.notch, .edge(.top, fraction: 0.5), .edge(.bottom, fraction: 0.5),
+                       .corner(.topLeft), .corner(.bottomRight)] {
+            #expect(!IslandLayout.isSideDocked(anchor), "\(anchor)")
+        }
+    }
+
+    @Test func sideDockedIslandIsAVerticalStripFlushWithItsEdge() {
+        let left = floating(.edge(.left, fraction: 0.5))
+        #expect(left.size == IslandLayout.sideCollapsedSize)
+        #expect(left.minX == visible.minX)
+        #expect(abs(left.midY - visible.midY) < 1e-9)
+
+        let right = floating(.edge(.right, fraction: 0.5))
+        #expect(right.size == IslandLayout.sideCollapsedSize)
+        #expect(right.maxX == visible.maxX)
+    }
+
+    @Test func sideStripOpensSidewaysAroundTheSameCenter() {
+        let collapsed = floating(.edge(.right, fraction: 0.4))
+        let expanded = floating(.edge(.right, fraction: 0.4), .expanded)
+        #expect(expanded.width == IslandLayout.expandedSize.width)
+        #expect(expanded.maxX == visible.maxX)
+        #expect(abs(expanded.midY - collapsed.midY) < 1e-9)
+    }
+
+    @Test func sideStripStaysInsideTheVisibleFrame() {
+        #expect(floating(.edge(.left, fraction: 0)).minY == visible.minY)
+        #expect(floating(.edge(.left, fraction: 1)).maxY == visible.maxY)
+    }
+
+    @Test func cornersAndHorizontalEdgesKeepTheHorizontalIsland() {
+        for anchor in [IslandAnchor.edge(.top, fraction: 0.5), .edge(.bottom, fraction: 0.5),
+                       .corner(.topLeft), .corner(.bottomRight)] {
+            #expect(floating(anchor).size == IslandLayout.floatingCollapsedSize, "\(anchor)")
+        }
     }
 
     @Test func floatingHitRectIsTheFrameGrownByFourPoints() {
@@ -251,15 +293,19 @@ struct IslandLayoutTests {
             CGRect(x: 0, y: 24, width: 1512, height: 958),
         ]
         for visible in frames {
-            for step in 0...200 {
-                let anchor = IslandAnchor.edge(.top, fraction: Double(step) / 200)
-                let collapsed = IslandLayout.hitRect(
-                    anchor: anchor, phase: .collapsed, notch: notch,
-                    visibleFrame: visible, screenSize: screen, hasTrack: false)
-                let expanded = IslandLayout.hitRect(
-                    anchor: anchor, phase: .expanded, notch: notch,
-                    visibleFrame: visible, screenSize: screen, hasTrack: false)
-                #expect(expanded.contains(collapsed), "fraction \(Double(step) / 200), visible \(visible)")
+            for edge in [ScreenEdge.top, .left, .right] {
+                for step in 0...200 {
+                    let anchor = IslandAnchor.edge(edge, fraction: Double(step) / 200)
+                    let collapsed = IslandLayout.hitRect(
+                        anchor: anchor, phase: .collapsed, notch: notch,
+                        visibleFrame: visible, screenSize: screen, hasTrack: false)
+                    let expanded = IslandLayout.hitRect(
+                        anchor: anchor, phase: .expanded, notch: notch,
+                        visibleFrame: visible, screenSize: screen, hasTrack: false)
+                    #expect(
+                        expanded.contains(collapsed),
+                        "\(edge) fraction \(Double(step) / 200), visible \(visible)")
+                }
             }
         }
     }

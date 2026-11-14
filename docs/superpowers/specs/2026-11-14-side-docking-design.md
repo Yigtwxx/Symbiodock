@@ -39,6 +39,9 @@ Out of scope:
   visible frame, centred on the anchor's fraction, clamped to the frame, and moved
   below the notch if it would meet it. The expanded island keeps the same centre,
   so it grows out of the strip.
+- Opened from a strip the island is 480 × 170: as tall as the strip. Were it shorter,
+  hovering the strip's end would leave the pointer outside the open island, which
+  would then close and open forever.
 - `cornerRadii` needs no change: it already squares the corners on the docked edge.
 
 ## 4. Dragging

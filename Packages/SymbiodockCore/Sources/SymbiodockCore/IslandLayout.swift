@@ -45,6 +45,9 @@ public enum IslandLayout {
 extension IslandLayout {
     /// Size of the island when it is collapsed away from the notch.
     public static let floatingCollapsedSize = CGSize(width: 200, height: 36)
+    /// Size of the island when it is collapsed against the left or right edge: a strip that
+    /// lies along the edge instead of sticking out from it.
+    public static let sideCollapsedSize = CGSize(width: 36, height: 170)
     /// Gap (pt) kept below the notch by an island that had to move out from under it.
     public static let notchClearance: CGFloat = 8
     /// Radius of the island's free corners while collapsed, the same as the notch's.
@@ -74,6 +77,26 @@ extension IslandLayout {
         case .corner(.bottomRight): square(.bottom); square(.right)
         }
         return radii
+    }
+
+    /// Whether the island rests along the left or right edge. Corners count as lying on
+    /// the top or bottom edge.
+    public static func isSideDocked(_ anchor: IslandAnchor) -> Bool {
+        if case .edge(let edge, _) = anchor { return edge == .left || edge == .right }
+        return false
+    }
+
+    /// Size of the island at rest away from the notch.
+    private static func dockedSize(at anchor: IslandAnchor, isExpanded: Bool) -> CGSize {
+        let isSide = isSideDocked(anchor)
+        guard isExpanded else { return isSide ? sideCollapsedSize : floatingCollapsedSize }
+        // Opened from a strip it is at least as tall as the strip: if hovering the strip's
+        // end left the pointer outside the open island, it would close and open forever.
+        return isSide
+            ? CGSize(
+                width: expandedSize.width,
+                height: max(expandedSize.height, sideCollapsedSize.height))
+            : expandedSize
     }
 
     /// The island frame for any anchor, in panel-local coordinates.
@@ -129,12 +152,13 @@ extension IslandLayout {
             return CGRect(origin: origin, size: size)
         }
 
-        var rect = place(isExpanded ? expandedSize : floatingCollapsedSize)
+        let expanded = dockedSize(at: anchor, isExpanded: true)
+        var rect = place(dockedSize(at: anchor, isExpanded: isExpanded))
         // With the menu bar hidden the visible frame reaches the top of the display, and an
         // island docked there could end up behind the camera housing. Hang it below instead.
         // Collapsed and expanded must agree: if only the wider, expanded island met the
         // notch, hovering would move the island out from under the pointer.
-        if rect.intersects(notch) || place(expandedSize).intersects(notch) {
+        if rect.intersects(notch) || place(expanded).intersects(notch) {
             rect.origin.y = max(rect.origin.y, notch.maxY + notchClearance)
         }
         return rect
