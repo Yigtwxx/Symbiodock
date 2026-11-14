@@ -170,7 +170,9 @@ to the island frame.
   island is invisible.
 - At the notch, collapsed, playing: the notch rect widened on both sides. The
   left wing shows the artwork thumbnail, the right wing shows animated level
-  bars.
+  bars. The wings stay for 10 seconds after playback pauses and then hide, so a
+  paused player does not occupy the menu bar; they never appear for a track that
+  was already paused. The expanded island still shows a paused track.
 - At the notch, expanded: grows downward and sideways from the notch, about
   360 × 150 pt.
 - At an edge or corner: a floating black capsule, 8 pt inside the display's

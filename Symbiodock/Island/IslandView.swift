@@ -9,7 +9,7 @@ struct IslandView: View {
     var body: some View {
         GeometryReader { proxy in
             let frame = IslandLayout.frame(
-                phase: state.phase, notch: notch, screenSize: proxy.size, hasTrack: state.hasTrack)
+                phase: state.phase, notch: notch, screenSize: proxy.size, hasTrack: state.showsWings)
             let radius: CGFloat = state.phase == .expanded ? 24 : 10
 
             UnevenRoundedRectangle(
@@ -31,7 +31,7 @@ struct IslandView: View {
                 .offset(x: frame.minX, y: frame.minY)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .animation(.spring(response: 0.35, dampingFraction: 0.8), value: state.phase)
-                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: state.hasTrack)
+                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: state.showsWings)
         }
         .ignoresSafeArea()
     }
@@ -43,7 +43,7 @@ struct IslandView: View {
             ExpandedContent(info: state.nowPlaying, topInset: notch.height, onCommand: onCommand)
                 .transition(.opacity)
         case .collapsed:
-            if let info = state.nowPlaying {
+            if state.showsWings, let info = state.nowPlaying {
                 CollapsedContent(info: info, notchWidth: notch.width)
                     .transition(.opacity)
             }

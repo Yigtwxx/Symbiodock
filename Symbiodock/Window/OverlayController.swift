@@ -104,7 +104,7 @@ final class OverlayController {
 
         let hitRect = IslandLayout.hitRect(
             phase: state.phase, notch: notch, screenSize: metrics.frame.size,
-            hasTrack: state.hasTrack)
+            hasTrack: state.showsWings)
         let inside = hitRect.contains(metrics.localPoint(fromGlobal: point))
 
         // Clicks reach the panel only while the pointer is on the island. Assign only on

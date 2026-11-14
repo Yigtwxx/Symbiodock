@@ -47,6 +47,7 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 | Görünüm | v1'de düz siyah; kişiselleştirme sonra | Sahibinin tercihi |
 | Tam ekran | Ada tam ekran uygulamaların üstünde de görünür kalır | Sahibinin tercihi |
 | Girişte başlatma | v1'de var, ada menüsünde aç/kapa (milestone 5) | Sahibinin tercihi |
+| Duraklatılmış parça | Kapalı adadaki kanatlar duraklatmadan 10 sn sonra gizlenir; açık ada parçayı göstermeye devam eder (2026-11-14) | Sahibinin seçimi; duraklatılmış bir sekme çentiği gün boyu kaplamasın |
 | Menü | Menü çubuğunda öğe yok; menü adaya sağ tıkla açılır (2026-11-14) | Sahibi menü çubuğunda ikon istemedi; ileride başka özellikler için oraya öğe gelebilir |
 | Geri bildirim | Kopma ve yapışma anında trackpad titreşimi, ses yok | Sahibinin tercihi |
 | Arayüz dili | Tamamen İngilizce; çeviri altyapısı kurulmaz | Dil desteği çok sonra gelecek |

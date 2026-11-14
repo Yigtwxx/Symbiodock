@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var overlayController: OverlayController?
     private var nowPlaying: NowPlayingCoordinator?
     private var terminationSignalSource: DispatchSourceSignal?
+    private var wingsExpiry: Task<Void, Never>?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installTerminationHandler()
@@ -26,7 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let nowPlaying = NowPlayingCoordinator(
             onUpdate: { [weak self] info in
                 self?.state.setNowPlaying(info)
-                // The collapsed hit rect depends on whether there is a track.
+                self?.scheduleWingsExpiry(for: info)
+                // The collapsed hit rect depends on whether the wings are shown.
                 self?.overlayController?.refreshPointer()
             },
             onMusicAccessChange: { [weak self] denied in
@@ -39,6 +41,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Otherwise the perl helper would outlive the app until its next write.
         nowPlaying?.stop()
+    }
+
+    /// Hides the collapsed wings a while after playback pauses, unless it resumes first.
+    private func scheduleWingsExpiry(for info: NowPlayingInfo?) {
+        wingsExpiry?.cancel()
+        wingsExpiry = nil
+        guard let info, !info.isPlaying else { return }
+        wingsExpiry = Task { [weak self] in
+            try? await Task.sleep(for: WingsTiming.pausedGrace)
+            guard !Task.isCancelled, let self else { return }
+            self.state.pausedGraceElapsed()
+            self.overlayController?.refreshPointer()
+        }
     }
 
     /// A plain SIGTERM (`pkill`, `kill`) skips `applicationWillTerminate`, which would leave the

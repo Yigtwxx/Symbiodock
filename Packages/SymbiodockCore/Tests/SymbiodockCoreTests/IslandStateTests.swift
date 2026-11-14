@@ -22,16 +22,61 @@ struct IslandStateTests {
         #expect(HoverTiming.exitDelay == .milliseconds(250))
     }
 
+    private func track(playing: Bool) -> NowPlayingInfo {
+        NowPlayingInfo(title: "T", artist: "A", isPlaying: playing, sourceName: "Music")
+    }
+
     @Test func mirrorsTheCurrentTrack() {
         let state = IslandState()
-        #expect(!state.hasTrack)
+        #expect(state.nowPlaying == nil)
 
-        let track = NowPlayingInfo(title: "T", artist: "A", isPlaying: true, sourceName: "Music")
-        state.setNowPlaying(track)
-        #expect(state.nowPlaying == track)
-        #expect(state.hasTrack)
+        state.setNowPlaying(track(playing: true))
+        #expect(state.nowPlaying == track(playing: true))
 
         state.setNowPlaying(nil)
-        #expect(!state.hasTrack)
+        #expect(state.nowPlaying == nil)
+    }
+
+    @Test func wingsShowWhilePlayingAndHideWhenTheTrackGoesAway() {
+        let state = IslandState()
+        #expect(!state.showsWings)
+
+        state.setNowPlaying(track(playing: true))
+        #expect(state.showsWings)
+
+        state.setNowPlaying(nil)
+        #expect(!state.showsWings)
+    }
+
+    @Test func wingsOutliveAPauseUntilTheGraceElapses() {
+        let state = IslandState()
+        state.setNowPlaying(track(playing: true))
+
+        state.setNowPlaying(track(playing: false))
+        #expect(state.showsWings)
+
+        state.pausedGraceElapsed()
+        #expect(!state.showsWings)
+        #expect(state.nowPlaying != nil)
+    }
+
+    @Test func resumingBeforeTheGraceElapsesKeepsTheWings() {
+        let state = IslandState()
+        state.setNowPlaying(track(playing: true))
+        state.setNowPlaying(track(playing: false))
+        state.setNowPlaying(track(playing: true))
+
+        state.pausedGraceElapsed()
+        #expect(state.showsWings)
+    }
+
+    @Test func aTrackThatWasAlreadyPausedNeverShowsWings() {
+        let state = IslandState()
+        state.setNowPlaying(track(playing: false))
+        #expect(!state.showsWings)
+    }
+
+    @Test func pausedGraceIsTenSeconds() {
+        #expect(WingsTiming.pausedGrace == .seconds(10))
     }
 }
