@@ -946,7 +946,7 @@ In the `Symbiodock` target:
         embed: true
         link: false
       - target: MediaRemoteAdapterTestClient
-        embed: false
+        embed: true   # XcodeGen 2.45.4 ignores `copy:` unless embed is true
         link: false
         copy:
           destination: executables

@@ -26,6 +26,12 @@ dragging and the symbiote effect are not built yet.
 The v1 design is described in
 [docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md](docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md).
 
+## Third-party code
+
+Symbiodock bundles [mediaremote-adapter](https://github.com/ungive/mediaremote-adapter)
+by Jonas van den Berg and contributors, under the BSD 3-Clause License. Its sources and
+license are in `Vendor/mediaremote-adapter`.
+
 ## License
 
 Copyright (C) 2026 Yigtwxx

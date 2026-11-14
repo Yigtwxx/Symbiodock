@@ -21,8 +21,18 @@ targets:
     platform: macOS
     sources:
       - path: Symbiodock
+      - path: Vendor/mediaremote-adapter/bin/mediaremote-adapter.pl
+        buildPhase: resources
     dependencies:
       - package: SymbiodockCore
+      - target: MediaRemoteAdapter
+        embed: true
+        link: false
+      - target: MediaRemoteAdapterTestClient
+        embed: true
+        link: false
+        copy:
+          destination: executables
     info:
       path: Symbiodock/Info.plist
       properties:
@@ -32,10 +42,44 @@ targets:
         NSHumanReadableCopyright: "Copyright © 2026 Yigtwxx"
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSAppleEventsUsageDescription: Symbiodock reads the current track from Music and controls playback.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yigtwxx.Symbiodock
         ENABLE_HARDENED_RUNTIME: NO
+  MediaRemoteAdapter:
+    type: framework
+    platform: macOS
+    sources:
+      - path: Vendor/mediaremote-adapter/src/adapter
+      - path: Vendor/mediaremote-adapter/src/private
+      - path: Vendor/mediaremote-adapter/src/utility
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yigtwxx.Symbiodock.MediaRemoteAdapter
+        GENERATE_INFOPLIST_FILE: YES
+        HEADER_SEARCH_PATHS:
+          - $(SRCROOT)/Vendor/mediaremote-adapter/include
+          - $(SRCROOT)/Vendor/mediaremote-adapter/src
+        CLANG_ENABLE_OBJC_ARC: YES
+        # perl looks the entry points up by name, so they must stay exported.
+        GCC_SYMBOLS_PRIVATE_EXTERN: NO
+        GCC_WARN_INHIBIT_ALL_WARNINGS: YES
+        DEFINES_MODULE: NO
+        SKIP_INSTALL: YES
+  MediaRemoteAdapterTestClient:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Vendor/mediaremote-adapter/src/test
+    dependencies:
+      - sdk: MediaPlayer.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yigtwxx.Symbiodock.MediaRemoteAdapterTestClient
+        CLANG_ENABLE_OBJC_ARC: YES
+        GCC_WARN_INHIBIT_ALL_WARNINGS: YES
+        SKIP_INSTALL: YES
 schemes:
   Symbiodock:
     build:
