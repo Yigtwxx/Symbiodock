@@ -9,4 +9,8 @@ Symbiodock builds the framework and the test client from these sources with Xcod
 (see `project.yml`) instead of upstream's CMake build. The framework is bundled with
 the app and loaded by `/usr/bin/perl`; the app never links against it.
 
-To update: replace the copied files from a newer tag and change the version above.
+The license text ships inside the app as `Symbiodock/Resources/ThirdPartyNotices.txt`
+(BSD-3-Clause requires it to accompany binaries).
+
+To update: replace the copied files from a newer tag, change the version above, and
+refresh `ThirdPartyNotices.txt` if the license or version changed.

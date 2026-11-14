@@ -28,6 +28,7 @@ targets:
       - target: MediaRemoteAdapter
         embed: true
         link: false
+      # XcodeGen 2.45.4 ignores `copy:` unless `embed` is true.
       - target: MediaRemoteAdapterTestClient
         embed: true
         link: false
