@@ -16,7 +16,8 @@ import SymbiodockCore
 /// Draws a `TimelineView` from a timer, `interval` seconds apart. With a `pulse` it draws
 /// only while the motion lasts and once more at its end, so that the view comes to rest.
 /// The stepping is `FramePacer`'s, in the core package, where it is tested never to stand
-/// still: a schedule that repeats a date makes SwiftUI spin on the main thread.
+/// still: a schedule that repeats a date makes SwiftUI spin on the main thread. It also
+/// starts again from the present after sleep or a clock change.
 struct FrameSchedule: TimelineSchedule {
     typealias Pulse = FramePacer.Pulse
 
@@ -33,7 +34,7 @@ struct FrameSchedule: TimelineSchedule {
         var pacer: FramePacer
 
         mutating func next() -> Date? {
-            pacer.next()
+            pacer.next(now: Date())
         }
     }
 }

@@ -47,6 +47,25 @@ public struct FramePacer: Sendable {
         upcoming = start
     }
 
+    /// The next frame, with the present moment known. After the Mac slept the frames it
+    /// would give lie far in the past, and after the clock was set back they lie in the
+    /// future; either way it starts again from `now` instead of walking through them (or
+    /// waiting for them). Otherwise it is `next()`.
+    public mutating func next(now: Date) -> Date? {
+        let present = now.timeIntervalSinceReferenceDate
+        if !(started && paused), present.isFinite, upcoming.timeIntervalSinceReferenceDate.isFinite {
+            let longestWait = max(interval, pulse?.period ?? 0)
+            let lateness = present - upcoming.timeIntervalSinceReferenceDate
+            if lateness > Self.tolerance || -lateness > Self.tolerance + longestWait {
+                upcoming = now
+            }
+        }
+        return next()
+    }
+
+    /// How far a frame may lie behind or ahead of the present before it counts as stale.
+    private static let tolerance: TimeInterval = 1
+
     /// The next frame; nil when there are no more.
     public mutating func next() -> Date? {
         if started, paused { return nil }

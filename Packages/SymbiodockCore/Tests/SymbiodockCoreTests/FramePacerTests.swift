@@ -112,4 +112,62 @@ struct FramePacerTests {
             #expect(movesOn(frames))
         }
     }
+
+    // MARK: starting again from now
+
+    @Test func aPacerFarBehindNowRecoversInOneStep() {
+        var pacer = FramePacer(interval: 0.4, from: start)
+        let now = start.addingTimeInterval(6 * 3600)
+        let frame = pacer.next(now: now)
+        #expect(frame == now)
+        let following = pacer.next(now: now.addingTimeInterval(0.4))
+        #expect(following.map { abs($0.timeIntervalSince(now) - 0.4) < 1e-6 } ?? false)
+    }
+
+    @Test func aPacerFarAheadOfNowRecovers() {
+        // The clock was set back an hour.
+        var pacer = FramePacer(interval: 0.4, from: start.addingTimeInterval(3600))
+        let frame = pacer.next(now: start)
+        #expect(frame == start)
+        let pulse = FramePacer.Pulse(anchor: start, period: 2.4, length: 0.6)
+        var pulsed = FramePacer(interval: 0.1, pulse: pulse, from: start.addingTimeInterval(3600))
+        #expect(pulsed.next(now: start) == start)
+    }
+
+    @Test func steppingWithNowIsUnchangedWhenOnTime() {
+        let pulse = FramePacer.Pulse(anchor: start, period: 2.4, length: 0.65)
+        for pulse in [nil, pulse] {
+            var plain = FramePacer(interval: 0.05, pulse: pulse, from: start)
+            var timed = FramePacer(interval: 0.05, pulse: pulse, from: start)
+            for _ in 0..<80 {
+                let expected = plain.next()
+                // Asked a little late, as a real view is.
+                let given = timed.next(now: (expected ?? start).addingTimeInterval(0.02))
+                #expect(given == expected)
+            }
+        }
+    }
+
+    @Test func aPausedPacerStillGivesOneFrameWithNow() {
+        var pacer = FramePacer(interval: 0.05, paused: true, from: start)
+        #expect(pacer.next(now: start) != nil)
+        #expect(pacer.next(now: start) == nil)
+    }
+
+    @Test func pulsesAnchoredAtReferenceZeroNeverStandStill() {
+        let anchor = Date(timeIntervalSinceReferenceDate: 0)
+        for period in [2.4, 3.6] {
+            for length in [0.3, 0.65, 1.2, period] {
+                let pulse = FramePacer.Pulse(anchor: anchor, period: period, length: length)
+                let beat = (820_000_000 / period).rounded() * period
+                for offset in [-1e-7, 0, 1e-7, 0.3, length, -0.01] {
+                    let from = Date(timeIntervalSinceReferenceDate: beat + offset)
+                    let frames = frames(FramePacer(interval: 0.05, pulse: pulse, from: from), count: 2000)
+                    #expect(frames.count == 2000, "\(period) \(length) \(offset)")
+                    #expect(movesOn(frames), "\(period) \(length) \(offset)")
+                    #expect(Set(frames.map(\.timeIntervalSinceReferenceDate)).count == 2000)
+                }
+            }
+        }
+    }
 }
