@@ -25,7 +25,10 @@ struct MediaRemoteProvider: NowPlayingProvider {
     }
 
     private static let perl = URL(fileURLWithPath: "/usr/bin/perl")
-    private static let oneShotTimeLimit: TimeInterval = 10
+    private static let commandTimeLimit: TimeInterval = 10
+    /// The adapter's own test can take about ten seconds in the worst case; a timeout here
+    /// would write off system-wide Now Playing for the whole session.
+    private static let availabilityTimeLimit: TimeInterval = 25
     private static let logger = Logger(
         subsystem: "com.yigtwxx.Symbiodock", category: "MediaRemoteProvider")
 
@@ -33,9 +36,10 @@ struct MediaRemoteProvider: NowPlayingProvider {
     let helpers: HelperProcesses
 
     func isAvailable() async -> Bool {
-        await Self.runToExit(helpers: helpers, arguments: [
-            paths.script.path, paths.framework.path, paths.testClient.path, "test",
-        ]) == 0
+        await Self.runToExit(
+            helpers: helpers, timeLimit: Self.availabilityTimeLimit,
+            arguments: [paths.script.path, paths.framework.path, paths.testClient.path, "test"]
+        ) == 0
     }
 
     var updates: AsyncStream<NowPlayingInfo?> {
@@ -159,7 +163,9 @@ struct MediaRemoteProvider: NowPlayingProvider {
 
     /// Runs perl with the given arguments and returns its exit status, or -1 if it did not
     /// start, ran out of time (`oneShotTimeLimit`) or was cancelled.
-    private static func runToExit(helpers: HelperProcesses, arguments: [String]) async -> Int32 {
+    private static func runToExit(
+        helpers: HelperProcesses, timeLimit: TimeInterval = commandTimeLimit, arguments: [String]
+    ) async -> Int32 {
         if Task.isCancelled { return -1 }
         let process = Process()
         process.executableURL = perl
@@ -190,7 +196,7 @@ struct MediaRemoteProvider: NowPlayingProvider {
                 }
                 gate.setTimer(timeout)
                 DispatchQueue.global().asyncAfter(
-                    deadline: .now() + oneShotTimeLimit, execute: timeout)
+                    deadline: .now() + timeLimit, execute: timeout)
                 // Cancelled while launching: the handler below ran before the process existed.
                 if Task.isCancelled { HelperProcesses.terminateEscalating(process) }
             }

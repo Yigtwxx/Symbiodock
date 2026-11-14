@@ -224,4 +224,26 @@ struct IslandLayoutTests {
             visibleFrame: full, screenSize: screen, hasTrack: false)
         #expect(aside.minY == 8)
     }
+
+    @Test func hoveringADockedIslandNeverMovesItFromUnderThePointer() {
+        // Otherwise an island beside the notch would open, jump down, lose the pointer,
+        // close, and open again, forever.
+        let frames = [
+            CGRect(x: 0, y: 0, width: 1512, height: 982),    // menu bar hidden
+            CGRect(x: 0, y: 32, width: 1512, height: 880),   // menu bar and Dock
+            CGRect(x: 0, y: 24, width: 1512, height: 958),
+        ]
+        for visible in frames {
+            for step in 0...200 {
+                let anchor = IslandAnchor.edge(.top, fraction: Double(step) / 200)
+                let collapsed = IslandLayout.hitRect(
+                    anchor: anchor, phase: .collapsed, notch: notch,
+                    visibleFrame: visible, screenSize: screen, hasTrack: false)
+                let expanded = IslandLayout.hitRect(
+                    anchor: anchor, phase: .expanded, notch: notch,
+                    visibleFrame: visible, screenSize: screen, hasTrack: false)
+                #expect(expanded.contains(collapsed), "fraction \(Double(step) / 200), visible \(visible)")
+            }
+        }
+    }
 }

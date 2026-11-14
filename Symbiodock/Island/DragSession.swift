@@ -151,7 +151,14 @@ final class DragSession {
         }
 
         let rootCenter = CGPoint(x: rootRect.midX, y: rootRect.midY)
-        simulation.advance(root: rootCenter, island: bodyCenter, dt: dt)
+        // The goo is stretched by how far the island has been pulled, not by the body easing
+        // down from an expanded grab: otherwise strands would tear before the island does.
+        let pulled = targetCenter == nil
+            ? CGPoint(
+                x: bodyCenter.x - startOffset.width * startBlend,
+                y: bodyCenter.y - startOffset.height * startBlend)
+            : bodyCenter
+        simulation.advance(root: rootCenter, island: pulled, dt: dt)
 
         let bodyFrame = CGRect(
             x: bodyCenter.x - bodySize.width / 2, y: bodyCenter.y - bodySize.height / 2,

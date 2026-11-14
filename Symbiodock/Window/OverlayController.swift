@@ -221,6 +221,12 @@ final class OverlayController {
         hoverTask = Task { [weak self] in
             try? await Task.sleep(for: inside ? HoverTiming.enterDelay : HoverTiming.exitDelay)
             guard !Task.isCancelled, let self else { return }
+            // A press that may become a drag must not have the island open under it;
+            // the pointer is re-checked when the button comes up.
+            if inside, self.pressLocation != nil {
+                self.pointerInside = false
+                return
+            }
             self.state.setHovering(inside)
             // The hit rect depends on the phase; re-check. This only schedules new work
             // when the pointer really crossed the (now different) rect edge.
@@ -273,8 +279,14 @@ final class OverlayController {
                 continueDrag(to: point)
             }
         case .leftMouseUp:
+            let wasPressed = pressLocation != nil
             pressLocation = nil
-            if state.isDragging { endDrag() }
+            if state.isDragging {
+                endDrag()
+            } else if wasPressed {
+                // Hover was held back during the press; pick it up again.
+                refreshPointer()
+            }
         default:
             break
         }

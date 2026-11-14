@@ -2091,12 +2091,12 @@ With the app running normally:
 4. Click next and previous. The track changes and the island follows within about a second.
 5. Play something in a browser (for example a video). The island shows it.
 6. Quit Music and close the browser tab. The wings disappear and the open island says "Nothing playing".
-7. Right-click the island and choose "Quit Symbiodock". In Activity Monitor no `perl` process running `mediaremote-adapter.pl` is left.
+7. Right-click the island and choose "Quit Symbiodock". (With nothing playing, also quit right after launching, a few times; afterwards `pgrep -fl MediaRemoteAdapterTestClient` must print nothing.) In Activity Monitor no `perl` process running `mediaremote-adapter.pl` is left.
 
 Apple Music fallback (asks for permission once):
 
-8. With Music playing, run:
-   `pkill -x Symbiodock; open --env SYMBIODOCK_PROVIDER=applemusic build/Build/Products/Debug/Symbiodock.app`
+8. With Music playing, run (the loop waits for the old instance to finish quitting, which can take about a second; otherwise `--env` is ignored):
+   `pkill -x Symbiodock; while pgrep -x Symbiodock >/dev/null; do sleep 0.1; done; open --env SYMBIODOCK_PROVIDER=applemusic build/Build/Products/Debug/Symbiodock.app`
    macOS asks whether Symbiodock may control Music. Allow it. The island shows the track; pause, next and previous work.
 9. In System Settings → Privacy & Security → Automation, turn Symbiodock's access to Music off, then run the command from item 8 again. The island's right-click menu shows "Music access needed", and choosing it opens the Automation settings.
 10. Turn the access back on and relaunch normally (`pkill -x Symbiodock; open build/Build/Products/Debug/Symbiodock.app`).

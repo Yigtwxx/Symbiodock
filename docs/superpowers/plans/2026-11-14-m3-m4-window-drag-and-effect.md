@@ -50,6 +50,9 @@ Decisions:
 8. Right-click the island and choose "Return to notch". It moves back; the entry is greyed out while it is at the notch.
 9. While dragging, CPU use is modest and the motion is smooth; at rest CPU is about 0 %.
 10. Click (without moving) the play/pause button on the expanded island. It still reacts to the click and does not start a drag.
+11. Dock the island in a corner, let it open under the pointer, press and hold without moving: no strand tears. Pull quickly about 100 pt and let go: nothing looks torn and the island goes back. Repeat at an edge and on the open island at the notch. (A bug hunt found strands tearing early when the open island was grabbed; fixed, never seen by hand.)
+12. Turn on "Automatically hide and show the menu bar", then dock the island on the top edge 200–250 pt left of the notch, and try it over a full-screen app too: it must not flicker open and closed, and must not jump down when it opens.
+13. Press on the island the instant the pointer reaches it and pull: the body must not flash large and small.
 
 To see what the drag code decides while you try this, run in a terminal first:
 

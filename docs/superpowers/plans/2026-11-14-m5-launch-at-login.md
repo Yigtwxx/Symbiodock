@@ -37,5 +37,6 @@ Steps:
 2. Choose it. macOS may show a "login item added" notification. Open the menu again: it is checked, and System Settings → General → Login Items lists Symbiodock.
 3. Quit and relaunch Symbiodock. The entry is still checked.
 4. Choose it again. It is unchecked and Symbiodock is gone from Login Items.
+5. Check it again, then switch Symbiodock off in System Settings → General → Login Items. The menu entry now shows a dash, and choosing it opens that settings pane.
 
 Note: a login item points at the app's current location. While the app runs from `build/`, a rebuild or `rm -rf build` breaks the item; this is expected until the app is installed in `/Applications`.

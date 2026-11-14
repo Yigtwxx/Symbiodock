@@ -45,6 +45,11 @@ int main(int argc, const char *argv[]) {
                         puts("unknown_command");
                         fflush(stdout);
                     }
+                } else {
+                    // Symbiodock patch: stdin closed means the parent is gone. Without this
+                    // the client would run forever, holding a fake Now Playing session.
+                    shouldExit = YES;
+                    break;
                 }
             }
         }

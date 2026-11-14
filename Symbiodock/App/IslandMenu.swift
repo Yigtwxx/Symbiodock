@@ -58,7 +58,8 @@ final class IslandMenu: NSObject, NSMenuDelegate {
 
     /// The checkmark reflects the system's real status each time the menu opens.
     func menuNeedsUpdate(_ menu: NSMenu) {
-        launchAtLoginItem.state = LoginItem.isEnabled ? .on : .off
+        // A dash means it is registered but waiting for the user's approval in System Settings.
+        launchAtLoginItem.state = LoginItem.isEnabled ? .on : (LoginItem.needsApproval ? .mixed : .off)
         returnToNotchItem.isEnabled = canReturnToNotch()
     }
 
@@ -67,6 +68,11 @@ final class IslandMenu: NSObject, NSMenuDelegate {
     }
 
     @objc private func toggleLaunchAtLogin() {
+        if LoginItem.needsApproval {
+            // Registering again would do nothing; the switch is in System Settings.
+            LoginItem.openSystemSettings()
+            return
+        }
         LoginItem.setEnabled(!LoginItem.isEnabled)
     }
 

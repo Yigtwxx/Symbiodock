@@ -62,46 +62,53 @@ extension IslandLayout {
                 screenSize: screenSize, hasTrack: hasTrack)
         }
 
-        let size = isExpanded ? expandedSize : floatingCollapsedSize
         let visible = usableBase(visibleFrame, screenSize: screenSize)
         var usable = visible.insetBy(dx: floatingInset, dy: floatingInset)
         // Too small for the inset: use the whole visible frame rather than an empty area.
         if usable.isNull || usable.width <= 0 || usable.height <= 0 { usable = visible }
-        let minX = usable.minX
-        let minY = usable.minY
-        // Never below the minimum, so a frame smaller than the island still gives a finite origin.
-        let maxX = max(usable.maxX - size.width, minX)
-        let maxY = max(usable.maxY - size.height, minY)
 
-        let origin: CGPoint
-        switch anchor {
-        case .notch:
-            origin = CGPoint(x: minX, y: minY)  // handled above
-        case .edge(let edge, let fraction):
-            let f = fraction.isFinite ? CGFloat(min(max(fraction, 0), 1)) : 0.5
-            // The fraction is where the island's center sits along the visible frame's edge
-            // (as `SnapResolver` measures it), so an island keeps its center when it expands.
-            let alongX = min(max(visible.minX + f * visible.width - size.width / 2, minX), maxX)
-            let alongY = min(max(visible.minY + f * visible.height - size.height / 2, minY), maxY)
-            switch edge {
-            case .top: origin = CGPoint(x: alongX, y: minY)
-            case .bottom: origin = CGPoint(x: alongX, y: maxY)
-            case .left: origin = CGPoint(x: minX, y: alongY)
-            case .right: origin = CGPoint(x: maxX, y: alongY)
+        /// Where an island of `size` sits at this anchor, before the notch is considered.
+        func place(_ size: CGSize) -> CGRect {
+            let minX = usable.minX
+            let minY = usable.minY
+            // Never below the minimum, so a frame smaller than the island still gives a finite origin.
+            let maxX = max(usable.maxX - size.width, minX)
+            let maxY = max(usable.maxY - size.height, minY)
+
+            let origin: CGPoint
+            switch anchor {
+            case .notch:
+                origin = CGPoint(x: minX, y: minY)  // handled above
+            case .edge(let edge, let fraction):
+                let f = fraction.isFinite ? CGFloat(min(max(fraction, 0), 1)) : 0.5
+                // The fraction is where the island's center sits along the visible frame's edge
+                // (as `SnapResolver` measures it), so an island keeps its center when it expands.
+                let alongX = min(max(visible.minX + f * visible.width - size.width / 2, minX), maxX)
+                let alongY = min(max(visible.minY + f * visible.height - size.height / 2, minY), maxY)
+                switch edge {
+                case .top: origin = CGPoint(x: alongX, y: minY)
+                case .bottom: origin = CGPoint(x: alongX, y: maxY)
+                case .left: origin = CGPoint(x: minX, y: alongY)
+                case .right: origin = CGPoint(x: maxX, y: alongY)
+                }
+            case .corner(let corner):
+                switch corner {
+                case .topLeft: origin = CGPoint(x: minX, y: minY)
+                case .topRight: origin = CGPoint(x: maxX, y: minY)
+                case .bottomLeft: origin = CGPoint(x: minX, y: maxY)
+                case .bottomRight: origin = CGPoint(x: maxX, y: maxY)
+                }
             }
-        case .corner(let corner):
-            switch corner {
-            case .topLeft: origin = CGPoint(x: minX, y: minY)
-            case .topRight: origin = CGPoint(x: maxX, y: minY)
-            case .bottomLeft: origin = CGPoint(x: minX, y: maxY)
-            case .bottomRight: origin = CGPoint(x: maxX, y: maxY)
-            }
+            return CGRect(origin: origin, size: size)
         }
-        var rect = CGRect(origin: origin, size: size)
+
+        var rect = place(isExpanded ? expandedSize : floatingCollapsedSize)
         // With the menu bar hidden the visible frame reaches the top of the display, and an
         // island docked there could end up behind the camera housing. Hang it below instead.
-        if rect.intersects(notch) {
-            rect.origin.y = notch.maxY + floatingInset
+        // Collapsed and expanded must agree: if only the wider, expanded island met the
+        // notch, hovering would move the island out from under the pointer.
+        if rect.intersects(notch) || place(expandedSize).intersects(notch) {
+            rect.origin.y = max(rect.origin.y, notch.maxY + floatingInset)
         }
         return rect
     }
