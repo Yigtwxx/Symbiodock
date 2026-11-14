@@ -66,6 +66,9 @@ struct IslandView: View {
                     CollapsedContent(info: info, notchWidth: geometry.notch.width)
                         .transition(.opacity)
                 }
+            } else if IslandLayout.isSideDocked(state.anchor) {
+                SideCollapsedContent(info: state.nowPlaying)
+                    .transition(.opacity)
             } else {
                 FloatingCollapsedContent(info: state.nowPlaying)
                     .transition(.opacity)

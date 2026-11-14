@@ -339,7 +339,8 @@ final class DragSession {
     /// (square against the screen edge, small free corners, like the notch), so nothing pops
     /// when the resting island takes over.
     private func islandPath(_ frame: CGRect) -> Path {
-        let capsule = min(frame.height / 2, 18)
+        // Half the shorter side: a strip grabbed off a side edge is a capsule too.
+        let capsule = min(min(frame.width, frame.height) / 2, 18)
         guard let settleAnchor, let targetCenter else {
             return Path(roundedRect: frame, cornerRadius: capsule, style: .continuous)
         }
