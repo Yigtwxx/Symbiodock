@@ -19,6 +19,14 @@ final class OverlayController {
     private var hoverTask: Task<Void, Never>?
 
     func start() {
+        // The tracker must exist before the first rebuild: if the pointer is already on
+        // the island at launch, the rebuild turns on the tracker's safety-net polling.
+        let tracker = MouseTracker(mode: Self.trackerMode) { [weak self] point in
+            self?.pointerMoved(toGlobal: point)
+        }
+        tracker.start()
+        self.tracker = tracker
+
         rebuildPanel()
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -27,12 +35,6 @@ final class OverlayController {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.rebuildPanel() }
         }
-
-        let tracker = MouseTracker(mode: Self.trackerMode) { [weak self] point in
-            self?.pointerMoved(toGlobal: point)
-        }
-        tracker.start()
-        self.tracker = tracker
     }
 
     /// Recreates the panel for the current display configuration.

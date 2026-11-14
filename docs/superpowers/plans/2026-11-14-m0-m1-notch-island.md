@@ -1076,6 +1076,14 @@ final class OverlayController {
     private var hoverTask: Task<Void, Never>?
 
     func start() {
+        // The tracker must exist before the first rebuild: if the pointer is already on
+        // the island at launch, the rebuild turns on the tracker's safety-net polling.
+        let tracker = MouseTracker(mode: Self.trackerMode) { [weak self] point in
+            self?.pointerMoved(toGlobal: point)
+        }
+        tracker.start()
+        self.tracker = tracker
+
         rebuildPanel()
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -1084,12 +1092,6 @@ final class OverlayController {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.rebuildPanel() }
         }
-
-        let tracker = MouseTracker(mode: Self.trackerMode) { [weak self] point in
-            self?.pointerMoved(toGlobal: point)
-        }
-        tracker.start()
-        self.tracker = tracker
     }
 
     /// Recreates the panel for the current display configuration.
@@ -1191,6 +1193,9 @@ Check each item and note the result:
 6. Put any app in full screen and move the pointer to the top center. The island still opens.
 7. Switch Spaces. The island still opens on the new Space.
 8. Leave the pointer still for a minute and look at Symbiodock in Activity Monitor. CPU is about 0 %.
+9. While the island is open, change the Dock size in System Settings. The island closes and opens again on the next hover.
+10. Click the menu bar item closest to the notch. It reacts normally.
+11. Look closely at the bottom corners of the notch with the island closed. No black pixels stick out.
 
 - [ ] **Step 6: If item 1, 2, 4 or 5 fails, switch the tracker mode**
 
