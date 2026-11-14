@@ -159,13 +159,14 @@ struct ClaudeSessionParserTests {
     }
 
     @Test func aProcessStartedJustBeforeOrAroundTheFileIsLive() {
-        for offset in [-0.5, 0, 1.9, 2] {
+        // A small step of the clock (a time sync, a wake) must not drop a live session.
+        for offset in [-0.5, 0, 1.9, 9.9, 10] {
             let processes = [process(4242, started: written.addingTimeInterval(offset))]
             #expect(
                 ClaudeSessionParser.isLive(pid: 4242, fileModified: written, among: processes),
                 "\(offset)")
         }
-        let late = [process(4242, started: written.addingTimeInterval(2.5))]
+        let late = [process(4242, started: written.addingTimeInterval(10.5))]
         #expect(!ClaudeSessionParser.isLive(pid: 4242, fileModified: written, among: late))
     }
 

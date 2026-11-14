@@ -4,7 +4,9 @@ import SymbiodockCore
 
 /// A working pet: its lines as Core Animation layers, each coming forward and going back on
 /// its own repeating animations so that a crest runs across the pet from left to right, in
-/// depth (see `AgentPetMotion.wave`): a line at the crest is larger and shows in full; the others stand back a little.
+/// depth (see `AgentPetMotion.wave`): a line at the crest is larger and shows in full; the
+/// others stand back a little. The view is larger than the pet by the most a line can grow,
+/// so a line at the crest is never cut.
 /// The layers are built once; the render server plays the animations and the app does no
 /// work per frame (see `FrameSchedule` for why that matters). At rest the pet looks as the
 /// still `Canvas` drawing does. Nothing moves up or down.
@@ -73,6 +75,10 @@ struct AgentPetWave: NSViewRepresentable {
                 // Off screen the animations have nothing to show; they are added again on return.
                 for layer in columns { layer.removeAnimation(forKey: "wave"); layer.removeAnimation(forKey: "waveDepth") }
             } else {
+                // The scale is only known once the view is in a window.
+                if let current = spec, let scale = window?.backingScaleFactor, scale != current.scale {
+                    spec = Spec(tool: current.tool, strength: current.strength, side: current.side, scale: scale)
+                }
                 rebuildIfNeeded()
                 animate()
             }
@@ -107,9 +113,12 @@ struct AgentPetWave: NSViewRepresentable {
             let side = spec.side
             let bar = side * AgentPetFigure.barWidth
             let inset = side * AgentPetArt.groundInset
+            // Room around the pet for a line at the crest, as in the drawn pet.
+            let margin = side * AgentPetMotion.waveGrowth / 2
             for (index, stretches) in art.lines.enumerated() {
                 let line = CALayer()
-                line.frame = CGRect(x: side * AgentPetFigure.pitch * CGFloat(index), y: 0, width: bar, height: side)
+                line.frame = CGRect(
+                    x: margin + side * AgentPetFigure.pitch * CGFloat(index), y: margin, width: bar, height: side)
                 line.contentsScale = spec.scale
 
                 let ground = CALayer()
@@ -128,8 +137,14 @@ struct AgentPetWave: NSViewRepresentable {
                     let paint = CAGradientLayer()
                     paint.frame = CGRect(x: 0, y: side - bottom, width: bar, height: bottom - top)
                     paint.cornerRadius = bar / 2
-                    paint.colors = stretch.gradient.stops.map { NSColor($0.color).cgColor }
-                    paint.locations = stretch.gradient.stops.map { NSNumber(value: Double($0.location)) }
+                    let colors = stretch.gradient.stops.map { NSColor($0.color).cgColor }
+                    if colors.count >= 2 {
+                        paint.colors = colors
+                        paint.locations = stretch.gradient.stops.map { NSNumber(value: Double($0.location)) }
+                    } else {
+                        // A gradient layer needs two colours; one colour is a plain fill.
+                        paint.backgroundColor = colors.first
+                    }
                     // The colours run from the stretch's own ends, which the layer may overshoot.
                     paint.startPoint = CGPoint(x: 0.5, y: 1 - (nominalTop - top) / (bottom - top))
                     paint.endPoint = CGPoint(x: 0.5, y: 1 - (nominalBottom - top) / (bottom - top))

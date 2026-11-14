@@ -74,7 +74,7 @@ public enum ClaudeSessionParser {
     }
 
     /// Clock and timestamp resolution slack between a process start and its first write.
-    private static let startTolerance: TimeInterval = 2
+    private static let startTolerance: TimeInterval = 10
 
     /// The session a record stands for; nil for a spare process.
     /// - Parameter prompt: the open question, if one was read from the transcript.

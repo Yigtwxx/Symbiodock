@@ -340,16 +340,29 @@ struct AgentPet: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Whether the wave is playing: the pet is then made of layers, not drawn.
+    private var waves: Bool {
+        frozenAt == nil && state == .working && !reduceMotion
+    }
+
     var body: some View {
         Group {
-            if frozenAt == nil, state == .working, !reduceMotion {
+            if waves {
                 // Smooth motion that never rests: Core Animation plays it, the app draws nothing.
+                // Like the drawn pet, it reaches past the pet by the most a line can grow.
                 AgentPetWave(tool: tool, strength: strength, side: size)
-                    .frame(width: size, height: size)
+                    .frame(
+                        width: size * (1 + AgentPetMotion.waveGrowth),
+                        height: size * (1 + AgentPetMotion.waveGrowth))
+                    .transition(.opacity)
             } else {
                 figure(waveAt: state == .working ? frozenAt : nil)
+                    .transition(.opacity)
             }
         }
+        // A waving pet's lines stand back a little; fade between the two looks instead of
+        // jumping when a session starts or stops working.
+        .animation(.easeInOut(duration: 0.35), value: waves)
         .frame(width: size, height: size)
         .accessibilityElement()
         .accessibilityLabel(tool.displayName)
