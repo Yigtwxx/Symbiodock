@@ -125,7 +125,10 @@ Durmadan devam edilecek durumlar:
       `mediaremote-adapter` denemesi ve lisansının GPL-3.0 uyum kontrolü. Bitince: en az
       Apple Music'ten gerçek parça bilgisi ve çalışan önceki / oynat-duraklat / sonraki;
       kapalı adada solda kapak, sağda seviye çubukları.
-- [ ] **Faz 4 — Milestone 3: sürükleme ve yapışma.** Plan yok, yazılacak (spec 5.3-5.5, 5.9).
+- [ ] **Faz 4 — Milestone 3: sürükleme ve yapışma.** İki parça. Çekirdek (testli, ekran
+      gerektirmez) planı: `docs/superpowers/plans/2026-11-14-m3-core-drag-and-snap.md`.
+      Pencere/sürükleme tarafının planı yok; sahibi Faz 3'ü ekranda gördükten sonra yazılacak
+      (spec 5.3-5.5, 5.9).
       İlk görev: hover mantığını (gecikme, `pointerInside`/faz eşlemesi) saati dışarıdan
       verilen saf bir birim olarak `SymbiodockCore`'a taşı ve test et; şu an
       `OverlayController` içinde testsiz duruyor ve sürükleme fazlarıyla çakışacak.
