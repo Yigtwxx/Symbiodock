@@ -1,9 +1,9 @@
 import SwiftUI
 import SymbiodockCore
 
-/// What the island shows collapsed when it floats at an edge or corner: there is no
+/// What the island shows collapsed when it is docked at an edge or corner: there is no
 /// notch to leave room for, so the title fits between the artwork and the level bars.
-/// With nothing playing it still says what it is, because the capsule never hides.
+/// With nothing playing it still says what it is, because a docked island never hides.
 struct FloatingCollapsedContent: View {
     let info: NowPlayingInfo?
 

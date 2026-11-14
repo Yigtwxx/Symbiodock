@@ -28,12 +28,16 @@ struct IslandView: View {
             anchor: state.anchor, phase: state.phase, notch: geometry.notch,
             visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
             hasTrack: state.showsWings)
-        // At the notch the island hangs from the display edge; anywhere else it is a capsule.
-        let bottom: CGFloat = state.phase == .expanded ? 24 : (atNotch ? 10 : frame.height / 2)
-        let top: CGFloat = atNotch ? 0 : bottom
+        // Wherever it rests, the island sits against its screen edge the way the notch does:
+        // square on that edge, rounded on the free side.
+        let radii = IslandLayout.cornerRadii(
+            anchor: state.anchor,
+            radius: state.phase == .expanded
+                ? IslandLayout.expandedCornerRadius : IslandLayout.collapsedCornerRadius)
         let shape = UnevenRoundedRectangle(
-            topLeadingRadius: top, bottomLeadingRadius: bottom,
-            bottomTrailingRadius: bottom, topTrailingRadius: top, style: .continuous)
+            topLeadingRadius: radii.topLeading, bottomLeadingRadius: radii.bottomLeading,
+            bottomTrailingRadius: radii.bottomTrailing, topTrailingRadius: radii.topTrailing,
+            style: .continuous)
 
         return shape
             .fill(.black)
