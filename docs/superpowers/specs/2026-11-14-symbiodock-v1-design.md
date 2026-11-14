@@ -201,39 +201,51 @@ users, because the system only drives the trackpad.
 
 ### 5.6 Symbiote effect
 
+Revised on 2026-11-14 after research and an offscreen prototype (the first version of
+this section used chains of circles; rendered frames showed they read as beads, and
+that thin shapes vanish under the metaball filter).
+
 Two parts: a simulation and a renderer.
 
-`SymbioteSimulation` (pure, deterministic, no UI):
+`SymbioteSimulation` (pure, deterministic, no UI, in `SymbiodockCore`):
 
-- Input per step: root point (where the island was attached), island point
-  (where it is now), `dt`.
-- It keeps a small set of tendrils. Each tendril is a chain of 5 particles
-  between an attachment point on the root and one on the island. Particles
-  follow their rest positions with spring lag, so the chain trails and wobbles.
-- Particle radius shrinks as the distance grows:
-  `radius = baseRadius * (1 - distance / tearDistance)`, clamped at a minimum.
-  The neck gets thinner the further the island is pulled.
-- Tear distance: 120 pt. When it is exceeded, `isTorn` becomes true and each
-  chain splits in the middle: one half retracts into the root, the other half
-  into the island, both with a spring.
-- Output: a list of circles (center, radius) and `isTorn`.
+- Input per step: root point (where the island was attached), island point (where it
+  is now), `dt`. It steps internally at a fixed 1/240 s, so the result does not depend
+  on the display's frame rate.
+- Five strands of different thickness attach across both bodies. Each is a chain of
+  6 nodes; the interior nodes chase a rest curve with a critically damped spring, so
+  the strand lags behind the pointer like syrup. The rest curve sags sideways while
+  the strand is short and straightens as it is pulled taut.
+- Thickness: a liquid-bridge profile, thick where the strand flares into a body and
+  thin in between. The neck follows volume conservation (`∝ √(L₀ / (L₀ + d))`), thins
+  faster in the last fifth before its tear distance, and never grows with distance.
+- Tearing: the main strand tears at 120 pt; thinner strands tear earlier (74–94 % of
+  that), so the goo comes apart strand by strand. A tearing strand pinches shut at
+  its break point for 70 ms, then splits into two stubs that whip and pull back into
+  their bodies, each with a bead at its tip. `isTorn` becomes true when the main
+  strand starts to break; `isFinished` when nothing is left to draw.
+- Output (`SymbioteFrame`): closed polygons (one per strand or stub) and droplets
+  (center, radius).
 
-`SymbioteCanvas` (SwiftUI `Canvas`):
+`SymbioteCanvas` (SwiftUI `Canvas`, in the app):
 
-- Draws the root blob, the island body and the tendril circles in black, then
-  applies `.alphaThreshold` on top of `.blur`. This is the metaball technique:
-  nearby shapes fuse into one sticky silhouette.
-- At the notch the root blob is the notch rect itself, so the tendrils merge
-  with the physical notch. At an edge or corner the root is a temporary blob
-  at the old position that shrinks to nothing after the tear.
+- Two layers. Underneath, strands and both bodies drawn in black through
+  `.alphaThreshold(min: 0.5)` on top of `.blur(radius: 5)`: the metaball technique,
+  which webs neighbouring strands together where they leave a body. On top, the same
+  strands and bodies drawn crisp, because the filter swallows anything thinner than
+  its blur and rounds the bodies' corners.
+- At the notch the root shape is the notch rect itself, so the strands merge with the
+  physical notch. At an edge or corner the root is a temporary blob at the old
+  position that shrinks to nothing after the tear.
 - Driven by `TimelineView(.animation)` only in the `stretching`, `detached` and
-  `settling` phases. In `collapsed` and `expanded` the island is a plain static
-  shape and no per-frame work runs.
-- Track content (artwork, bars) is ordinary SwiftUI drawn above the blob layer.
+  `settling` phases. In `collapsed` and `expanded` the island is a plain static shape
+  and no per-frame work runs. The canvas covers only the area around the drag, not
+  the whole display.
+- Track content (artwork, bars) is ordinary SwiftUI drawn above the goo.
 
-If `Canvas` cannot hold the display's refresh rate or the tendrils do not look
-organic enough, the renderer is replaced by a Metal shader. The simulation and
-its output format stay the same, so only `SymbioteCanvas` changes.
+If `Canvas` cannot hold the display's refresh rate, the renderer is replaced by a
+Metal shader (smooth union of capsules). The simulation and its output format stay
+the same, so only `SymbioteCanvas` changes.
 
 ### 5.7 Now Playing
 
@@ -337,8 +349,9 @@ Unit tests for the pure units:
 - `NotchGeometry`: notch display, no-notch display.
 - `IslandLayout`: every anchor × phase combination, with and without a track.
 - `SnapResolver`: notch capture, each corner, each edge, boundary distances.
-- `SymbioteSimulation`: tears exactly past the tear distance, radius shrinks
-  monotonically with distance, deterministic for a fixed input sequence.
+- `SymbioteSimulation`: tears exactly past the tear distance, neck radius never grows
+  with distance, thin strands tear first, deterministic for a fixed input sequence,
+  independent of the frame rate, finishes after the tear.
 - `NowPlayingService`: provider selection and runtime fallback with fake
   providers.
 - Provider payload parsing with recorded sample payloads.

@@ -35,7 +35,7 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 | v1 kapsamı | Müzik + hover büyüme + sürükleme/venom efekti | Riskli parçalar önce kanıtlanmalı |
 | Müzik kaynağı | İkisi de tek `NowPlayingProvider` arayüzü arkasında: `MediaRemoteProvider` ve `AppleMusicProvider` | Uygulama genel olacak; Apple sistem geneli veriyi macOS 15.4'ten beri kısıtlıyor, tek kaynağa bağlanmak riskli |
 | Sahibin kullandığı müzik uygulaması | Apple Music | İlk doğrulanacak kaynak bu |
-| Efekt tekniği | SwiftUI `Canvas` metaball (blur + alpha threshold); yetmezse Metal shader | Efekt yalnızca sürüklerken çalışır |
+| Efekt tekniği | SwiftUI `Canvas`: incelen şerit lifler, altta metaball katmanı (blur + alpha threshold), üstte net çizim; yetmezse Metal shader | Araştırma ve prototip: daire zinciri boncuk gibi duruyor, ince lifler filtrede kayboluyor (spec 5.6) |
 | Çentik dışı konum | `visibleFrame` içinde 8 pt içeride yüzen siyah kapsül | Menü çubuğunu ve sistem Dock'unu kapatmamalı |
 | Mimari | Spec bölüm 4-5 | Sahibi onayladı |
 | Proje üretimi | XcodeGen (`project.yml`), `.xcodeproj` commit edilmez | Komut satırından üretilebilir ve diff'i okunur |
@@ -134,7 +134,10 @@ Durmadan devam edilecek durumlar:
       `OverlayController` içinde testsiz duruyor ve sürükleme fazlarıyla çakışacak.
       Ada koparılıyor, kenara ve köşeye yapışıyor, çentiğe dönüyor, konum yeniden açılışta
       korunuyor; ada menüsünde "Return to notch".
-- [ ] **Faz 5 — Milestone 4: symbiote efekti.** Plan yok, yazılacak (spec 5.5 titreşim, 5.6).
+- [ ] **Faz 5 — Milestone 4: symbiote efekti.** Simülasyon (`SymbioteSimulation`, testli) ve
+      çizim (`SymbioteCanvas`) yazıldı ve ekran dışı görüntülerle doğrulandı (2026-11-14); henüz
+      sürüklemeye bağlı değil, çünkü Faz 4'ün pencere tarafı yok. Kalan işin planı yok,
+      yazılacak (spec 5.5 titreşim, 5.6).
       Uzama, incelen lifler, kopma ve geri çekilme; kopma ve yapışmada trackpad titreşimi.
 - [x] **Faz 6 — Milestone 5: girişte başlatma.** Kod tamam, elle kontrol bekliyor.
       Plan: `docs/superpowers/plans/2026-11-14-m5-launch-at-login.md`. Ada
