@@ -6,6 +6,7 @@ import SymbiodockCore
 /// at the bottom. With nothing playing it still says what it is.
 struct SideCollapsedContent: View {
     let info: NowPlayingInfo?
+    var attention: AgentRowState?
 
     private static let iconSize: CGFloat = 20
 
@@ -15,8 +16,12 @@ struct SideCollapsedContent: View {
                 PlatformIcon(info: info, size: Self.iconSize)
                 RotatedLine(text: info.title)
                     .foregroundStyle(.white)
-                LevelBars(isPlaying: info.isPlaying)
-                    .opacity(info.isPlaying ? 1 : 0.4)
+                if let attention {
+                    AgentStatusMark(state: attention)
+                } else {
+                    LevelBars(isPlaying: info.isPlaying)
+                        .opacity(info.isPlaying ? 1 : 0.4)
+                }
             } else {
                 Image(systemName: "music.note")
                     .font(.system(size: 11, weight: .semibold))
@@ -33,7 +38,7 @@ struct SideCollapsedContent: View {
 
 /// One line of text turned a quarter turn clockwise, so it reads from the top down and is
 /// cut off at the bottom when it does not fit.
-private struct RotatedLine: View {
+struct RotatedLine: View {
     let text: String
 
     var body: some View {

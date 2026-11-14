@@ -6,6 +6,7 @@ import SymbiodockCore
 /// With nothing playing it still says what it is, because a docked island never hides.
 struct FloatingCollapsedContent: View {
     let info: NowPlayingInfo?
+    var attention: AgentRowState?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -16,8 +17,12 @@ struct FloatingCollapsedContent: View {
                     .foregroundStyle(.white)
                     .lineLimit(1)
                 Spacer(minLength: 0)
-                LevelBars(isPlaying: info.isPlaying)
-                    .opacity(info.isPlaying ? 1 : 0.4)
+                if let attention {
+                    AgentStatusMark(state: attention)
+                } else {
+                    LevelBars(isPlaying: info.isPlaying)
+                        .opacity(info.isPlaying ? 1 : 0.4)
+                }
             } else {
                 Image(systemName: "music.note")
                     .font(.system(size: 11, weight: .semibold))

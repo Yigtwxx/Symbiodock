@@ -1554,7 +1554,7 @@ In `Symbiodock/Island/IslandView.swift`:
 In `DebugRender.runIfRequested()` before `exit(0)`:
 
 ```swift
-        write(CollapsedGallery(), size: CGSize(width: 620, height: 330), named: "collapsed-faces", to: directory)
+        write(CollapsedGallery(), size: CGSize(width: 620, height: 480), named: "collapsed-faces", to: directory)
 ```
 
 and at the end of the file, inside the `#if DEBUG`:

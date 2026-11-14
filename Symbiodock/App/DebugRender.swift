@@ -29,6 +29,7 @@ enum DebugRender {
         write(
             ExpandedPreview(state: empty), size: CGSize(width: 520, height: 180),
             named: "expanded-agents-empty", to: directory)
+        write(CollapsedGallery(), size: CGSize(width: 620, height: 480), named: "collapsed-faces", to: directory)
         exit(0)
     }
 
@@ -136,6 +137,104 @@ private struct ExpandedPreview: View {
             .frame(width: 480, height: 134)
             .background(.black, in: shape)
             .clipShape(shape)
+    }
+}
+
+/// The collapsed faces with their rim light: at the notch, as a capsule, as a strip.
+private struct CollapsedGallery: View {
+    private let now = Date()
+
+    /// `AgentRow` has no public initialiser; a board produces the row for the wanted state.
+    private func row(_ state: AgentRowState, _ tool: AgentTool = .claudeCode) -> AgentRow {
+        func session(_ activity: AgentActivity) -> AgentSession {
+            AgentSession(
+                id: "x", tool: tool, title: "fix-login-flow", projectPath: nil,
+                activity: activity, since: now, pid: nil)
+        }
+        var board = AgentSessionBoard()
+        switch state {
+        case .needsInput(let prompt): board.update([session(.needsInput(prompt: prompt))])
+        case .working: board.update([session(.working)])
+        case .running: board.update([session(.running)])
+        case .idle: board.update([session(.idle)])
+        case .finished:
+            board.update([session(.working)])
+            board.update([session(.idle)])
+        }
+        return board.rows[0]
+    }
+
+    private func notch(_ state: AgentRowState, _ attention: AgentAttention, at time: TimeInterval) -> some View {
+        let radii = IslandLayout.cornerRadii(anchor: .notch, radius: IslandLayout.collapsedCornerRadius)
+        let shape = UnevenRoundedRectangle(
+            bottomLeadingRadius: radii.bottomLeading, bottomTrailingRadius: radii.bottomTrailing,
+            style: .continuous)
+        return shape.fill(.black)
+            .overlay { AgentNotchFace(row: row(state), notchWidth: 200) }
+            .overlay {
+                RimLight(
+                    attention: attention, radii: radii, dockedEdges: [.top], isVertical: false,
+                    frozenAt: time)
+            }
+            .frame(width: 272, height: 32)
+            .clipShape(shape)
+    }
+
+    private func capsule(_ state: AgentRowState, _ attention: AgentAttention, at time: TimeInterval) -> some View {
+        let anchor = IslandAnchor.edge(.bottom, fraction: 0.5)
+        let radii = IslandLayout.cornerRadii(anchor: anchor, radius: IslandLayout.collapsedCornerRadius)
+        let shape = UnevenRoundedRectangle(
+            topLeadingRadius: radii.topLeading, topTrailingRadius: radii.topTrailing,
+            style: .continuous)
+        return shape.fill(.black)
+            .overlay { AgentFloatingFace(row: row(state, .codex)) }
+            .overlay {
+                RimLight(
+                    attention: attention, radii: radii,
+                    dockedEdges: IslandLayout.dockedEdges(anchor: anchor), isVertical: false,
+                    frozenAt: time)
+            }
+            .frame(width: 200, height: 36)
+            .clipShape(shape)
+    }
+
+    private func strip(_ state: AgentRowState, _ attention: AgentAttention, at time: TimeInterval) -> some View {
+        let anchor = IslandAnchor.edge(.right, fraction: 0.5)
+        let radii = IslandLayout.cornerRadii(anchor: anchor, radius: IslandLayout.collapsedCornerRadius)
+        let shape = UnevenRoundedRectangle(
+            topLeadingRadius: radii.topLeading, bottomLeadingRadius: radii.bottomLeading,
+            style: .continuous)
+        return shape.fill(.black)
+            .overlay { AgentSideFace(row: row(state)) }
+            .overlay {
+                RimLight(
+                    attention: attention, radii: radii,
+                    dockedEdges: IslandLayout.dockedEdges(anchor: anchor), isVertical: true,
+                    frozenAt: time)
+            }
+            .frame(width: 36, height: 170)
+            .clipShape(shape)
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 24) {
+            VStack(alignment: .leading, spacing: 14) {
+                notch(.working, .none, at: 0)
+                notch(.needsInput(prompt: nil), .needsInput, at: 0.45)
+                notch(.needsInput(prompt: nil), .needsInput, at: 1.4)
+                notch(.finished, .finished, at: 0.45)
+                notch(.finished, .finished, at: 2)
+                capsule(.needsInput(prompt: nil), .needsInput, at: 0.45)
+                capsule(.finished, .finished, at: 2)
+                AgentFloatingFace(row: nil)
+                    .frame(width: 200, height: 36)
+                    .background(.black, in: Capsule())
+            }
+            strip(.needsInput(prompt: nil), .needsInput, at: 0.45)
+            strip(.finished, .finished, at: 2)
+            strip(.working, .none, at: 0)
+        }
+        .padding(16)
     }
 }
 #endif

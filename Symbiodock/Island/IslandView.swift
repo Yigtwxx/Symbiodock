@@ -43,6 +43,14 @@ struct IslandView: View {
         return shape
             .fill(.black)
             .overlay { content(atNotch: atNotch, frame: frame) }
+            .overlay {
+                if state.phase == .collapsed {
+                    RimLight(
+                        attention: state.board.attention, radii: radii,
+                        dockedEdges: IslandLayout.dockedEdges(anchor: state.anchor),
+                        isVertical: IslandLayout.isSideDocked(state.anchor))
+                }
+            }
             .frame(width: frame.width, height: frame.height)
             // Content must not draw outside the shape while it springs between sizes.
             .clipShape(shape)
@@ -51,6 +59,7 @@ struct IslandView: View {
             .animation(Self.spring, value: state.phase)
             .animation(Self.spring, value: state.showsWings)
             .animation(Self.spring, value: state.anchor)
+            .animation(Self.spring, value: state.face)
     }
 
     @ViewBuilder
@@ -62,17 +71,47 @@ struct IslandView: View {
                 onCommand: onCommand, onOpenSession: onOpenSession)
                 .transition(.opacity)
         case .collapsed, .stretching, .detached, .settling:
-            if atNotch {
-                if state.showsWings, let info = state.nowPlaying {
-                    CollapsedContent(info: info, notchWidth: geometry.notch.width)
-                        .transition(.opacity)
+            collapsedFace(atNotch: atNotch)
+                .transition(.opacity)
+        }
+    }
+
+    /// The collapsed island shows one face: the first tab's if it has one, else the other's.
+    @ViewBuilder
+    private func collapsedFace(atNotch: Bool) -> some View {
+        let lead = state.board.lead
+        // On the media face an agent that wants attention still gets its mark.
+        let attention = state.board.attention == .none ? nil : lead?.state
+        // A docked island never hides: with no face it shows the paused track if there is
+        // one, otherwise the first tab's idle text.
+        let agentsSpeak = state.face == .agents
+            || (state.face == .none && state.nowPlaying == nil && state.tabOrder.first == .agents)
+
+        if atNotch {
+            switch state.face {
+            case .agents:
+                if let lead {
+                    AgentNotchFace(row: lead, notchWidth: geometry.notch.width)
                 }
-            } else if IslandLayout.isSideDocked(state.anchor) {
-                SideCollapsedContent(info: state.nowPlaying)
-                    .transition(.opacity)
+            case .media:
+                if let info = state.nowPlaying {
+                    CollapsedContent(
+                        info: info, notchWidth: geometry.notch.width, attention: attention)
+                }
+            case .none:
+                EmptyView()
+            }
+        } else if IslandLayout.isSideDocked(state.anchor) {
+            if agentsSpeak {
+                AgentSideFace(row: lead)
             } else {
-                FloatingCollapsedContent(info: state.nowPlaying)
-                    .transition(.opacity)
+                SideCollapsedContent(info: state.nowPlaying, attention: attention)
+            }
+        } else {
+            if agentsSpeak {
+                AgentFloatingFace(row: lead)
+            } else {
+                FloatingCollapsedContent(info: state.nowPlaying, attention: attention)
             }
         }
     }

@@ -2,9 +2,11 @@ import SwiftUI
 import SymbiodockCore
 
 /// Artwork in the left wing, level bars in the right wing, nothing over the notch itself.
+/// While an agent wants attention, its status mark takes the place of the level bars.
 struct CollapsedContent: View {
     let info: NowPlayingInfo
     let notchWidth: CGFloat
+    var attention: AgentRowState?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -12,8 +14,14 @@ struct CollapsedContent: View {
                 .frame(maxWidth: .infinity)
             Color.clear
                 .frame(width: notchWidth)
-            LevelBars(isPlaying: info.isPlaying)
-                .frame(maxWidth: .infinity)
+            Group {
+                if let attention {
+                    AgentStatusMark(state: attention)
+                } else {
+                    LevelBars(isPlaying: info.isPlaying)
+                }
+            }
+            .frame(maxWidth: .infinity)
         }
     }
 }
