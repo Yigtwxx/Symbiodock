@@ -63,20 +63,26 @@ extension IslandLayout {
         }
 
         let size = isExpanded ? expandedSize : floatingCollapsedSize
-        let usable = visibleFrame.insetBy(dx: floatingInset, dy: floatingInset)
+        let visible = usableBase(visibleFrame, screenSize: screenSize)
+        var usable = visible.insetBy(dx: floatingInset, dy: floatingInset)
+        // Too small for the inset: use the whole visible frame rather than an empty area.
+        if usable.isNull || usable.width <= 0 || usable.height <= 0 { usable = visible }
         let minX = usable.minX
         let minY = usable.minY
-        let maxX = usable.maxX - size.width
-        let maxY = usable.maxY - size.height
+        // Never below the minimum, so a frame smaller than the island still gives a finite origin.
+        let maxX = max(usable.maxX - size.width, minX)
+        let maxY = max(usable.maxY - size.height, minY)
 
         let origin: CGPoint
         switch anchor {
         case .notch:
             origin = CGPoint(x: minX, y: minY)  // handled above
         case .edge(let edge, let fraction):
-            let f = CGFloat(min(max(fraction, 0), 1))
-            let alongX = minX + f * (usable.width - size.width)
-            let alongY = minY + f * (usable.height - size.height)
+            let f = fraction.isFinite ? CGFloat(min(max(fraction, 0), 1)) : 0.5
+            // The fraction is where the island's center sits along the visible frame's edge
+            // (as `SnapResolver` measures it), so an island keeps its center when it expands.
+            let alongX = min(max(visible.minX + f * visible.width - size.width / 2, minX), maxX)
+            let alongY = min(max(visible.minY + f * visible.height - size.height / 2, minY), maxY)
             switch edge {
             case .top: origin = CGPoint(x: alongX, y: minY)
             case .bottom: origin = CGPoint(x: alongX, y: maxY)
@@ -92,6 +98,14 @@ extension IslandLayout {
             }
         }
         return CGRect(origin: origin, size: size)
+    }
+
+    /// `visibleFrame` if it is usable, otherwise the whole display.
+    private static func usableBase(_ visibleFrame: CGRect, screenSize: CGSize) -> CGRect {
+        let finite = visibleFrame.minX.isFinite && visibleFrame.minY.isFinite
+            && visibleFrame.width.isFinite && visibleFrame.height.isFinite
+        if visibleFrame.isNull || !finite { return CGRect(origin: .zero, size: screenSize) }
+        return visibleFrame
     }
 
     /// The area in which the pointer counts as hovering the island: its frame grown by `hitPadding`.

@@ -3,15 +3,28 @@ import Foundation
 
 /// What the renderer draws for one instant: goo shapes only, never the island or the root.
 public struct SymbioteFrame: Equatable, Sendable {
+    /// A bead of goo drawn as a filled circle, such as the tip of a snapped-back stub.
     public struct Droplet: Equatable, Sendable {
         public var center: CGPoint
         public var radius: CGFloat
+
+        public init(center: CGPoint, radius: CGFloat) {
+            self.center = center
+            self.radius = radius
+        }
     }
 
     /// Closed polygons, one per strand or stub.
-    public var ribbons: [[CGPoint]] = []
-    public var droplets: [Droplet] = []
+    public var ribbons: [[CGPoint]]
+    /// Beads at the tips of torn stubs.
+    public var droplets: [Droplet]
 
+    public init(ribbons: [[CGPoint]] = [], droplets: [Droplet] = []) {
+        self.ribbons = ribbons
+        self.droplets = droplets
+    }
+
+    /// True when there is nothing to draw.
     public var isEmpty: Bool { ribbons.isEmpty && droplets.isEmpty }
 }
 
@@ -21,15 +34,18 @@ public struct SymbioteFrame: Equatable, Sendable {
 /// Strands lag behind the pointer like syrup, thin out as they stretch, pinch off past their
 /// tear distance (thin ones first), and the two halves snap back into their bodies.
 public struct SymbioteSimulation: Sendable {
+    /// Sizes of the effect; the defaults are the approved look.
     public struct Configuration: Equatable, Sendable {
-        /// Distance at which the main strand tears.
-        public var tearDistance: CGFloat = 120
-        /// Half the size of the area inside each body over which strands attach.
+        /// Distance at which the main strand tears; shares its default with `IslandState`.
+        public var tearDistance: CGFloat = IslandDrag.tearDistance
+        /// Half the size of the area inside the root body over which strands attach.
         public var rootSpread = CGSize(width: 62, height: 7)
+        /// Half the size of the area inside the island body over which strands attach.
         public var islandSpread = CGSize(width: 70, height: 9)
         /// Radius of the main strand where it meets a body.
         public var endRadius: CGFloat = 15
 
+        /// The default configuration.
         public init() {}
     }
 
@@ -90,6 +106,7 @@ public struct SymbioteSimulation: Sendable {
 
     // MARK: State
 
+    /// The sizes this simulation was created with.
     public let configuration: Configuration
     private var strands: [Strand]
     private var root: CGPoint = .zero
@@ -97,6 +114,7 @@ public struct SymbioteSimulation: Sendable {
     private var accumulator = 0.0
     private var hasInput = false
 
+    /// Creates a simulation with nothing to draw until the first `advance`.
     public init(configuration: Configuration = Configuration()) {
         self.configuration = configuration
         strands = Self.blueprints.map { _ in Strand() }
@@ -106,6 +124,17 @@ public struct SymbioteSimulation: Sendable {
     public var isTorn: Bool {
         if case .attached = strands[0].phase { return false }
         return true
+    }
+
+    /// Breaks every strand that is still attached, right now. The drag controller calls this
+    /// when `IslandState.drag(to:)` returns true, so the state and the effect cannot disagree
+    /// about whether the island has torn. Strands already breaking or gone are left alone.
+    public mutating func tear() {
+        for index in strands.indices {
+            if case .attached = strands[index].phase {
+                strands[index].phase = .pinching(elapsed: 0)
+            }
+        }
     }
 
     /// True when every strand has torn and finished snapping back: nothing is left to draw.
@@ -129,7 +158,10 @@ public struct SymbioteSimulation: Sendable {
     // MARK: Stepping
 
     /// Moves the simulation forward by `dt` seconds with the bodies at the given points.
+    /// Non-finite input is ignored, so one bad sample cannot poison the state for good.
     public mutating func advance(root: CGPoint, island: CGPoint, dt: Double) {
+        guard dt.isFinite, root.x.isFinite, root.y.isFinite, island.x.isFinite, island.y.isFinite
+        else { return }
         self.root = root
         self.island = island
         if !hasInput {
@@ -170,14 +202,16 @@ public struct SymbioteSimulation: Sendable {
                 // Once a stub is inside its body it stays there.
                 recoil.progress = min(recoil.progress + recoil.speed * h, 1)
                 let next = elapsed + h
-                strands[index].phase = next >= Self.recoilDuration ? .gone : .recoiling(elapsed: next, recoil)
+                // Gone once the stub is back in its body; the duration is only an upper bound.
+                let done = recoil.progress >= 1 || next >= Self.recoilDuration
+                strands[index].phase = done ? .gone : .recoiling(elapsed: next, recoil)
             case .gone:
                 break
             }
         }
     }
 
-    /// Interior nodes chase the rest curve; critically damped, so they lag without jiggling.
+    /// Interior nodes chase the rest curve; slightly overdamped (ratio 1.1), so they lag without jiggling.
     private mutating func follow(_ index: Int, _ h: Double) {
         let targets = restNodes(index)
         for i in 1..<(Self.nodeCount - 1) {

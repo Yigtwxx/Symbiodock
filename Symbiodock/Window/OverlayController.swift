@@ -61,6 +61,14 @@ final class OverlayController {
         let metrics = ScreenMetrics(screen: screen)
         // Nothing changed (e.g. unrelated screen-parameter notification): keep the panel.
         if panel != nil, metrics == self.metrics { return }
+        // Only the visible frame moved (Dock or menu bar auto-hide): rebuilding would collapse the island.
+        if panel != nil, var stored = self.metrics {
+            stored.visibleFrame = metrics.visibleFrame
+            if stored == metrics {
+                self.metrics = metrics
+                return
+            }
+        }
 
         resetHoverState()
         panel?.close()

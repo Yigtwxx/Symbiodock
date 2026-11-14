@@ -145,12 +145,13 @@ Rules:
 - For this function every phase other than `.expanded` is laid out as collapsed (the drag phases arrive in Task 4; write the `switch` so that adding them does not change results).
 - Floating size: `floatingCollapsedSize` when collapsed (always, with or without a track: a floating island must stay visible and draggable), `expandedSize` when expanded.
 - Let `usable = visibleFrame.insetBy(dx: 8, dy: 8)`, `w`/`h` the size.
-  - `.edge(.top, f)`: `x = usable.minX + f · (usable.width − w)`, `y = usable.minY`
+  - `f` is the position of the island's CENTER along the visible frame's edge (the same fraction `SnapResolver` measures), then clamped into the usable area:
+  - `.edge(.top, f)`: `x = clamp(visibleFrame.minX + f · visibleFrame.width − w/2, usable.minX, usable.maxX − w)`, `y = usable.minY`
   - `.edge(.bottom, f)`: same `x`, `y = usable.maxY − h`
-  - `.edge(.left, f)`: `x = usable.minX`, `y = usable.minY + f · (usable.height − h)`
+  - `.edge(.left, f)`: `x = usable.minX`, `y = clamp(visibleFrame.minY + f · visibleFrame.height − h/2, usable.minY, usable.maxY − h)`
   - `.edge(.right, f)`: `x = usable.maxX − w`, same `y`
   - `.corner(c)`: `x` and `y` pinned to that corner of `usable`
-  - `f` is clamped to 0...1. Because the pinned side does not move, expanding grows toward the inside of the screen.
+  - A non-finite `f` counts as 0.5, otherwise `f` is clamped to 0...1. If `visibleFrame` is too small for the inset, `visibleFrame` itself is the usable area. Because the pinned side does not move, expanding grows toward the inside of the screen.
 
 **Tests** — `notch = (662, 0, 188, 32)`, `visibleFrame = (0, 32, 1512, 880)` (so `usable = (8, 40, 1496, 864)`), `screenSize = (1512, 982)`:
 

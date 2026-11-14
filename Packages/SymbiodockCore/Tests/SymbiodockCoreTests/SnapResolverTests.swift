@@ -54,4 +54,60 @@ struct SnapResolverTests {
         expectEdge(resolve(-50, 500), .left, 468.0 / 880)
         expectEdge(resolve(700, 1000), .bottom, 700.0 / 1512)
     }
+
+    // MARK: Degenerate input
+
+    @Test func nonFinitePointReturnsToTheNotch() {
+        #expect(resolve(.nan, 300) == .notch)
+        #expect(resolve(400, .infinity) == .notch)
+        #expect(resolve(-.infinity, .nan) == .notch)
+    }
+
+    @Test func farOutsidePointIsClampedBeforeTheEdgeAndCornerRules() {
+        // (2000, 500) clamps to (1512, 500): on the right edge, mid-height.
+        expectEdge(resolve(2000, 500), .right, 468.0 / 880)
+        // Far past a corner clamps onto it.
+        #expect(resolve(5000, 5000) == .corner(.bottomRight))
+        #expect(resolve(-900, 40) == .corner(.topLeft))
+    }
+
+    @Test func fractionThatNeedsTheClampIsClamped() {
+        let narrow = CGRect(x: 100, y: 32, width: 400, height: 880)
+        let anchor = SnapResolver.anchor(
+            forRelease: CGPoint(x: 5000, y: 500), notch: notch, visibleFrame: narrow)
+        guard case .edge(.right, let fraction) = anchor else {
+            Issue.record("expected the right edge, got \(anchor)")
+            return
+        }
+        #expect(fraction >= 0 && fraction <= 1)
+    }
+
+    @Test func notchCaptureUsesTheRawPoint() {
+        let outside = CGRect(x: 0, y: 400, width: 1512, height: 500)
+        // Raw point is on the notch; clamping into `outside` would have moved it away.
+        #expect(
+            SnapResolver.anchor(
+                forRelease: CGPoint(x: 756, y: 20), notch: notch, visibleFrame: outside) == .notch)
+    }
+
+    @Test func zeroSizedVisibleFrameStillGivesAValidAnchor() {
+        let point = CGPoint(x: 900, y: 900)
+        let flat = CGRect(x: 0, y: 100, width: 0, height: 0)
+        #expect(
+            SnapResolver.anchor(forRelease: point, notch: notch, visibleFrame: flat)
+                == .corner(.topLeft))
+
+        // A vertical sliver: the left edge wins and the fraction runs along the height.
+        let sliver = CGRect(x: 500, y: 100, width: 0, height: 500)
+        expectEdge(
+            SnapResolver.anchor(
+                forRelease: CGPoint(x: 500, y: 300), notch: notch, visibleFrame: sliver),
+            .left, 0.4)
+    }
+
+    @Test func unusableVisibleFrameReturnsToTheNotch() {
+        #expect(
+            SnapResolver.anchor(forRelease: CGPoint(x: 900, y: 900), notch: notch, visibleFrame: .null)
+                == .notch)
+    }
 }

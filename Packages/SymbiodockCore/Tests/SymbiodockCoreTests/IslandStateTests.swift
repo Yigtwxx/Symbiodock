@@ -189,4 +189,108 @@ struct IslandStateTests {
         state.restoreAnchor(.corner(.bottomRight))
         #expect(state.anchor == .edge(.left, fraction: 0.5))
     }
+
+    // MARK: Tear metric
+
+    @Test func tearIsMeasuredFromWhereTheGrabStarted() {
+        let state = IslandState()
+        state.setHovering(true)
+        state.beginDrag(at: CGPoint(x: 900, y: 120), from: origin)
+
+        #expect(state.drag(to: CGPoint(x: 901, y: 120)) == false)
+        #expect(state.phase == .stretching)
+        #expect(state.drag(to: CGPoint(x: 900, y: 240)) == false)
+        #expect(state.drag(to: CGPoint(x: 900, y: 241)) == true)
+        #expect(state.phase == .detached)
+    }
+
+    @Test func dragOffsetIsThePointerMovementSinceTheGrab() {
+        let state = IslandState()
+        #expect(state.dragOffset == nil)
+
+        state.beginDrag(at: CGPoint(x: 900, y: 120), from: origin)
+        #expect(state.dragStart == CGPoint(x: 900, y: 120))
+        #expect(state.dragOffset == CGSize(width: 0, height: 0))
+
+        state.drag(to: CGPoint(x: 910, y: 100))
+        #expect(state.dragOffset == CGSize(width: 10, height: -20))
+
+        state.endDrag(resolvedAnchor: .notch)
+        #expect(state.dragOffset == nil)
+        #expect(state.dragStart == nil)
+    }
+
+    @Test func tearDistanceIsSharedWithTheSimulation() {
+        #expect(IslandState.tearDistance == IslandDrag.tearDistance)
+        #expect(SymbioteSimulation.Configuration().tearDistance == IslandDrag.tearDistance)
+    }
+
+    // MARK: Cancelling
+
+    @Test func cancelDragReturnsToCollapsedFromEveryDragPhase() {
+        let phases: [(String, IslandState)] = [
+            ("stretching", stretching()),
+            ("detached", detached()),
+            ("settling", {
+                let state = detached()
+                state.endDrag(resolvedAnchor: .corner(.topLeft))
+                return state
+            }()),
+        ]
+        for (name, state) in phases {
+            let anchorBefore = state.anchor
+            state.cancelDrag()
+            #expect(state.phase == .collapsed, "\(name)")
+            #expect(state.anchor == anchorBefore, "\(name)")
+            #expect(state.dragLocation == nil, "\(name)")
+            #expect(state.dragStart == nil, "\(name)")
+            #expect(state.dragOrigin == nil, "\(name)")
+        }
+    }
+
+    @Test func cancelDragDoesNothingWhenIdle() {
+        let collapsed = IslandState()
+        collapsed.cancelDrag()
+        #expect(collapsed.phase == .collapsed)
+
+        let expanded = IslandState()
+        expanded.setHovering(true)
+        expanded.cancelDrag()
+        #expect(expanded.phase == .expanded)
+    }
+
+    // MARK: Ignored transitions
+
+    private func settling() -> IslandState {
+        let state = detached()
+        state.endDrag(resolvedAnchor: .corner(.topLeft))
+        return state
+    }
+
+    @Test func beginDragAndRestoreAnchorAreIgnoredWhileDetachedAndSettling() {
+        for state in [detached(), settling()] {
+            let phase = state.phase
+            let anchor = state.anchor
+            let dragOrigin = state.dragOrigin
+            state.beginDrag(at: CGPoint(x: 5, y: 5), from: CGPoint(x: 1, y: 1))
+            state.restoreAnchor(.corner(.bottomRight))
+            #expect(state.phase == phase)
+            #expect(state.anchor == anchor)
+            #expect(state.dragOrigin == dragOrigin)
+        }
+    }
+
+    @Test func endDragIsIgnoredWhileSettling() {
+        let state = settling()
+        state.endDrag(resolvedAnchor: .corner(.bottomRight))
+        #expect(state.phase == .settling)
+        state.finishSettling()
+        #expect(state.anchor == .corner(.topLeft))
+    }
+
+    @Test func finishSettlingIsIgnoredWhileStretching() {
+        let state = stretching()
+        state.finishSettling()
+        #expect(state.phase == .stretching)
+    }
 }

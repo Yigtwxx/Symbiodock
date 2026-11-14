@@ -16,36 +16,42 @@ struct SymbioteCanvas: View {
     private static let blurRadius: CGFloat = 5
 
     var body: some View {
-        Canvas(opaque: false, colorMode: .nonLinear, rendersAsynchronously: false) { context, _ in
+        // Built once per frame and filled in both layers.
+        let (ribbons, droplets) = strandPaths()
+        return Canvas(opaque: false, colorMode: .nonLinear, rendersAsynchronously: false) { context, _ in
             context.drawLayer { goo in
                 // Added first, applied last: blur, then cut the soft edge back to a hard one.
                 goo.addFilter(.alphaThreshold(min: 0.5, color: .black))
                 goo.addFilter(.blur(radius: Self.blurRadius))
                 goo.drawLayer { layer in
-                    drawStrands(in: &layer)
+                    layer.fill(ribbons, with: .color(.black))
+                    layer.fill(droplets, with: .color(.black))
                     layer.fill(root, with: .color(.black))
                     layer.fill(island, with: .color(.black))
                 }
             }
-            drawStrands(in: &context)
+            context.fill(ribbons, with: .color(.black))
+            context.fill(droplets, with: .color(.black))
             context.fill(root, with: .color(.black))
             context.fill(island, with: .color(.black))
         }
         .allowsHitTesting(false)
     }
 
-    private func drawStrands(in context: inout GraphicsContext) {
+    /// Ribbons and droplets as one path each. Kept apart because a nonzero fill can punch a hole
+    /// where shapes of opposite winding overlap, and a droplet overlaps its stub.
+    private func strandPaths() -> (ribbons: Path, droplets: Path) {
+        var ribbons = Path()
         for polygon in frame.ribbons {
-            var path = Path()
-            path.addLines(polygon)
-            path.closeSubpath()
-            context.fill(path, with: .color(.black))
+            ribbons.addLines(polygon)
+            ribbons.closeSubpath()
         }
+        var droplets = Path()
         for droplet in frame.droplets {
-            let rect = CGRect(
+            droplets.addEllipse(in: CGRect(
                 x: droplet.center.x - droplet.radius, y: droplet.center.y - droplet.radius,
-                width: droplet.radius * 2, height: droplet.radius * 2)
-            context.fill(Path(ellipseIn: rect), with: .color(.black))
+                width: droplet.radius * 2, height: droplet.radius * 2))
         }
+        return (ribbons, droplets)
     }
 }

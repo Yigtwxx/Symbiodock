@@ -24,6 +24,12 @@ public enum WingsTiming {
     public static let pausedGrace: Duration = .seconds(10)
 }
 
+/// Drag constants shared by the state and the symbiote effect, so they cannot drift apart.
+public enum IslandDrag {
+    /// Pointer travel (pt) since the grab beyond which the island tears off its anchor.
+    public static let tearDistance: CGFloat = 120
+}
+
 /// The single source of truth for what the island is doing.
 @MainActor
 @Observable
@@ -40,11 +46,19 @@ public final class IslandState {
     public private(set) var anchor: IslandAnchor = .notch
     /// Pointer position (panel-local) while stretching or detached, otherwise nil.
     public private(set) var dragLocation: CGPoint?
-    /// Where the island was attached when the current drag began.
+    /// Where the island was attached when the current drag began: the root of the effect.
     public private(set) var dragOrigin: CGPoint?
+    /// Pointer position (panel-local) when the current drag began.
+    public private(set) var dragStart: CGPoint?
 
-    /// Distance (pt) from the drag origin beyond which the island tears off.
-    public static let tearDistance: CGFloat = 120
+    /// Pointer travel (pt) since the grab beyond which the island tears off.
+    public nonisolated static var tearDistance: CGFloat { IslandDrag.tearDistance }
+
+    /// Pointer movement since the drag began, to be added to the island's resting frame; nil when not dragging.
+    public var dragOffset: CGSize? {
+        guard let dragLocation, let dragStart else { return nil }
+        return CGSize(width: dragLocation.x - dragStart.x, height: dragLocation.y - dragStart.y)
+    }
 
     public init() {}
 
@@ -69,16 +83,20 @@ public final class IslandState {
         guard phase == .collapsed || phase == .expanded else { return }
         phase = .stretching
         dragOrigin = origin
+        dragStart = point
         dragLocation = point
     }
 
     /// Moves the drag. Returns true exactly once per drag: on the update that tears the island off.
+    /// The caller must then call `SymbioteSimulation.tear()` so the effect breaks on the same update.
     @discardableResult
     public func drag(to point: CGPoint) -> Bool {
-        guard isDragging, let dragOrigin else { return false }
+        guard isDragging, let dragStart else { return false }
         dragLocation = point
         guard phase == .stretching else { return false }
-        let distance = hypot(point.x - dragOrigin.x, point.y - dragOrigin.y)
+        // Measured from the grab point, not the attachment: grabbing far from the
+        // attachment must not tear on the first point of movement.
+        let distance = hypot(point.x - dragStart.x, point.y - dragStart.y)
         guard distance > Self.tearDistance else { return false }
         phase = .detached
         return true
@@ -90,6 +108,17 @@ public final class IslandState {
         if phase == .detached { anchor = resolvedAnchor }
         phase = .settling
         dragLocation = nil
+        dragStart = nil
+        dragOrigin = nil
+    }
+
+    /// Abandons a drag (focus lost, display change): back to collapsed at the current anchor.
+    /// Ignored while collapsed or expanded.
+    public func cancelDrag() {
+        guard isDragging || phase == .settling else { return }
+        phase = .collapsed
+        dragLocation = nil
+        dragStart = nil
         dragOrigin = nil
     }
 

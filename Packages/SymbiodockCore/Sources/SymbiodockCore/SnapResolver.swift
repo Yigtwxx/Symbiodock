@@ -11,9 +11,16 @@ public enum SnapResolver {
     public static func anchor(
         forRelease point: CGPoint, notch: CGRect, visibleFrame: CGRect
     ) -> IslandAnchor {
+        guard point.x.isFinite, point.y.isFinite, !visibleFrame.isNull, !visibleFrame.isInfinite
+        else { return .notch }
+        // The notch capture uses the raw point: it is a distance, so it needs no clamping.
         if distance(point, CGPoint(x: notch.midX, y: notch.midY)) <= notchCaptureRadius {
             return .notch
         }
+        // A release outside the visible frame counts as on its nearest border.
+        let point = CGPoint(
+            x: min(max(point.x, visibleFrame.minX), visibleFrame.maxX),
+            y: min(max(point.y, visibleFrame.minY), visibleFrame.maxY))
 
         let corners: [(ScreenCorner, CGPoint)] = [
             (.topLeft, CGPoint(x: visibleFrame.minX, y: visibleFrame.minY)),
@@ -27,7 +34,7 @@ public enum SnapResolver {
             .min { $0.distance < $1.distance }
         if let nearestCorner { return .corner(nearestCorner.corner) }
 
-        // Declared in tie-break order; `min` keeps the first of equal distances.
+        // Declared in tie-break order; the loop below keeps the first of equal distances.
         let edges: [(ScreenEdge, CGFloat)] = [
             (.top, abs(point.y - visibleFrame.minY)),
             (.bottom, abs(point.y - visibleFrame.maxY)),
@@ -39,8 +46,10 @@ public enum SnapResolver {
 
         let along: CGFloat
         switch nearest.0 {
-        case .top, .bottom: along = (point.x - visibleFrame.minX) / visibleFrame.width
-        case .left, .right: along = (point.y - visibleFrame.minY) / visibleFrame.height
+        case .top, .bottom:
+            along = visibleFrame.width > 0 ? (point.x - visibleFrame.minX) / visibleFrame.width : 0.5
+        case .left, .right:
+            along = visibleFrame.height > 0 ? (point.y - visibleFrame.minY) / visibleFrame.height : 0.5
         }
         return .edge(nearest.0, fraction: Double(min(max(along, 0), 1)))
     }
