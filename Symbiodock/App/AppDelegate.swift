@@ -55,6 +55,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startAgents()
         #endif
 
+        #if DEBUG
+        if DemoMedia.requested {
+            DemoMedia.apply(to: state)
+            overlayController.refreshPointer()
+            return
+        }
+        #endif
+
         let nowPlaying = NowPlayingCoordinator(
             onUpdate: { [weak self] info in
                 self?.state.setNowPlaying(info)
