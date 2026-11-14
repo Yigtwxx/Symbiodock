@@ -552,6 +552,7 @@ targets:
         LSUIElement: true
         CFBundleDisplayName: Symbiodock
         LSApplicationCategoryType: public.app-category.utilities
+        NSHumanReadableCopyright: "Copyright © 2026 Yigtwxx"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yigtwxx.Symbiodock
@@ -690,6 +691,16 @@ pkill -x Symbiodock
 `Symbiodock.xcodeproj` commit edilmez; `project.yml` değişince `xcodegen generate` yeniden çalıştırılır.
 ````
 
+Also in `CLAUDE.md`: tick the `Faz 1` box in `## Yol haritası` and replace the body of
+`## Durum` with:
+
+```markdown
+- Faz 0-1 tamam: çekirdek paket (geometri, durum, yerleşim) testleriyle; agent uygulama
+  açılıyor, menü çubuğu öğesinden çıkılabiliyor.
+- Çentik paneli, hover, müzik verisi, sürükleme ve symbiote efekti yok. Faz 2 başlamadı.
+- Xcode 27.2 ve XcodeGen 2.45.4 kurulu, `xcode-select` ile seçili.
+```
+
 - [ ] **Step 8: Commit and push**
 
 ```bash
@@ -697,6 +708,9 @@ git add .gitignore project.yml Symbiodock scripts CLAUDE.md
 git commit -m "feat(app): add agent app skeleton with status item"
 git push origin main
 ```
+
+**Phase boundary.** Faz 1 ends here. Stop and give the owner the manual checklist from
+Step 6. Do not start Task 4 until the owner confirms.
 
 ---
 
@@ -765,6 +779,9 @@ final class OverlayPanel: NSPanel {
         level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         ignoresMouseEvents = true
+        // The panel never becomes key; without this no mouse-moved event reaches the
+        // local monitor while the pointer is on the island.
+        acceptsMouseMovedEvents = true
         isMovable = false
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
@@ -865,7 +882,10 @@ final class OverlayController {
         self.notch = notch
 
         let panel = OverlayPanel(screenFrame: metrics.frame)
-        panel.contentView = NSHostingView(rootView: IslandView(state: state, notch: notch))
+        let hostingView = NSHostingView(rootView: IslandView(state: state, notch: notch))
+        // Keep SwiftUI from resizing the panel to the content's ideal size.
+        hostingView.sizingOptions = []
+        panel.contentView = hostingView
         panel.setFrame(metrics.frame, display: true)
         panel.orderFrontRegardless()
         self.panel = panel
@@ -927,7 +947,7 @@ git push origin main
 **Files:**
 - Create: `Symbiodock/Window/MouseTracker.swift`
 - Modify: `Symbiodock/Window/OverlayController.swift`
-- Modify: `CLAUDE.md` (sections "Durum", "Sıradaki adımlar", "Doğrulanmamış varsayımlar")
+- Modify: `CLAUDE.md` (sections "Durum", "Yol haritası", "Doğrulanmamış varsayımlar")
 - Modify: `README.md` (section "Status")
 
 **Interfaces:**
@@ -1055,7 +1075,10 @@ final class OverlayController {
         self.notch = notch
 
         let panel = OverlayPanel(screenFrame: metrics.frame)
-        panel.contentView = NSHostingView(rootView: IslandView(state: state, notch: notch))
+        let hostingView = NSHostingView(rootView: IslandView(state: state, notch: notch))
+        // Keep SwiftUI from resizing the panel to the content's ideal size.
+        hostingView.sizingOptions = []
+        panel.contentView = hostingView
         panel.setFrame(metrics.frame, display: true)
         panel.orderFrontRegardless()
         self.panel = panel
@@ -1109,9 +1132,10 @@ Check each item and note the result:
 7. Switch Spaces. The island still opens on the new Space.
 8. Leave the pointer still for a minute and look at Symbiodock in Activity Monitor. CPU is about 0 %.
 
-- [ ] **Step 6: If item 1 fails, switch the tracker mode**
+- [ ] **Step 6: If item 1, 2, 4 or 5 fails, switch the tracker mode**
 
-Only if the island never opens: in `Symbiodock/Window/OverlayController.swift` change
+Only if the island never opens, stays open after the pointer leaves, or clicks land on
+the wrong side of its edge (the monitors are not delivering pointer movement): in `Symbiodock/Window/OverlayController.swift` change
 
 ```swift
     private static let trackerMode: MouseTracker.Mode = .eventMonitors
@@ -1137,12 +1161,7 @@ In `CLAUDE.md`:
 - Müzik verisi, sürükleme ve symbiote efekti yok.
 ```
 
-- In `## Sıradaki adımlar`, replace the numbered list with:
-
-```markdown
-1. Milestone 2 (Now Playing) için uygulama planı yazılır. İlk iş `mediaremote-adapter`
-   denemesidir.
-```
+- In `## Yol haritası`, tick the `Faz 2` box.
 
 - In `## Doğrulanmamış varsayımlar`, replace the line that starts with "Global fare izleme" with one of these, matching what Step 5 showed:
 
