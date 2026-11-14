@@ -146,4 +146,15 @@ struct AgentSessionBoardTests {
             since: base, pid: nil)
         #expect(bare.projectName == nil)
     }
+
+    @Test func theSpokespersonIsTheLeadOrElseTheFirstRow() {
+        var board = AgentSessionBoard()
+        #expect(board.spokesperson == nil)
+        board.update([session("idle", .idle), session("running", .running)])
+        #expect(board.lead == nil)
+        #expect(board.spokesperson?.id == board.rows.first?.id)
+        board.update([session("idle", .idle), session("work", .working)])
+        #expect(board.spokesperson?.id == "work")
+        #expect(board.spokesperson?.id == board.lead?.id)
+    }
 }

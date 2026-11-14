@@ -97,6 +97,11 @@ public struct AgentSessionBoard: Equatable, Sendable {
         }
     }
 
+    /// Who speaks for the agents on a docked island: the lead, or else the first row, so
+    /// that a list that is not empty is never described as "no agents". Nil only when the
+    /// list is empty.
+    public var spokesperson: AgentRow? { lead ?? rows.first }
+
     /// The session behind `attention`: the first that needs input, else the first that has
     /// finished. It can lie behind a working row, which `lead` would show instead.
     public var attentionRow: AgentRow? {

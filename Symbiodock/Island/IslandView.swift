@@ -83,7 +83,9 @@ struct IslandView: View {
         // On the media face an agent that wants attention still gets its mark.
         let attention = state.board.attentionRow?.state
         // A docked island never hides: with no face it shows the paused track if there is
-        // one, otherwise the first tab's idle text.
+        // one, otherwise the first tab's idle text. When the agents speak without a lead
+        // (all idle or merely running) it shows the first session of the list; the idle
+        // text is for an empty list only.
         let agentsSpeak = state.face == .agents
             || (state.face == .none && state.nowPlaying == nil && state.tabOrder.first == .agents)
 
@@ -106,13 +108,13 @@ struct IslandView: View {
             }
         } else if IslandLayout.isSideDocked(state.anchor) {
             if agentsSpeak {
-                AgentSideFace(row: lead)
+                AgentSideFace(row: state.board.spokesperson)
             } else {
                 SideCollapsedContent(info: state.nowPlaying, attention: attention)
             }
         } else {
             if agentsSpeak {
-                AgentFloatingFace(row: lead)
+                AgentFloatingFace(row: state.board.spokesperson)
             } else {
                 FloatingCollapsedContent(info: state.nowPlaying, attention: attention)
             }
