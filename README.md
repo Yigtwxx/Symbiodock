@@ -26,6 +26,9 @@ Symbiodock has no Dock icon and no menu bar item.
 - Press on the island and pull to drag it away. Past about 120 pt it tears off;
   let go near an edge or a corner and it settles there. Let go near the notch and
   it goes back.
+- Carried near a screen edge or back under the notch, the island throws sticky strands
+  at it; let go while they hold and it is pulled in to that edge. Let go anywhere else
+  and it goes to the nearest edge.
 - Right-click (or Control-click) the island for its menu: Return to notch,
   Launch at login, Quit.
 

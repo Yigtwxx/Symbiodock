@@ -175,10 +175,16 @@ to the island frame.
   was already paused. The expanded island still shows a paused track.
 - At the notch, expanded: grows downward and sideways from the notch, about
   360 × 150 pt.
-- At an edge or corner: a floating black capsule, 8 pt inside the display's
-  `visibleFrame`, so it never covers the menu bar or the system Dock. It stays
-  visible even when nothing is playing, because it must remain draggable.
-  Expanding grows toward the inside of the screen.
+- At an edge or corner: docked flush against the border of the display's
+  `visibleFrame` (so it never covers the menu bar or the system Dock), shaped the
+  way the notch is: the corners on the screen edge are square, the free corners are
+  rounded (10 pt collapsed, 24 pt expanded); in a screen corner only the corner
+  pointing into the display is rounded (`IslandLayout.cornerRadii`). Changed on
+  2026-11-14 from a capsule floating 8 pt inside the frame: the owner wants it to
+  "sit at the edge directly, like a notch". It stays visible even when nothing is
+  playing, because it must remain draggable. Expanding grows toward the inside of
+  the screen. One exception: with the menu bar hidden, an island docked on the top
+  edge where it would meet the notch hangs 8 pt below the notch instead.
 
 ### 5.5 DragController and SnapResolver
 
@@ -192,13 +198,30 @@ transitions and feeds the pointer location to the symbiote simulation.
 3. Otherwise: the nearest edge, keeping the position along that edge as
    `fraction`.
 
+A second rule comes first (added 2026-11-14 at the owner's request: "it must not stay
+somewhere in the middle; near an edge the same venom effect, and on release it sticks
+to the edge the strands formed on"): if the island's strands hold a surface when it is
+released (see 5.6, "Reaching"), it settles on that surface, whatever else is nearer:
+the notch, or that edge at the island's position along it (the corner at the end of
+that edge when within 80 pt of it). `SnapResolver.anchor(forRelease:attachedTo:…)`.
+
+`ReachResolver` (pure, in `SymbiodockCore`) decides which surface a carried island
+reaches for. Surfaces are the notch and the four borders of the visible frame. The
+notch is in reach within 88 pt of the point where it is held (just inside the lower
+side of a physical notch; the display's top edge for a stand-in notch) and wins over
+the edge beside it. Otherwise the edge nearest the island's own side (not its center)
+is in reach within 80 pt, measured from 12 pt inside that side. An island pushed past
+an edge (over the menu bar or the Dock) counts as pressed against it. The hold never
+spreads past a corner.
+
 The resolved anchor is saved to `UserDefaults` and restored at launch.
 
 Haptics: `DragController` plays a trackpad haptic through
 `NSHapticFeedbackManager` at two moments: `.levelChange` when the island tears
 off (changed from `.generic` on 2026-11-14: it reads better as a snap), `.alignment`
-when a torn-off island is released and snaps to its anchor. Nothing is played for mouse
-users, because the system only drives the trackpad.
+when the main strand of a carried island catches a surface, and `.alignment` when a
+torn-off island is released, unless it had already been caught (one tick per landing).
+Nothing is played for mouse users, because the system only drives the trackpad.
 
 ### 5.6 Symbiote effect
 
@@ -231,6 +254,29 @@ Two parts: a simulation and a renderer.
   left) and a fainter rim line on the far side; the bead at a stub's tip has a glint.
 - Output (`SymbioteFrame`): closed polygons (one per strand or stub), droplets
   (center, radius) and highlight polygons for the sheen.
+
+Reaching (added 2026-11-14): the same simulation run the other way, for a carried
+island that nears a surface.
+
+- `SymbioteSimulation(configuration:reaching: true)` starts with no strand joining the
+  bodies. Each strand grows out of the island toward the root: thin feelers first
+  (14 ms apart), the trunk last, each shooting out and slowing as it arrives, with a
+  bead at its tip. A strand that lands spreads out on the surface over 140 ms,
+  overshooting a little (a "splat"), and from then on behaves like any other strand:
+  it thins, tears and snaps back. A feeler pulled out of range before it lands is
+  drawn back into the island. `isHolding` is true while the main strand is attached.
+- A flat surface is not a body: `Configuration.rootSpan` fixes the line along which
+  the strands take hold, so the hold stays on the surface however the island is
+  pulled. There each strand ends flat on the surface and spreads into a low mound;
+  neighbouring mounds web together in the metaball layer.
+- `DragSession` creates one such simulation when `ReachResolver` reports a surface in
+  reach of a torn-off island, with the hold fixed where the strands first landed.
+  The main strand to an edge gives way 130 pt from its hold (140 pt for the notch);
+  what is left snaps back while a new set reaches from the island's new position, so
+  an island slid along an edge keeps tearing loose and catching again.
+- On release the island glides to its place and the strands are soaked back up
+  (`thickness` 1 → 0 between 0.2 s and 0.5 s after the release). An island released
+  out in the open throws its strands at the place it is gliding to as it arrives.
 
 `SymbioteCanvas` (SwiftUI `Canvas`, in the app):
 

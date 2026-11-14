@@ -36,7 +36,8 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 | Müzik kaynağı | İkisi de tek `NowPlayingProvider` arayüzü arkasında: `MediaRemoteProvider` ve `AppleMusicProvider` | Uygulama genel olacak; Apple sistem geneli veriyi macOS 15.4'ten beri kısıtlıyor, tek kaynağa bağlanmak riskli |
 | Sahibin kullandığı müzik uygulaması | Apple Music | İlk doğrulanacak kaynak bu |
 | Efekt tekniği | SwiftUI `Canvas`: incelen şerit lifler, altta metaball katmanı (blur + alpha threshold), üstte net çizim; yetmezse Metal shader | Araştırma ve prototip: daire zinciri boncuk gibi duruyor, ince lifler filtrede kayboluyor (spec 5.6) |
-| Çentik dışı konum | `visibleFrame` içinde 8 pt içeride yüzen siyah kapsül | Menü çubuğunu ve sistem Dock'unu kapatmamalı |
+| Kenara tutunma | Kopmuş ada bir kenara (~70 pt) ya da çentiğe yaklaşınca lifler uzanıp tutunur; lifler tutunmuşken bırakılırsa o yüzeye yapışır, açıkta bırakılırsa en yakın kenara gider (2026-11-14) | Sahibinin isteği: "ortada durmasın, yapışkanmış gibi; yaklaşınca yine venom efekti, bırakınca o kenara yapışsın" (spec 5.5, 5.6) |
+| Çentik dışı konum | `visibleFrame` kenarına sıfır mesafe, çentik gibi: kenara değen köşeler köşeli, serbest köşeler yuvarlak (2026-11-14; önceki: 8 pt içeride yüzen kapsül) | Sahibi: "tamamen 0 olsun, kenara direkt çentik gibi dursun"; menü çubuğunu ve Dock'u yine kapatmaz |
 | Mimari | Spec bölüm 4-5 | Sahibi onayladı |
 | Proje üretimi | XcodeGen (`project.yml`), `.xcodeproj` commit edilmez | Komut satırından üretilebilir ve diff'i okunur |
 | Kod yerleşimi | Saf mantık `Packages/SymbiodockCore` paketinde, AppKit/SwiftUI app hedefinde | Mantık uygulama açılmadan `swift test` ile test edilir |
@@ -49,7 +50,7 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 | Girişte başlatma | v1'de var, ada menüsünde aç/kapa (milestone 5) | Sahibinin tercihi |
 | Duraklatılmış parça | Kapalı adadaki kanatlar duraklatmadan 10 sn sonra gizlenir; açık ada parçayı göstermeye devam eder (2026-11-14) | Sahibinin seçimi; duraklatılmış bir sekme çentiği gün boyu kaplamasın |
 | Menü | Menü çubuğunda öğe yok; menü adaya sağ tıkla açılır (2026-11-14) | Sahibi menü çubuğunda ikon istemedi; ileride başka özellikler için oraya öğe gelebilir |
-| Geri bildirim | Kopma ve yapışma anında trackpad titreşimi, ses yok | Sahibinin tercihi |
+| Geri bildirim | Kopma, liflerin bir yüzeye tutunması ve (tutunmadan) bırakma anında trackpad titreşimi, ses yok | Sahibinin tercihi |
 | Arayüz dili | Tamamen İngilizce; çeviri altyapısı kurulmaz | Dil desteği çok sonra gelecek |
 | v1 sonrası widget'lar | Henüz kararlaştırılmadı | Sahibi sonra söyleyecek; sorma, o açana kadar bekle |
 | Depo | `Yigtwxx/Symbiodock`, public | Sahibinin isteği |
@@ -70,6 +71,9 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
   elle kontrol listesi kendi plan dosyasının sonunda:
   `2026-11-14-m2-now-playing.md`, `2026-11-14-m5-launch-at-login.md`,
   `2026-11-14-m3-m4-window-drag-and-effect.md`.
+- Kenara tutunma efekti (2026-11-14 gece, sahibi uzaktayken eklendi): kod `main`'de, ekran
+  dışı görüntülerle doğrulandı, canlı denenmedi. Elle kontrol maddeleri 14-20,
+  `2026-11-14-m3-m4-window-drag-and-effect.md` içinde.
 - Hiç çalıştırılmamış yollar: Apple Music yedeği (AppleScript, izin penceresi), canlı
   sürükleme (fare olaylarının monitöre ulaşması), trackpad titreşimi.
 - Menü çubuğunda öğe yok; menü adaya sağ tıkla açılır (Return to notch, Launch at login,
