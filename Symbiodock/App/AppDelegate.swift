@@ -27,7 +27,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onCommand: { [weak self] command in
                 self?.nowPlaying?.send(command)
             },
-            onOpenSession: { _ in })
+            onOpenSession: { session in
+                if let pid = session.hostAppPID { HostApp.bringForward(pid: pid) }
+            })
         overlayController.start()
         self.overlayController = overlayController
         islandMenu.onReturnToNotch = { [weak overlayController] in overlayController?.returnToNotch() }

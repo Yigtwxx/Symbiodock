@@ -60,11 +60,12 @@ final class AgentSessionCoordinator {
     nonisolated private static func scan(
         _ providers: [any AgentSessionProvider]
     ) async -> [AgentSession] {
-        let context = AgentScanContext(now: Date(), processes: ProcessScanner.snapshot())
+        let processes = ProcessScanner.snapshot()
+        let context = AgentScanContext(now: Date(), processes: processes)
         var sessions: [AgentSession] = []
         for provider in providers {
             sessions += await provider.sessions(in: context)
         }
-        return sessions
+        return sessions.map { HostApp.resolving($0, in: processes) }
     }
 }
