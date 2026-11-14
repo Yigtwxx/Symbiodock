@@ -34,7 +34,7 @@ Spec: `docs/superpowers/specs/2026-11-14-agents-tab-design.md`.
 | `Symbiodock/Island/Agents/AgentPalette.swift` | The state colours and each tool's colour |
 | `Symbiodock/Island/Agents/AgentStatusMark.swift` | The 14 pt mark and its looks |
 | `Symbiodock/Island/Agents/AgentPet.swift` | A tool's pet, drawn from bars |
-| `Symbiodock/Island/Agents/AgentPetWave.swift` | A working pet as Core Animation layers: one per line, each with a repeating lift animation sampled from `AgentPetMotion.wave` (added after this plan; the block below quotes `AgentPet.swift` as it now is, and `AgentPetArt` there is the cache the layers reuse) |
+| `Symbiodock/Island/Agents/AgentPetWave.swift` | A working pet as Core Animation layers: one per line, each with repeating scale and glow animations sampled from `AgentPetMotion.wave` (added after this plan; the block below quotes `AgentPet.swift` as it now is, and `AgentPetArt` there is the cache the layers reuse) |
 | `Symbiodock/Island/Agents/AgentsContent.swift` | The Agents tab: rows, empty state |
 | `Symbiodock/Island/Agents/AgentFaces.swift` | Collapsed faces for the notch, the capsule and the strip |
 | `Symbiodock/Island/RimLight.swift` | The light along the collapsed island's rim |
@@ -328,8 +328,9 @@ import SymbiodockCore
 
 /// A tool's pet: a small field of fine vertical lines in the tool's colour, in which the
 /// figure shows as the lines growing brighter and dimmer along their length, the way light
-/// falls on a form. It moves with its session: while the session works the lines lift one
-/// after another, a wave from left to right; otherwise it stands still.
+/// falls on a form. It moves with its session: while the session works a wave runs across
+/// it from left to right, in depth (each line comes forward, a little larger and brighter,
+/// and goes back); otherwise it stands still.
 struct AgentPet: View {
     let tool: AgentTool
     var state: AgentRowState = .finished
@@ -349,7 +350,7 @@ struct AgentPet: View {
                 figure(waveAt: state == .working ? frozenAt : nil)
             }
         }
-        .frame(width: size, height: size, alignment: .bottom)
+        .frame(width: size, height: size)
         .accessibilityElement()
         .accessibilityLabel(tool.displayName)
     }
@@ -363,39 +364,51 @@ struct AgentPet: View {
         }
     }
 
-    /// The pet drawn once. With `waveAt` its lines are lifted as the wave has them at that
-    /// moment. The canvas reaches above the pet by the wave's height, so that nothing is cut.
+    /// The pet drawn once. With `waveAt` each line is as far forward as the wave has it at
+    /// that moment: larger about its centre and lit towards white. The canvas reaches past
+    /// the pet by the most a line can grow, so that nothing is cut.
     private func figure(waveAt time: TimeInterval?) -> some View {
         let art = AgentPetArt.art(for: tool, strength: strength)
         let lines = art.lines
         let grounds = art.grounds
-        let headroom = size * AgentPetMotion.waveHeight
+        let margin = size * AgentPetMotion.waveGrowth / 2
         return Canvas { context, canvas in
-            let side = canvas.width
+            let side = canvas.width - 2 * margin
             let bar = side * AgentPetFigure.barWidth
             let inset = side * AgentPetArt.groundInset
             for (column, stretches) in lines.enumerated() {
-                let x = side * AgentPetFigure.pitch * CGFloat(column)
-                let lift = time.map { side * AgentPetMotion.wave(column: column, at: $0) } ?? 0
-                let top = headroom - lift
-                let whole = CGRect(x: x, y: top + inset, width: bar, height: side - 2 * inset)
-                context.fill(Path(roundedRect: whole, cornerRadius: bar / 2), with: .color(grounds[column]))
+                let x = margin + side * AgentPetFigure.pitch * CGFloat(column)
+                let forward = time.map { AgentPetMotion.wave(column: column, at: $0) } ?? 0
+                // Scaled about the line's own centre.
+                var line = context
+                let scale = 1 + AgentPetMotion.waveGrowth * forward
+                let centre = CGPoint(x: x + bar / 2, y: margin + side / 2)
+                line.translateBy(x: centre.x, y: centre.y)
+                line.scaleBy(x: scale, y: scale)
+                line.translateBy(x: -centre.x, y: -centre.y)
+                let whole = CGRect(x: x, y: margin + inset, width: bar, height: side - 2 * inset)
+                line.fill(Path(roundedRect: whole, cornerRadius: bar / 2), with: .color(grounds[column]))
                 for stretch in stretches {
                     let rect = CGRect(
-                        x: x, y: top + side * stretch.top, width: bar,
+                        x: x, y: margin + side * stretch.top, width: bar,
                         height: max(side * (stretch.bottom - stretch.top), bar))
                         .intersection(whole)
                     guard !rect.isNull, rect.height > 0 else { continue }
-                    context.fill(
+                    line.fill(
                         Path(roundedRect: rect, cornerRadius: bar / 2),
                         with: .linearGradient(
                             stretch.gradient,
-                            startPoint: CGPoint(x: x, y: top + side * stretch.top),
-                            endPoint: CGPoint(x: x, y: top + side * stretch.bottom)))
+                            startPoint: CGPoint(x: x, y: margin + side * stretch.top),
+                            endPoint: CGPoint(x: x, y: margin + side * stretch.bottom)))
+                }
+                if forward > 0 {
+                    line.fill(
+                        Path(roundedRect: whole, cornerRadius: bar / 2),
+                        with: .color(.white.opacity(AgentPetMotion.waveGlow * forward)))
                 }
             }
         }
-        .frame(width: size, height: size + headroom)
+        .frame(width: size + 2 * margin, height: size + 2 * margin)
     }
 }
 

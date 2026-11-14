@@ -2091,7 +2091,7 @@ git push origin main
 - Consumes: `AgentTool` (Task 1).
 - Produces:
   - `AgentPetFigure` (`lines: [[Double]]`, `stretches(ofLine:) -> [Stretch]`, `Stretch { top; bottom; shades }`), `AgentPetFigure.figure(for: AgentTool)`, `.lineCount` (21), `.samplesPerLine` (84), `.pitch`, `.barWidth`, `.groundStrength` (0.085), `.faintestShade` (0.3), `.glowShade` (1.8).
-  - `AgentPetMotion.wave(column: Int, at: TimeInterval) -> Double`, `.waveHeight` (0.07), `.wavePeriod` (2.4), `.waveTravel` (1.3), `.waveWidth` (5).
+  - `AgentPetMotion.wave(column: Int, at: TimeInterval) -> Double`, `.waveGrowth` (0.10), `.waveGlow` (0.22), `.wavePeriod` (2.4), `.waveTravel` (1.3), `.waveWidth` (5); the wave is in depth (0...1: how far forward a line is), not up and down.
 
 A pet is the figure a tool is known by. The island draws it as a field of fine vertical lines in which the figure shows as the lines' brightness changing along their length. To get that brightness, each figure is modelled as a small relief (a height above the plane at every point of the unit square, built from domes, plates, tubes and holes) and lit from the upper left; what faces the light is bright, what turns away or stands back is dim. The figure records, for each of 21 lines, the brightness at 84 points along it, 0 where there is no figure.
 
@@ -2223,7 +2223,7 @@ struct AgentPetFigureTests {
     private static let frame = 1.0 / 60.0
     private static let columns = 0..<AgentPetFigure.lineCount
 
-    /// The moment in one period at which a line is lifted the most, found by sampling.
+    /// The moment in one period at which a line is forward the most, found by sampling.
     private func peak(ofColumn column: Int) -> (time: TimeInterval, lift: Double, count: Int) {
         let steps = 2400
         let values = (0..<steps).map {
@@ -2233,27 +2233,28 @@ struct AgentPetFigureTests {
         let first = values.firstIndex(of: top) ?? 0
         // Count separate rises above 90 % of the height.
         var rises = 0
-        for index in values.indices where values[index] > 0.9 * AgentPetMotion.waveHeight {
-            if index == 0 || values[index - 1] <= 0.9 * AgentPetMotion.waveHeight { rises += 1 }
+        for index in values.indices where values[index] > 0.9 {
+            if index == 0 || values[index - 1] <= 0.9 { rises += 1 }
         }
         return (Double(first) * AgentPetMotion.wavePeriod / Double(steps), top, rises)
     }
 
-    @Test func aLineIsNeverLiftedBeyondTheWaveHeight() {
+    @Test func aLineIsNeverMoreThanFullyForward() {
         for step in 0..<1000 {
             let time = Double(step) * 0.0071
             for column in Self.columns {
                 let lift = AgentPetMotion.wave(column: column, at: time)
-                #expect(lift >= 0 && lift <= AgentPetMotion.waveHeight + 1e-12)
+                #expect(lift >= 0 && lift <= 1 + 1e-12)
             }
         }
-        #expect(AgentPetMotion.waveHeight <= 0.1)
+        #expect(AgentPetMotion.waveGrowth > 0 && AgentPetMotion.waveGrowth <= 0.15)
+        #expect(AgentPetMotion.waveGlow > 0 && AgentPetMotion.waveGlow <= 0.3)
     }
 
     @Test func everyLineRisesToTheFullHeightOncePerPeriod() {
         for column in Self.columns {
             let result = peak(ofColumn: column)
-            #expect(abs(result.lift - AgentPetMotion.waveHeight) < AgentPetMotion.waveHeight * 0.01, "\(column)")
+            #expect(abs(result.lift - 1) < 0.01, "\(column)")
             #expect(result.count == 1, "\(column)")
         }
     }
@@ -2282,15 +2283,15 @@ struct AgentPetFigureTests {
     }
 
     @Test func theLiftChangesSmoothly() {
-        // Between two frames at 60 a second no line may jump by more than a quarter of the
-        // height it can be lifted.
+        // Between two frames at 60 a second no line may change by more than a quarter of its
+        // travel.
         for step in 0..<1500 {
             let time = Double(step) * 0.0013 - 1
             for column in Self.columns {
                 let change = abs(
                     AgentPetMotion.wave(column: column, at: time + Self.frame)
                         - AgentPetMotion.wave(column: column, at: time))
-                #expect(change <= AgentPetMotion.waveHeight * 0.25)
+                #expect(change <= 0.25)
             }
         }
     }
@@ -2658,8 +2659,11 @@ extension AgentPetFigure {
 
 /// How a pet moves. Pure functions of time, so the views only draw.
 public enum AgentPetMotion {
-    /// How far a line is lifted at the crest of the wave, as a fraction of the pet's side.
-    public static let waveHeight = 0.07
+    /// How much larger a line is drawn at the crest of the wave, about its own centre: a
+    /// touch thicker and longer, as if it came towards the viewer.
+    public static let waveGrowth = 0.10
+    /// How far a line is lit towards white at the crest, 0...1: what is nearer is brighter.
+    public static let waveGlow = 0.22
     /// Seconds from the start of one crest to the start of the next.
     public static let wavePeriod: TimeInterval = 2.4
     /// Seconds a crest takes to cross the pet, from entering at the left to leaving at the
@@ -2668,10 +2672,10 @@ public enum AgentPetMotion {
     /// How many lines wide a crest is: the width of the raised cosine.
     public static let waveWidth = 5.0
 
-    /// How far line `column` (0 is the leftmost of `AgentPetFigure.lineCount`) is lifted at
-    /// `time`, as a fraction of the pet's side, from 0 to `waveHeight`. One crest travels from
-    /// the left edge to the right edge, each line rising and sinking smoothly as it passes,
-    /// like people standing up in a stadium; then the pet rests until the next crest.
+    /// How far forward line `column` (0 is the leftmost of `AgentPetFigure.lineCount`) is at
+    /// `time`: 0 at rest, 1 at the crest. The wave travels in depth, not up and down. One
+    /// crest runs from the left edge to the right edge, each line coming forward and going
+    /// back smoothly as it passes; then the pet rests until the next crest.
     public static func wave(column: Int, at time: TimeInterval) -> Double {
         var beat = time.truncatingRemainder(dividingBy: wavePeriod)
         if beat < 0 { beat += wavePeriod }
@@ -2682,7 +2686,7 @@ public enum AgentPetMotion {
         let crest = -waveWidth / 2 + reach * beat / waveTravel
         let distance = abs(Double(column) - crest)
         guard distance < waveWidth / 2 else { return 0 }
-        return waveHeight * 0.5 * (1 + cos(2 * .pi * distance / waveWidth))
+        return 0.5 * (1 + cos(2 * .pi * distance / waveWidth))
     }
 }
 ```

@@ -119,7 +119,7 @@ struct AgentPetFigureTests {
     private static let frame = 1.0 / 60.0
     private static let columns = 0..<AgentPetFigure.lineCount
 
-    /// The moment in one period at which a line is lifted the most, found by sampling.
+    /// The moment in one period at which a line is forward the most, found by sampling.
     private func peak(ofColumn column: Int) -> (time: TimeInterval, lift: Double, count: Int) {
         let steps = 2400
         let values = (0..<steps).map {
@@ -129,27 +129,28 @@ struct AgentPetFigureTests {
         let first = values.firstIndex(of: top) ?? 0
         // Count separate rises above 90 % of the height.
         var rises = 0
-        for index in values.indices where values[index] > 0.9 * AgentPetMotion.waveHeight {
-            if index == 0 || values[index - 1] <= 0.9 * AgentPetMotion.waveHeight { rises += 1 }
+        for index in values.indices where values[index] > 0.9 {
+            if index == 0 || values[index - 1] <= 0.9 { rises += 1 }
         }
         return (Double(first) * AgentPetMotion.wavePeriod / Double(steps), top, rises)
     }
 
-    @Test func aLineIsNeverLiftedBeyondTheWaveHeight() {
+    @Test func aLineIsNeverMoreThanFullyForward() {
         for step in 0..<1000 {
             let time = Double(step) * 0.0071
             for column in Self.columns {
                 let lift = AgentPetMotion.wave(column: column, at: time)
-                #expect(lift >= 0 && lift <= AgentPetMotion.waveHeight + 1e-12)
+                #expect(lift >= 0 && lift <= 1 + 1e-12)
             }
         }
-        #expect(AgentPetMotion.waveHeight <= 0.1)
+        #expect(AgentPetMotion.waveGrowth > 0 && AgentPetMotion.waveGrowth <= 0.15)
+        #expect(AgentPetMotion.waveGlow > 0 && AgentPetMotion.waveGlow <= 0.3)
     }
 
     @Test func everyLineRisesToTheFullHeightOncePerPeriod() {
         for column in Self.columns {
             let result = peak(ofColumn: column)
-            #expect(abs(result.lift - AgentPetMotion.waveHeight) < AgentPetMotion.waveHeight * 0.01, "\(column)")
+            #expect(abs(result.lift - 1) < 0.01, "\(column)")
             #expect(result.count == 1, "\(column)")
         }
     }
@@ -178,15 +179,15 @@ struct AgentPetFigureTests {
     }
 
     @Test func theLiftChangesSmoothly() {
-        // Between two frames at 60 a second no line may jump by more than a quarter of the
-        // height it can be lifted.
+        // Between two frames at 60 a second no line may change by more than a quarter of its
+        // travel.
         for step in 0..<1500 {
             let time = Double(step) * 0.0013 - 1
             for column in Self.columns {
                 let change = abs(
                     AgentPetMotion.wave(column: column, at: time + Self.frame)
                         - AgentPetMotion.wave(column: column, at: time))
-                #expect(change <= AgentPetMotion.waveHeight * 0.25)
+                #expect(change <= 0.25)
             }
         }
     }

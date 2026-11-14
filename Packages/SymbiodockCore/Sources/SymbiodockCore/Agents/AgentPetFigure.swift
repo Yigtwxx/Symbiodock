@@ -130,8 +130,11 @@ extension AgentPetFigure {
 
 /// How a pet moves. Pure functions of time, so the views only draw.
 public enum AgentPetMotion {
-    /// How far a line is lifted at the crest of the wave, as a fraction of the pet's side.
-    public static let waveHeight = 0.07
+    /// How much larger a line is drawn at the crest of the wave, about its own centre: a
+    /// touch thicker and longer, as if it came towards the viewer.
+    public static let waveGrowth = 0.10
+    /// How far a line is lit towards white at the crest, 0...1: what is nearer is brighter.
+    public static let waveGlow = 0.22
     /// Seconds from the start of one crest to the start of the next.
     public static let wavePeriod: TimeInterval = 2.4
     /// Seconds a crest takes to cross the pet, from entering at the left to leaving at the
@@ -140,10 +143,10 @@ public enum AgentPetMotion {
     /// How many lines wide a crest is: the width of the raised cosine.
     public static let waveWidth = 5.0
 
-    /// How far line `column` (0 is the leftmost of `AgentPetFigure.lineCount`) is lifted at
-    /// `time`, as a fraction of the pet's side, from 0 to `waveHeight`. One crest travels from
-    /// the left edge to the right edge, each line rising and sinking smoothly as it passes,
-    /// like people standing up in a stadium; then the pet rests until the next crest.
+    /// How far forward line `column` (0 is the leftmost of `AgentPetFigure.lineCount`) is at
+    /// `time`: 0 at rest, 1 at the crest. The wave travels in depth, not up and down. One
+    /// crest runs from the left edge to the right edge, each line coming forward and going
+    /// back smoothly as it passes; then the pet rests until the next crest.
     public static func wave(column: Int, at time: TimeInterval) -> Double {
         var beat = time.truncatingRemainder(dividingBy: wavePeriod)
         if beat < 0 { beat += wavePeriod }
@@ -154,6 +157,6 @@ public enum AgentPetMotion {
         let crest = -waveWidth / 2 + reach * beat / waveTravel
         let distance = abs(Double(column) - crest)
         guard distance < waveWidth / 2 else { return 0 }
-        return waveHeight * 0.5 * (1 + cos(2 * .pi * distance / waveWidth))
+        return 0.5 * (1 + cos(2 * .pi * distance / waveWidth))
     }
 }

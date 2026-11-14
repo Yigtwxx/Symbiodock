@@ -323,12 +323,13 @@ logo file is bundled or downloaded.
 
 The pet moves with its session, and only a little:
 
-- Working: a wave from left to right, like people standing up in a stadium. One crest
-  crosses the pet in 1.3 s, every 2.4 s, and the pet rests in between. Each line, with
-  its ground and the figure on it, is lifted by up to 7 % of the pet's side, rising and
-  sinking along a raised cosine about five lines wide; the figure does not deform. It is
-  played by Core Animation, one repeating animation for each line, all on one clock, so
-  that two pets wave in step.
+- Working: a wave from left to right, in depth: as the crest passes, each line comes
+  forward (up to 10 % larger about its own centre, and lit up to 22 % of the way towards
+  white, since what is nearer is brighter) and goes back. One crest crosses the pet in
+  1.3 s, every 2.4 s, along a raised cosine about five lines wide; the pet rests in
+  between. Nothing moves up or down and the figure does not deform. It is played by Core
+  Animation, two repeating animations for each line, all on one clock, so that two pets
+  wave in step.
 - Needs input: it stands still; the status mark's knock and the rim light say it.
 - Finished it stands still at full strength; running it is at 70 %, idle at 45 %.
 - With Reduce Motion on it never moves.
