@@ -17,6 +17,8 @@ final class MouseTracker {
     private let onMove: @MainActor (CGPoint) -> Void
     private var monitors: [Any] = []
     private var timer: Timer?
+    /// Fallback timer used only while the pointer is on the island (`.eventMonitors` mode).
+    private var supplementalTimer: Timer?
 
     init(mode: Mode, onMove: @escaping @MainActor (CGPoint) -> Void) {
         self.mode = mode
@@ -32,16 +34,16 @@ final class MouseTracker {
             }) {
                 monitors.append(global)
             }
-            if let local = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] event in
+            // Clicks also re-evaluate the pointer, so a lost exit event cannot outlive a click.
+            let localMask = mask.union([.leftMouseDown, .rightMouseDown, .otherMouseDown])
+            if let local = NSEvent.addLocalMonitorForEvents(matching: localMask, handler: { [weak self] event in
                 MainActor.assumeIsolated { self?.report() }
                 return event
             }) {
                 monitors.append(local)
             }
         case .polling:
-            timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
-                MainActor.assumeIsolated { self?.report() }
-            }
+            timer = makePollingTimer()
         }
         report()
     }
@@ -51,6 +53,30 @@ final class MouseTracker {
         monitors.removeAll()
         timer?.invalidate()
         timer = nil
+        setSupplementalPolling(false)
+    }
+
+    /// Turns the 30 Hz fallback polling on or off. Needed because once the panel accepts
+    /// mouse events, the global monitor stops seeing them and local delivery is not guaranteed.
+    /// No-op in `.polling` mode, where the timer always runs.
+    func setSupplementalPolling(_ enabled: Bool) {
+        guard mode == .eventMonitors else { return }
+        if enabled {
+            guard supplementalTimer == nil else { return }
+            supplementalTimer = makePollingTimer()
+        } else {
+            supplementalTimer?.invalidate()
+            supplementalTimer = nil
+        }
+    }
+
+    /// `.common` mode keeps the timer firing while a menu is open (event tracking mode).
+    private func makePollingTimer() -> Timer {
+        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.report() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        return timer
     }
 
     private func report() {

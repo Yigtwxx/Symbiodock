@@ -37,12 +37,22 @@ final class OverlayController {
 
     /// Recreates the panel for the current display configuration.
     private func rebuildPanel() {
+        guard let screen = NSScreen.islandScreen else {
+            resetHoverState()
+            panel?.close()
+            panel = nil
+            metrics = nil
+            notch = .zero
+            return
+        }
+        let metrics = ScreenMetrics(screen: screen)
+        // Nothing changed (e.g. unrelated screen-parameter notification): keep the panel.
+        if panel != nil, metrics == self.metrics { return }
+
+        resetHoverState()
         panel?.close()
         panel = nil
-        pointerInside = false
 
-        guard let screen = NSScreen.islandScreen else { return }
-        let metrics = ScreenMetrics(screen: screen)
         let notch = NotchGeometry.notchRect(for: metrics)
         self.metrics = metrics
         self.notch = notch
@@ -55,6 +65,18 @@ final class OverlayController {
         panel.setFrame(metrics.frame, display: true)
         panel.orderFrontRegardless()
         self.panel = panel
+
+        // The new panel ignores mouse events; re-check in case the pointer is already on the island.
+        pointerMoved(toGlobal: NSEvent.mouseLocation)
+    }
+
+    /// Drops pending hover work and collapses the island so no stale state survives a rebuild.
+    private func resetHoverState() {
+        hoverTask?.cancel()
+        hoverTask = nil
+        state.setHovering(false)
+        pointerInside = false
+        tracker?.setSupplementalPolling(false)
     }
 
     private func pointerMoved(toGlobal point: CGPoint) {
@@ -64,8 +86,13 @@ final class OverlayController {
             phase: state.phase, notch: notch, screenSize: metrics.frame.size)
         let inside = hitRect.contains(metrics.localPoint(fromGlobal: point))
 
-        // Clicks reach the panel only while the pointer is on the island.
-        panel.ignoresMouseEvents = !inside
+        // Clicks reach the panel only while the pointer is on the island. Assign only on
+        // change: this runs on every mouse move system-wide. While the panel accepts events
+        // the global monitor is blind, so poll as a safety net against a lost exit event.
+        if panel.ignoresMouseEvents == inside {
+            panel.ignoresMouseEvents = !inside
+            tracker?.setSupplementalPolling(inside)
+        }
 
         guard inside != pointerInside else { return }
         pointerInside = inside
@@ -73,8 +100,11 @@ final class OverlayController {
         hoverTask?.cancel()
         hoverTask = Task { [weak self] in
             try? await Task.sleep(for: inside ? HoverTiming.enterDelay : HoverTiming.exitDelay)
-            guard !Task.isCancelled else { return }
-            self?.state.setHovering(inside)
+            guard !Task.isCancelled, let self else { return }
+            self.state.setHovering(inside)
+            // The hit rect depends on the phase; re-check. This only schedules new work
+            // when the pointer really crossed the (now different) rect edge.
+            self.pointerMoved(toGlobal: NSEvent.mouseLocation)
         }
     }
 }

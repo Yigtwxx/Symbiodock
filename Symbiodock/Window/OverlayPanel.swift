@@ -15,8 +15,9 @@ final class OverlayPanel: NSPanel {
         level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         ignoresMouseEvents = true
-        // The panel never becomes key; without this no mouse-moved event reaches the
-        // local monitor while the pointer is on the island.
+        // Assumption: this lets mouse-moved events reach the local monitor while the pointer
+        // is on the island. Delivery to a non-key panel is not guaranteed, so the controller
+        // also polls the pointer while the panel accepts mouse events (safety net).
         acceptsMouseMovedEvents = true
         isMovable = false
         hidesOnDeactivate = false

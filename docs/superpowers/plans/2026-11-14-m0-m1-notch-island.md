@@ -752,9 +752,10 @@ extension ScreenMetrics {
 }
 
 extension NSScreen {
-    /// The display the island lives on: one with a notch if present, otherwise the main display.
+    /// The display the island lives on: one with a notch if present, otherwise the primary display
+    /// (the one with the menu bar, `screens.first`; `NSScreen.main` follows the key window).
     static var islandScreen: NSScreen? {
-        screens.first(where: { ScreenMetrics(screen: $0).hasNotch }) ?? main
+        screens.first(where: { ScreenMetrics(screen: $0).hasNotch }) ?? screens.first
     }
 }
 ```
@@ -781,8 +782,9 @@ final class OverlayPanel: NSPanel {
         level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         ignoresMouseEvents = true
-        // The panel never becomes key; without this no mouse-moved event reaches the
-        // local monitor while the pointer is on the island.
+        // Assumption: this lets mouse-moved events reach the local monitor while the pointer
+        // is on the island. Delivery to a non-key panel is not guaranteed, so the controller
+        // also polls the pointer while the panel accepts mouse events (safety net).
         acceptsMouseMovedEvents = true
         isMovable = false
         hidesOnDeactivate = false
@@ -980,6 +982,8 @@ final class MouseTracker {
     private let onMove: @MainActor (CGPoint) -> Void
     private var monitors: [Any] = []
     private var timer: Timer?
+    /// Fallback timer used only while the pointer is on the island (`.eventMonitors` mode).
+    private var supplementalTimer: Timer?
 
     init(mode: Mode, onMove: @escaping @MainActor (CGPoint) -> Void) {
         self.mode = mode
@@ -995,16 +999,16 @@ final class MouseTracker {
             }) {
                 monitors.append(global)
             }
-            if let local = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] event in
+            // Clicks also re-evaluate the pointer, so a lost exit event cannot outlive a click.
+            let localMask = mask.union([.leftMouseDown, .rightMouseDown, .otherMouseDown])
+            if let local = NSEvent.addLocalMonitorForEvents(matching: localMask, handler: { [weak self] event in
                 MainActor.assumeIsolated { self?.report() }
                 return event
             }) {
                 monitors.append(local)
             }
         case .polling:
-            timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
-                MainActor.assumeIsolated { self?.report() }
-            }
+            timer = makePollingTimer()
         }
         report()
     }
@@ -1014,6 +1018,30 @@ final class MouseTracker {
         monitors.removeAll()
         timer?.invalidate()
         timer = nil
+        setSupplementalPolling(false)
+    }
+
+    /// Turns the 30 Hz fallback polling on or off. Needed because once the panel accepts
+    /// mouse events, the global monitor stops seeing them and local delivery is not guaranteed.
+    /// No-op in `.polling` mode, where the timer always runs.
+    func setSupplementalPolling(_ enabled: Bool) {
+        guard mode == .eventMonitors else { return }
+        if enabled {
+            guard supplementalTimer == nil else { return }
+            supplementalTimer = makePollingTimer()
+        } else {
+            supplementalTimer?.invalidate()
+            supplementalTimer = nil
+        }
+    }
+
+    /// `.common` mode keeps the timer firing while a menu is open (event tracking mode).
+    private func makePollingTimer() -> Timer {
+        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.report() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        return timer
     }
 
     private func report() {
@@ -1066,12 +1094,22 @@ final class OverlayController {
 
     /// Recreates the panel for the current display configuration.
     private func rebuildPanel() {
+        guard let screen = NSScreen.islandScreen else {
+            resetHoverState()
+            panel?.close()
+            panel = nil
+            metrics = nil
+            notch = .zero
+            return
+        }
+        let metrics = ScreenMetrics(screen: screen)
+        // Nothing changed (e.g. unrelated screen-parameter notification): keep the panel.
+        if panel != nil, metrics == self.metrics { return }
+
+        resetHoverState()
         panel?.close()
         panel = nil
-        pointerInside = false
 
-        guard let screen = NSScreen.islandScreen else { return }
-        let metrics = ScreenMetrics(screen: screen)
         let notch = NotchGeometry.notchRect(for: metrics)
         self.metrics = metrics
         self.notch = notch
@@ -1084,6 +1122,18 @@ final class OverlayController {
         panel.setFrame(metrics.frame, display: true)
         panel.orderFrontRegardless()
         self.panel = panel
+
+        // The new panel ignores mouse events; re-check in case the pointer is already on the island.
+        pointerMoved(toGlobal: NSEvent.mouseLocation)
+    }
+
+    /// Drops pending hover work and collapses the island so no stale state survives a rebuild.
+    private func resetHoverState() {
+        hoverTask?.cancel()
+        hoverTask = nil
+        state.setHovering(false)
+        pointerInside = false
+        tracker?.setSupplementalPolling(false)
     }
 
     private func pointerMoved(toGlobal point: CGPoint) {
@@ -1093,8 +1143,13 @@ final class OverlayController {
             phase: state.phase, notch: notch, screenSize: metrics.frame.size)
         let inside = hitRect.contains(metrics.localPoint(fromGlobal: point))
 
-        // Clicks reach the panel only while the pointer is on the island.
-        panel.ignoresMouseEvents = !inside
+        // Clicks reach the panel only while the pointer is on the island. Assign only on
+        // change: this runs on every mouse move system-wide. While the panel accepts events
+        // the global monitor is blind, so poll as a safety net against a lost exit event.
+        if panel.ignoresMouseEvents == inside {
+            panel.ignoresMouseEvents = !inside
+            tracker?.setSupplementalPolling(inside)
+        }
 
         guard inside != pointerInside else { return }
         pointerInside = inside
@@ -1102,8 +1157,11 @@ final class OverlayController {
         hoverTask?.cancel()
         hoverTask = Task { [weak self] in
             try? await Task.sleep(for: inside ? HoverTiming.enterDelay : HoverTiming.exitDelay)
-            guard !Task.isCancelled else { return }
-            self?.state.setHovering(inside)
+            guard !Task.isCancelled, let self else { return }
+            self.state.setHovering(inside)
+            // The hit rect depends on the phase; re-check. This only schedules new work
+            // when the pointer really crossed the (now different) rect edge.
+            self.pointerMoved(toGlobal: NSEvent.mouseLocation)
         }
     }
 }

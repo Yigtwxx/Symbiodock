@@ -12,8 +12,9 @@ extension ScreenMetrics {
 }
 
 extension NSScreen {
-    /// The display the island lives on: one with a notch if present, otherwise the main display.
+    /// The display the island lives on: one with a notch if present, otherwise the primary display
+    /// (the one with the menu bar, `screens.first`; `NSScreen.main` follows the key window).
     static var islandScreen: NSScreen? {
-        screens.first(where: { ScreenMetrics(screen: $0).hasNotch }) ?? main
+        screens.first(where: { ScreenMetrics(screen: $0).hasNotch }) ?? screens.first
     }
 }
