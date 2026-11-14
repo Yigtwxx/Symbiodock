@@ -144,7 +144,7 @@ struct AgentPetFigureTests {
             }
         }
         #expect(AgentPetMotion.waveGrowth > 0 && AgentPetMotion.waveGrowth <= 0.15)
-        #expect(AgentPetMotion.waveGlow > 0 && AgentPetMotion.waveGlow <= 0.3)
+        #expect(AgentPetMotion.waveRest >= 0.6 && AgentPetMotion.waveRest < 1)
     }
 
     @Test func everyLineRisesToTheFullHeightOncePerPeriod() {

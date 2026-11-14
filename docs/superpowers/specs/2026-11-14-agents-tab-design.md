@@ -302,7 +302,7 @@ line is a little wider than the gap beside it, so the colour stays strong.
 The brightness comes from a model, not from a picture: each figure is a small relief
 (domes, plates, tubes, holes) lit from the upper left. What faces the light shows the
 tool's colour at full strength; what turns away, lies in a hollow or stands farther back
-is dimmer, never below 30 %. The shading is deliberately gentle. A part that gives off
+is dimmer, never below 36 %. The shading is deliberately gentle. A part that gives off
 light of its own (the prompt on the Codex cloud) is brighter than anything lit: most of
 the way from the colour to white. None of the tool colours is the red or the mint that a
 state uses.
@@ -324,8 +324,9 @@ logo file is bundled or downloaded.
 The pet moves with its session, and only a little:
 
 - Working: a wave from left to right, in depth: as the crest passes, each line comes
-  forward (up to 10 % larger about its own centre, and lit up to 22 % of the way towards
-  white, since what is nearer is brighter) and goes back. One crest crosses the pet in
+  forward (up to 10 % larger about its own centre, and in full colour, while the lines
+  that wait stand back at 82 %: what is nearer is brighter, in the pet's own colours;
+  nothing white is added) and goes back. One crest crosses the pet in
   1.3 s, every 2.4 s, along a raised cosine about five lines wide; the pet rests in
   between. Nothing moves up or down and the figure does not deform. It is played by Core
   Animation, two repeating animations for each line, all on one clock, so that two pets

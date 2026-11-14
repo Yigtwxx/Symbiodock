@@ -4,7 +4,7 @@ import SymbiodockCore
 
 /// A working pet: its lines as Core Animation layers, each coming forward and going back on
 /// its own repeating animations so that a crest runs across the pet from left to right, in
-/// depth (see `AgentPetMotion.wave`): a line at the crest is larger and lit towards white.
+/// depth (see `AgentPetMotion.wave`): a line at the crest is larger and shows in full; the others stand back a little.
 /// The layers are built once; the render server plays the animations and the app does no
 /// work per frame (see `FrameSchedule` for why that matters). At rest the pet looks as the
 /// still `Canvas` drawing does. Nothing moves up or down.
@@ -42,8 +42,6 @@ struct AgentPetWave: NSViewRepresentable {
         private var spec: Spec?
         private var built: Spec?
         private var columns: [CALayer] = []
-        /// The white copy of each line's shape that is faded in to light the line.
-        private var glows: [CALayer] = []
 
         override init(frame: NSRect) {
             super.init(frame: frame)
@@ -63,10 +61,9 @@ struct AgentPetWave: NSViewRepresentable {
 
         /// Takes the pet down: no layer and no animation is left.
         func stop() {
-            for layer in columns + glows { layer.removeAllAnimations() }
+            for layer in columns { layer.removeAllAnimations() }
             layer?.sublayers = nil
             columns = []
-            glows = []
             built = nil
         }
 
@@ -74,7 +71,7 @@ struct AgentPetWave: NSViewRepresentable {
             super.viewDidMoveToWindow()
             if window == nil {
                 // Off screen the animations have nothing to show; they are added again on return.
-                for layer in columns + glows { layer.removeAnimation(forKey: "wave") }
+                for layer in columns { layer.removeAnimation(forKey: "wave"); layer.removeAnimation(forKey: "waveDepth") }
             } else {
                 rebuildIfNeeded()
                 animate()
@@ -100,12 +97,11 @@ struct AgentPetWave: NSViewRepresentable {
         /// figure is. Layer coordinates run upward from the lower left.
         private func build(_ spec: Spec) {
             guard let root = layer else { return }
-            for layer in columns + glows { layer.removeAllAnimations() }
+            for layer in columns { layer.removeAllAnimations() }
             CATransaction.begin()
             CATransaction.setDisableActions(true)
             root.sublayers = nil
             columns = []
-            glows = []
 
             let art = AgentPetArt.art(for: spec.tool, strength: spec.strength)
             let side = spec.side
@@ -140,16 +136,10 @@ struct AgentPetWave: NSViewRepresentable {
                     paint.contentsScale = spec.scale
                     line.addSublayer(paint)
                 }
-                // The line's shape in white, over everything on it; the wave fades it in.
-                let glow = CALayer()
-                glow.frame = ground.frame
-                glow.cornerRadius = bar / 2
-                glow.backgroundColor = NSColor.white.cgColor
-                glow.opacity = 0
-                line.addSublayer(glow)
+                // Waiting for the crest a line stands back; the wave brings it forward.
+                line.opacity = Float(AgentPetMotion.waveRest)
                 root.addSublayer(line)
                 columns.append(line)
-                glows.append(glow)
             }
             CATransaction.commit()
         }
@@ -168,9 +158,10 @@ struct AgentPetWave: NSViewRepresentable {
                 line.add(
                     animation("transform.scale", forward.map { 1 + AgentPetMotion.waveGrowth * $0 }, begin: begin),
                     forKey: "wave")
-                glows[column].add(
-                    animation("opacity", forward.map { AgentPetMotion.waveGlow * $0 }, begin: begin),
-                    forKey: "wave")
+                let rest = AgentPetMotion.waveRest
+                line.add(
+                    animation("opacity", forward.map { rest + (1 - rest) * $0 }, begin: begin),
+                    forKey: "waveDepth")
             }
         }
 

@@ -2091,7 +2091,7 @@ git push origin main
 - Consumes: `AgentTool` (Task 1).
 - Produces:
   - `AgentPetFigure` (`lines: [[Double]]`, `stretches(ofLine:) -> [Stretch]`, `Stretch { top; bottom; shades }`), `AgentPetFigure.figure(for: AgentTool)`, `.lineCount` (21), `.samplesPerLine` (84), `.pitch`, `.barWidth`, `.groundStrength` (0.085), `.faintestShade` (0.3), `.glowShade` (1.8).
-  - `AgentPetMotion.wave(column: Int, at: TimeInterval) -> Double`, `.waveGrowth` (0.10), `.waveGlow` (0.22), `.wavePeriod` (2.4), `.waveTravel` (1.3), `.waveWidth` (5); the wave is in depth (0...1: how far forward a line is), not up and down.
+  - `AgentPetMotion.wave(column: Int, at: TimeInterval) -> Double`, `.waveGrowth` (0.10), `.waveRest` (0.82), `.wavePeriod` (2.4), `.waveTravel` (1.3), `.waveWidth` (5); the wave is in depth (0...1: how far forward a line is), not up and down.
 
 A pet is the figure a tool is known by. The island draws it as a field of fine vertical lines in which the figure shows as the lines' brightness changing along their length. To get that brightness, each figure is modelled as a small relief (a height above the plane at every point of the unit square, built from domes, plates, tubes and holes) and lit from the upper left; what faces the light is bright, what turns away or stands back is dim. The figure records, for each of 21 lines, the brightness at 84 points along it, 0 where there is no figure.
 
@@ -2248,7 +2248,7 @@ struct AgentPetFigureTests {
             }
         }
         #expect(AgentPetMotion.waveGrowth > 0 && AgentPetMotion.waveGrowth <= 0.15)
-        #expect(AgentPetMotion.waveGlow > 0 && AgentPetMotion.waveGlow <= 0.3)
+        #expect(AgentPetMotion.waveRest >= 0.6 && AgentPetMotion.waveRest < 1)
     }
 
     @Test func everyLineRisesToTheFullHeightOncePerPeriod() {
@@ -2556,7 +2556,7 @@ public struct AgentPetFigure: Equatable, Sendable {
     /// How bright the lines are where there is no figure: the ground it stands out from.
     public static let groundStrength = 0.085
     /// The dimmest a part of a figure can be, so that it always stands out from the ground.
-    public static let faintestShade = 0.3
+    public static let faintestShade = 0.36
     /// The brightness of a part that gives off light of its own: most of the way to white.
     public static let glowShade = 1.8
 
@@ -2648,8 +2648,8 @@ extension AgentPetFigure {
         let facing = max(0, (-slopeX * light.x - slopeY * light.y + light.z) / length)
         // What stands farther back is dimmer. The shading is kept gentle: the figure should
         // read as a form, and still show its tool's colour at full strength where lit.
-        let nearness = 0.62 + 0.38 * min(height / peak, 1)
-        return min(max(pow((0.46 + 0.54 * facing) * nearness, 0.7), faintestShade), 1)
+        let nearness = 0.68 + 0.32 * min(height / peak, 1)
+        return min(max(pow((0.52 + 0.48 * facing) * nearness, 0.62), faintestShade), 1)
     }
 
     private static func clamp(_ slope: Double) -> Double {
@@ -2662,8 +2662,9 @@ public enum AgentPetMotion {
     /// How much larger a line is drawn at the crest of the wave, about its own centre: a
     /// touch thicker and longer, as if it came towards the viewer.
     public static let waveGrowth = 0.10
-    /// How far a line is lit towards white at the crest, 0...1: what is nearer is brighter.
-    public static let waveGlow = 0.22
+    /// How strongly a line shows while it waits for the crest; at the crest it shows in
+    /// full. What is nearer is brighter, in the pet's own colours: nothing white is added.
+    public static let waveRest = 0.82
     /// Seconds from the start of one crest to the start of the next.
     public static let wavePeriod: TimeInterval = 2.4
     /// Seconds a crest takes to cross the pet, from entering at the left to leaving at the

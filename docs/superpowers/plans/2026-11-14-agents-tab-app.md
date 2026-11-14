@@ -365,7 +365,8 @@ struct AgentPet: View {
     }
 
     /// The pet drawn once. With `waveAt` each line is as far forward as the wave has it at
-    /// that moment: larger about its centre and lit towards white. The canvas reaches past
+    /// that moment: larger about its centre and in full colour, the others a little
+    /// weaker. The canvas reaches past
     /// the pet by the most a line can grow, so that nothing is cut.
     private func figure(waveAt time: TimeInterval?) -> some View {
         let art = AgentPetArt.art(for: tool, strength: strength)
@@ -379,8 +380,11 @@ struct AgentPet: View {
             for (column, stretches) in lines.enumerated() {
                 let x = margin + side * AgentPetFigure.pitch * CGFloat(column)
                 let forward = time.map { AgentPetMotion.wave(column: column, at: $0) } ?? 0
-                // Scaled about the line's own centre.
+                // Scaled about the line's own centre, and weaker while it waits for the crest.
                 var line = context
+                if time != nil {
+                    line.opacity = AgentPetMotion.waveRest + (1 - AgentPetMotion.waveRest) * forward
+                }
                 let scale = 1 + AgentPetMotion.waveGrowth * forward
                 let centre = CGPoint(x: x + bar / 2, y: margin + side / 2)
                 line.translateBy(x: centre.x, y: centre.y)
@@ -400,11 +404,6 @@ struct AgentPet: View {
                             stretch.gradient,
                             startPoint: CGPoint(x: x, y: margin + side * stretch.top),
                             endPoint: CGPoint(x: x, y: margin + side * stretch.bottom)))
-                }
-                if forward > 0 {
-                    line.fill(
-                        Path(roundedRect: whole, cornerRadius: bar / 2),
-                        with: .color(.white.opacity(AgentPetMotion.waveGlow * forward)))
                 }
             }
         }
