@@ -6,40 +6,70 @@ import SymbiodockCore
 /// Every process is listed with its parent, because the way from a tool up to its terminal
 /// app passes through `login`, which belongs to root; the details (path, arguments,
 /// folder) are read only for the current user's own processes.
-enum ProcessScanner {
+///
+/// An actor, because the path of a process is asked for only once and remembered: the
+/// scan runs off the main actor, one scan at a time, and the memory belongs to it.
+actor ProcessScanner {
     private static let pathBufferSize = 4096
     /// No command line of an agent tool needs more than its first arguments.
     private static let maximumArguments = 16
 
-    static func snapshot() -> [ProcessSnapshot] {
+    /// A process is told apart from a later one that got its pid by the pair of both.
+    private struct Identity: Hashable {
+        let pid: pid_t
+        let seconds: Int
+        let microseconds: Int
+    }
+
+    /// Executable paths already read, for the processes still running.
+    private var paths: [Identity: String] = [:]
+
+    func snapshot() -> [ProcessSnapshot] {
         let uid = getuid()
         var processes: [ProcessSnapshot] = []
-        for entry in processTable() {
+        var seen: Set<Identity> = []
+        for entry in Self.processTable() {
             let pid = entry.kp_proc.p_pid
             guard pid > 0 else { continue }
             let isOwn = entry.kp_eproc.e_ucred.cr_uid == uid
             let device = entry.kp_eproc.e_tdev
             let started = entry.kp_proc.p_un.__p_starttime
+            let identity = Identity(
+                pid: pid, seconds: Int(started.tv_sec), microseconds: Int(started.tv_usec))
+            var path = ""
+            if isOwn {
+                seen.insert(identity)
+                if let known = paths[identity] {
+                    path = known
+                } else if let read = Self.executablePath(of: pid) {
+                    paths[identity] = read
+                    path = read
+                }
+            }
             processes.append(
                 ProcessSnapshot(
                     pid: pid,
                     parentPID: entry.kp_eproc.e_ppid,
-                    executablePath: isOwn ? executablePath(of: pid) ?? "" : "",
+                    executablePath: path,
                     startTime: Date(
                         timeIntervalSince1970: TimeInterval(started.tv_sec)
                             + TimeInterval(started.tv_usec) / 1_000_000),
                     // -1 is NODEV: no controlling terminal.
                     terminal: isOwn && device != -1 && device != 0 ? device : nil))
         }
+        // Forget the processes that are gone.
+        if paths.count > seen.count {
+            paths = paths.filter { seen.contains($0.key) }
+        }
 
         // The expensive parts only where they can matter.
         for index in processes.indices where !processes[index].executablePath.isEmpty {
             if processes[index].terminal != nil,
                AgentProcessMatcher.isInterpreter(processes[index].executablePath) {
-                processes[index].arguments = arguments(of: processes[index].pid)
+                processes[index].arguments = Self.arguments(of: processes[index].pid)
             }
             if AgentProcessMatcher.tool(for: processes[index]) != nil {
-                processes[index].workingDirectory = workingDirectory(of: processes[index].pid)
+                processes[index].workingDirectory = Self.workingDirectory(of: processes[index].pid)
             }
         }
         return processes
@@ -48,14 +78,21 @@ enum ProcessScanner {
     /// The kernel's process table, as `ps` reads it.
     private static func processTable() -> [kinfo_proc] {
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL]
-        var size = 0
-        guard sysctl(&mib, UInt32(mib.count), nil, &size, nil, 0) == 0, size > 0 else { return [] }
         let stride = MemoryLayout<kinfo_proc>.stride
-        // Room for processes that start between the two calls.
-        var table = [kinfo_proc](repeating: kinfo_proc(), count: size / stride + 32)
-        var used = table.count * stride
-        guard sysctl(&mib, UInt32(mib.count), &table, &used, nil, 0) == 0 else { return [] }
-        return Array(table.prefix(used / stride))
+        // If many processes start between asking for the size and asking for the table,
+        // the second call fails with ENOMEM. Ask again once, with more room, rather than
+        // report an empty list, which would make every session vanish for a scan.
+        for attempt in 0..<2 {
+            var size = 0
+            guard sysctl(&mib, UInt32(mib.count), nil, &size, nil, 0) == 0, size > 0 else { return [] }
+            // Room for processes that start between the two calls.
+            var table = [kinfo_proc](repeating: kinfo_proc(), count: size / stride + 32 + attempt * 256)
+            var used = table.count * stride
+            if sysctl(&mib, UInt32(mib.count), &table, &used, nil, 0) == 0 {
+                return Array(table.prefix(used / stride))
+            }
+        }
+        return []
     }
 
     private static func executablePath(of pid: pid_t) -> String? {

@@ -30,11 +30,12 @@ final class AgentSessionCoordinator {
     func start() {
         guard task == nil else { return }
         let providers = providers
+        let scanner = ProcessScanner()
         task = Task { [weak self] in
             var lastCount = -1
             while !Task.isCancelled {
                 // One scan at a time: the next starts only after this one has ended.
-                let sessions = await Self.scan(providers)
+                let sessions = await Self.scan(providers, with: scanner)
                 guard !Task.isCancelled, let self else { return }
                 self.onUpdate(sessions)
                 if sessions.count != lastCount {
@@ -58,9 +59,9 @@ final class AgentSessionCoordinator {
 
     /// Runs off the main actor: it reads files and the process list.
     nonisolated private static func scan(
-        _ providers: [any AgentSessionProvider]
+        _ providers: [any AgentSessionProvider], with scanner: ProcessScanner
     ) async -> [AgentSession] {
-        let processes = ProcessScanner.snapshot()
+        let processes = await scanner.snapshot()
         let context = AgentScanContext(now: Date(), processes: processes)
         var sessions: [AgentSession] = []
         for provider in providers {
