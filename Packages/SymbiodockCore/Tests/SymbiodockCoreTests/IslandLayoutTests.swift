@@ -45,14 +45,20 @@ struct IslandLayoutTests {
 
     @Test func collapsedIslandWithATrackGrowsAWingOnEachSide() {
         #expect(IslandLayout.frame(phase: .collapsed, notch: notch, screenSize: screen, showsWings: true)
-            == CGRect(x: 626, y: 0, width: 260, height: 32))
+            == CGRect(x: 626, y: 0, width: 260, height: 32 + IslandLayout.notchLip))
+    }
+
+    @Test func theIslandWithWingsReachesJustBelowTheNotch() {
+        #expect(IslandLayout.notchLip > 0 && IslandLayout.notchLip <= 3)
+        // Without wings it is the notch itself, and cannot be seen.
+        #expect(IslandLayout.frame(phase: .collapsed, notch: notch, screenSize: screen, showsWings: false) == notch)
     }
 
     @Test func collapsedWingsStayOnScreen() {
         let leftNotch = CGRect(x: 10, y: 0, width: 200, height: 32)
 
         #expect(IslandLayout.frame(phase: .collapsed, notch: leftNotch, screenSize: screen, showsWings: true)
-            == CGRect(x: 0, y: 0, width: 272, height: 32))
+            == CGRect(x: 0, y: 0, width: 272, height: 32 + IslandLayout.notchLip))
     }
 
     @Test func expandedIslandIgnoresTheTrack() {
@@ -62,7 +68,7 @@ struct IslandLayoutTests {
 
     @Test func hitRectFollowsTheWings() {
         #expect(IslandLayout.hitRect(phase: .collapsed, notch: notch, screenSize: screen, showsWings: true)
-            == CGRect(x: 622, y: -4, width: 268, height: 40))
+            == CGRect(x: 622, y: -4, width: 268, height: 40 + IslandLayout.notchLip))
     }
 
     // MARK: Floating anchors

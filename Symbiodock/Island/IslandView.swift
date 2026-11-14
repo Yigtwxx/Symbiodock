@@ -92,11 +92,14 @@ struct IslandView: View {
             case .agents:
                 if let lead {
                     AgentNotchFace(row: lead, notchWidth: geometry.notch.width)
+                        // Centred on the notch, not on the strip below it.
+                        .padding(.bottom, IslandLayout.notchLip)
                 }
             case .media:
                 if let info = state.nowPlaying {
                     CollapsedContent(
                         info: info, notchWidth: geometry.notch.width, attention: attention)
+                        .padding(.bottom, IslandLayout.notchLip)
                 }
             case .none:
                 EmptyView()

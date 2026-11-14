@@ -128,9 +128,10 @@ private enum AgentPetArt {
 
     private static var cache: [Key: Art] = [:]
 
-    /// Where a line stands across the pet, from 0 at the left to 1 at the right.
-    private static func position(ofLine index: Int) -> Double {
-        Double(index) / Double(max(AgentPetFigure.lineCount - 1, 1))
+    /// Where a point of the pet lies along its run of colours, which goes from the upper
+    /// left (0) to the lower right (1): mostly across, partly down.
+    private static func position(ofLine index: Int, down: Double = 0.5) -> Double {
+        0.6 * Double(index) / Double(max(AgentPetFigure.lineCount - 1, 1)) + 0.4 * down
     }
 
     static func art(for tool: AgentTool, strength: Double) -> Art {
@@ -159,7 +160,9 @@ private enum AgentPetArt {
                         // A part that glows keeps glowing however far the pet steps back.
                         color: AgentPalette.tint(
                             for: tool, strength: shade > 1 ? 1 + (shade - 1) * strength : strength * shade,
-                            across: Self.position(ofLine: index)),
+                            across: Self.position(
+                                ofLine: index,
+                                down: stretch.top + (stretch.bottom - stretch.top) * Double(position) / Double(last))),
                         location: CGFloat(position) / CGFloat(last))
                 }
                 return Stretch(top: stretch.top, bottom: stretch.bottom, gradient: Gradient(stops: stops))

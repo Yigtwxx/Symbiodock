@@ -81,35 +81,42 @@ import SwiftUI
 import SymbiodockCore
 
 /// The colours the agents bring to the black island: two for what a session's state
-/// says, and one for each tool's pet.
+/// says, and a run of colours for each tool's pet.
 enum AgentPalette {
     /// A session waits for the user. #FF4D4F
     static let alert = Color(red: 1.0, green: 77.0 / 255.0, blue: 79.0 / 255.0)
     /// A session has finished. #63E6A9
     static let mint = Color(red: 99.0 / 255.0, green: 230.0 / 255.0, blue: 169.0 / 255.0)
 
-    /// The colour a tool is known by, as red, green and blue from 0 to 1. None of them is
-    /// the alert red or the finished mint. `position` runs from 0 at a pet's left edge to
-    /// 1 at its right: Codex goes from blue to violet across its pet.
+    /// The colours a tool's pet runs through, from its upper left to its lower right, as
+    /// red, green and blue from 0 to 255. None of them is the alert red or the finished mint.
+    private static func run(for tool: AgentTool) -> [(Double, Double, Double)] {
+        switch tool {
+        case .claudeCode: [(233, 154, 110), (217, 119, 87), (185, 85, 58)]  // #E99A6E #D97757 #B9553A
+        case .codex: [(79, 156, 249), (139, 92, 246)]  // #4F9CF9 #8B5CF6
+        case .geminiCLI: [(78, 140, 255), (157, 123, 255), (240, 138, 168)]  // #4E8CFF #9D7BFF #F08AA8
+        case .cursorAgent: [(244, 244, 247), (180, 180, 192)]  // #F4F4F7 #B4B4C0
+        case .openCode: [(248, 233, 192), (221, 175, 99)]  // #F8E9C0 #DDAF63
+        case .aider: [(214, 244, 92), (120, 210, 58)]  // #D6F45C #78D23A
+        case .copilotCLI: [(167, 139, 250), (242, 127, 192)]  // #A78BFA #F27FC0
+        }
+    }
+
+    /// A tool's colour at `position` along its run: 0 at the pet's upper left, 1 at its
+    /// lower right.
     private static func components(
         for tool: AgentTool, across position: Double
     ) -> (red: Double, green: Double, blue: Double) {
-        switch tool {
-        case .claudeCode: return (217.0 / 255.0, 119.0 / 255.0, 87.0 / 255.0)  // #D97757
-        case .codex:
-            let blue = (79.0 / 255.0, 156.0 / 255.0, 249.0 / 255.0)  // #4F9CF9
-            let violet = (139.0 / 255.0, 92.0 / 255.0, 246.0 / 255.0)  // #8B5CF6
-            let part = min(max(position, 0), 1)
-            return (
-                blue.0 + (violet.0 - blue.0) * part, blue.1 + (violet.1 - blue.1) * part,
-                blue.2 + (violet.2 - blue.2) * part
-            )
-        case .geminiCLI: return (157.0 / 255.0, 123.0 / 255.0, 1.0)  // #9D7BFF
-        case .cursorAgent: return (215.0 / 255.0, 215.0 / 255.0, 219.0 / 255.0)  // #D7D7DB
-        case .openCode: return (240.0 / 255.0, 217.0 / 255.0, 168.0 / 255.0)  // #F0D9A8
-        case .aider: return (163.0 / 255.0, 230.0 / 255.0, 53.0 / 255.0)  // #A3E635
-        case .copilotCLI: return (242.0 / 255.0, 127.0 / 255.0, 192.0 / 255.0)  // #F27FC0
-        }
+        let colors = run(for: tool)
+        let place = (position.isFinite ? min(max(position, 0), 1) : 0.5) * Double(colors.count - 1)
+        let lower = min(Int(place), colors.count - 2)
+        let part = place - Double(lower)
+        let from = colors[lower]
+        let to = colors[lower + 1]
+        return (
+            (from.0 + (to.0 - from.0) * part) / 255, (from.1 + (to.1 - from.1) * part) / 255,
+            (from.2 + (to.2 - from.2) * part) / 255
+        )
     }
 
     /// A tool's colour at the given strength. 1 is the colour itself. Below 1 it is mixed
@@ -445,9 +452,10 @@ private enum AgentPetArt {
 
     private static var cache: [Key: Art] = [:]
 
-    /// Where a line stands across the pet, from 0 at the left to 1 at the right.
-    private static func position(ofLine index: Int) -> Double {
-        Double(index) / Double(max(AgentPetFigure.lineCount - 1, 1))
+    /// Where a point of the pet lies along its run of colours, which goes from the upper
+    /// left (0) to the lower right (1): mostly across, partly down.
+    private static func position(ofLine index: Int, down: Double = 0.5) -> Double {
+        0.6 * Double(index) / Double(max(AgentPetFigure.lineCount - 1, 1)) + 0.4 * down
     }
 
     static func art(for tool: AgentTool, strength: Double) -> Art {
@@ -476,7 +484,9 @@ private enum AgentPetArt {
                         // A part that glows keeps glowing however far the pet steps back.
                         color: AgentPalette.tint(
                             for: tool, strength: shade > 1 ? 1 + (shade - 1) * strength : strength * shade,
-                            across: Self.position(ofLine: index)),
+                            across: Self.position(
+                                ofLine: index,
+                                down: stretch.top + (stretch.bottom - stretch.top) * Double(position) / Double(last))),
                         location: CGFloat(position) / CGFloat(last))
                 }
                 return Stretch(top: stretch.top, bottom: stretch.bottom, gradient: Gradient(stops: stops))
@@ -2825,6 +2835,16 @@ git push origin main
 
 ---
 
+## After the tasks
+
+Changes made after the tasks above, on the owner's word and from the reviews; the code in
+the repository is the reference where it differs from a block quoted in a task.
+
+- **Cost of animation.** While any view redraws more often than about every 0.35 s, SwiftUI keeps the full-screen panel's update cycle running, which alone costs about 5 % of a core. So the pets stir a few times a second, the turning arc and the rim's breath run in Core Animation (`LayerAnimation.swift`), and hops, knocks and the passing highlight redraw only while they last (`FrameSchedule.swift`). When a frame is due is decided by `FramePacer` in the core package, which is tested never to repeat a moment: a schedule that did repeat one hung the app on the main thread once.
+- **Colour runs.** Each pet's colour runs from its upper left to its lower right (`AgentPalette.run(for:)`), instead of being one colour.
+- **The lip.** The island with its wings is `IslandLayout.notchLip` (2 pt) taller than the notch, so the rim light passes under the camera housing unbroken. Setting it to 0 gives the old look, where the light is cut in the middle.
+- **Reading cost.** `ProcessScanner` keeps each process's path by pid and start time; `ClaudeCodeProvider` reads a transcript again only when it changed.
+
 ## Hand checklist for the owner
 
 Build and start:
@@ -2844,7 +2864,8 @@ Tabs:
 Claude Code:
 
 4. Start a Claude Code session in a terminal and give it a task. Within three seconds the collapsed island widens: its pet left, a turning arc right. Hover: the row shows the session's name, its folder, `Working …`.
-5. Let Claude Code ask a question (or a permission). The island does **not** open. The mark turns into a red ring whose dot knocks twice, and a red light breathes along the island's lower rim with a highlight passing every few seconds.
+5. Let Claude Code ask a question (or a permission). The island does **not** open. The red light runs around the island and passes **under the camera housing** without a break; the island is only a hair taller than the notch and does not look clumsy (if it does: `IslandLayout.notchLip` back to 0).
+   Also: the island does **not** open. The mark turns into a red ring whose dot knocks twice, and a red light breathes along the island's lower rim with a highlight passing every few seconds.
 6. Hover: the Agents tab opens whichever tab is first. The row is tinted, says `Needs input`, and shows the question on a second line. Answer in the terminal: the row goes back to `Working`.
 7. Let the task finish. The mark becomes a mint ring with a check mark that draws itself, and a mint light passes once and stays as a thin line. Hover: the row says `Done …`. Move away: the light and the check mark are gone; the row is `Idle …` the next time.
 8. Click a row. Its terminal (or editor) comes to the front.

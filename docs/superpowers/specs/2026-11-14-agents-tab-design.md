@@ -208,6 +208,14 @@ hands the merged list to the board on the main actor.
 - A tick is skipped while the previous one is still running.
 - At rest the app's average CPU use stays under 1 %.
 
+Animation is paced for the same reason. Redrawing a view more often than about every
+0.35 s keeps the full-screen panel's update cycle awake, which costs about 5 % of a core
+whatever is drawn. Slow motion (a pet stirring) is drawn a few times a second; motion that
+must be smooth and never rests (the turning arc, the rim's breath) runs in Core Animation;
+short motions with rests between (hops, knocks, the passing highlight) are drawn only
+while they last. `FramePacer` (core) decides when a frame is due and is tested never to
+give the same moment twice.
+
 ## 7. Appearance
 
 Two colours say what a session's state is: **red** `#FF4D4F` for needs input and **mint**
@@ -256,6 +264,11 @@ when `showsWings` is true; Agents when `hasFace` is true.
 When the face is Media and `attention` is not `.none`, the status mark of the lead
 session takes the place of the level bars. The rim light shows on either face.
 
+With its wings the island is also 2 pt taller than the notch (`IslandLayout.notchLip`):
+the camera housing hides what lies behind it, and this strip is what shows of the island's
+lower edge there, so the rim light passes under the notch unbroken. The faces stay centred
+on the notch's own height.
+
 The island at the notch widens by its wings when either tab has a face or `attention`
 is not `.none`; `IslandLayout`'s `hasTrack` parameter becomes `showsWings` with that
 meaning.
@@ -280,7 +293,7 @@ meaning.
 ### 7.5 Pets
 
 Each tool is shown by its pet: a small figure of what the tool is known by, in the tool's
-own colour. A pet is a square field of 21 fine vertical lines with round ends. Where
+own colours, which run from the pet's upper left to its lower right. A pet is a square field of 21 fine vertical lines with round ends. Where
 there is no figure the lines are faint (8.5 % of the colour); the figure shows as the
 lines growing brighter and dimmer along their length, the way light falls on a form. A
 line is a little wider than the gap beside it, so the colour stays strong.
@@ -295,13 +308,13 @@ state uses.
 
 | Tool | Colour | Pet |
 |---|---|---|
-| Claude Code | `#D97757` | A plump creature on two small feet: one big round body with five soft bumps, so its outline is a rounded star, and two small upright eyes |
+| Claude Code | `#E99A6E` → `#D97757` → `#B9553A` | A plump creature on two small feet: one big round body with five soft bumps, so its outline is a rounded star, and two small upright eyes |
 | Codex | `#4F9CF9` → `#8B5CF6` | A plump cloud of round lobes, blue at its left and violet at its right, with a prompt glowing on its front: `>` and `_` |
-| Gemini CLI | `#9D7BFF` | A four-pointed star, faceted like a cut stone, and a small one far behind it |
-| Cursor Agent | `#D7D7DB` | A cube seen from a corner; the light gives each of its three faces its own tone |
-| OpenCode | `#F0D9A8` | A terminal window with a sunken screen and a prompt, `>` and `_`, and a second window behind it |
-| Aider | `#A3E635` | The letter A made of three tubes: the left stroke nearest, the right one farthest |
-| Copilot CLI | `#F27FC0` | A round helmeted head: two goggles with sunken glass, two eyes below them, an ear on each side |
+| Gemini CLI | `#4E8CFF` → `#9D7BFF` → `#F08AA8` | A four-pointed star, faceted like a cut stone, and a small one far behind it |
+| Cursor Agent | `#F4F4F7` → `#B4B4C0` | A cube seen from a corner; the light gives each of its three faces its own tone |
+| OpenCode | `#F8E9C0` → `#DDAF63` | A terminal window with a sunken screen and a prompt, `>` and `_`, and a second window behind it |
+| Aider | `#D6F45C` → `#78D23A` | The letter A made of three tubes: the left stroke nearest, the right one farthest |
+| Copilot CLI | `#A78BFA` → `#F27FC0` | A round helmeted head: two goggles with sunken glass, two eyes below them, an ear on each side |
 
 The reliefs and their lighting are in the core package (`AgentPetReliefs`,
 `AgentPetFigure`), so every tool is guaranteed a figure and its properties are tested. No

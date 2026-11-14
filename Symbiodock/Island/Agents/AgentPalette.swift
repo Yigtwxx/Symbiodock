@@ -2,35 +2,42 @@ import SwiftUI
 import SymbiodockCore
 
 /// The colours the agents bring to the black island: two for what a session's state
-/// says, and one for each tool's pet.
+/// says, and a run of colours for each tool's pet.
 enum AgentPalette {
     /// A session waits for the user. #FF4D4F
     static let alert = Color(red: 1.0, green: 77.0 / 255.0, blue: 79.0 / 255.0)
     /// A session has finished. #63E6A9
     static let mint = Color(red: 99.0 / 255.0, green: 230.0 / 255.0, blue: 169.0 / 255.0)
 
-    /// The colour a tool is known by, as red, green and blue from 0 to 1. None of them is
-    /// the alert red or the finished mint. `position` runs from 0 at a pet's left edge to
-    /// 1 at its right: Codex goes from blue to violet across its pet.
+    /// The colours a tool's pet runs through, from its upper left to its lower right, as
+    /// red, green and blue from 0 to 255. None of them is the alert red or the finished mint.
+    private static func run(for tool: AgentTool) -> [(Double, Double, Double)] {
+        switch tool {
+        case .claudeCode: [(233, 154, 110), (217, 119, 87), (185, 85, 58)]  // #E99A6E #D97757 #B9553A
+        case .codex: [(79, 156, 249), (139, 92, 246)]  // #4F9CF9 #8B5CF6
+        case .geminiCLI: [(78, 140, 255), (157, 123, 255), (240, 138, 168)]  // #4E8CFF #9D7BFF #F08AA8
+        case .cursorAgent: [(244, 244, 247), (180, 180, 192)]  // #F4F4F7 #B4B4C0
+        case .openCode: [(248, 233, 192), (221, 175, 99)]  // #F8E9C0 #DDAF63
+        case .aider: [(214, 244, 92), (120, 210, 58)]  // #D6F45C #78D23A
+        case .copilotCLI: [(167, 139, 250), (242, 127, 192)]  // #A78BFA #F27FC0
+        }
+    }
+
+    /// A tool's colour at `position` along its run: 0 at the pet's upper left, 1 at its
+    /// lower right.
     private static func components(
         for tool: AgentTool, across position: Double
     ) -> (red: Double, green: Double, blue: Double) {
-        switch tool {
-        case .claudeCode: return (217.0 / 255.0, 119.0 / 255.0, 87.0 / 255.0)  // #D97757
-        case .codex:
-            let blue = (79.0 / 255.0, 156.0 / 255.0, 249.0 / 255.0)  // #4F9CF9
-            let violet = (139.0 / 255.0, 92.0 / 255.0, 246.0 / 255.0)  // #8B5CF6
-            let part = min(max(position, 0), 1)
-            return (
-                blue.0 + (violet.0 - blue.0) * part, blue.1 + (violet.1 - blue.1) * part,
-                blue.2 + (violet.2 - blue.2) * part
-            )
-        case .geminiCLI: return (157.0 / 255.0, 123.0 / 255.0, 1.0)  // #9D7BFF
-        case .cursorAgent: return (215.0 / 255.0, 215.0 / 255.0, 219.0 / 255.0)  // #D7D7DB
-        case .openCode: return (240.0 / 255.0, 217.0 / 255.0, 168.0 / 255.0)  // #F0D9A8
-        case .aider: return (163.0 / 255.0, 230.0 / 255.0, 53.0 / 255.0)  // #A3E635
-        case .copilotCLI: return (242.0 / 255.0, 127.0 / 255.0, 192.0 / 255.0)  // #F27FC0
-        }
+        let colors = run(for: tool)
+        let place = (position.isFinite ? min(max(position, 0), 1) : 0.5) * Double(colors.count - 1)
+        let lower = min(Int(place), colors.count - 2)
+        let part = place - Double(lower)
+        let from = colors[lower]
+        let to = colors[lower + 1]
+        return (
+            (from.0 + (to.0 - from.0) * part) / 255, (from.1 + (to.1 - from.1) * part) / 255,
+            (from.2 + (to.2 - from.2) * part) / 255
+        )
     }
 
     /// A tool's colour at the given strength. 1 is the colour itself. Below 1 it is mixed

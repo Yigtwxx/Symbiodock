@@ -6,6 +6,10 @@ public enum IslandLayout {
     public static let hitPadding: CGFloat = 4
     /// Width added on each side of the notch while a track is shown collapsed.
     public static let collapsedWingWidth: CGFloat = 36
+    /// How far the island with its wings reaches below the notch. The camera housing hides
+    /// whatever lies behind it; this strip is what shows of the island's lower edge there,
+    /// so that a light running along its rim passes under the notch unbroken.
+    public static let notchLip: CGFloat = 2
 
     public static func frame(
         phase: IslandPhase, notch: CGRect, screenSize: CGSize, showsWings: Bool
@@ -14,7 +18,7 @@ public enum IslandLayout {
         case .collapsed, .stretching, .detached, .settling:
             guard showsWings else { return notch }
             return anchored(
-                width: notch.width + 2 * collapsedWingWidth, height: notch.height,
+                width: notch.width + 2 * collapsedWingWidth, height: notch.height + notchLip,
                 notch: notch, screenSize: screenSize)
         case .expanded:
             return anchored(
