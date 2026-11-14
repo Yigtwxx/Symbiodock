@@ -12,6 +12,18 @@
 
 **Spike result (2026-11-14, macOS 27.0.1):** the adapter's `get`, `stream` and `test` commands work; `test` exits 0; artwork arrives as base64 JPEG. `send` has not been tried. A live stream reports `duration` 9223372036854.7754, which must be treated as "no duration".
 
+## Changes after review (2026-11-14)
+
+- F1: island content is clipped to the shape; expanded content is top-aligned.
+- F2: helper output is split at byte 0x0A only; the parser takes `Data` (U+2028 in titles).
+- F3: no Apple Event after Music posts `Stopped` or quits; 2 s refresh quiet period; terminated apps do not count as running.
+- F4: every Music script runs inside `with timeout of 2 seconds`; scripts are compiled once; only the error code is logged.
+- F5: state script reads each field in its own `try` and joins with ASCII 31; parser splits on U+001F.
+- F6: artwork is fetched again on later refreshes while it is nil.
+- F7: `bufferingNewest(1)` streams, cancelled `run()` starts no provider, hidden progress bar without a fraction, `LevelBars` hidden from accessibility, `updates` doc comment.
+
+The code in the repository supersedes the code blocks below where they differ.
+
 ## Global Constraints
 
 - Minimum macOS: 14.0. Swift language version: 6.

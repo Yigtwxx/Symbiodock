@@ -59,4 +59,10 @@ struct MediaRemotePayloadParserTests {
             try MediaRemotePayloadParser.info(fromStreamLine: "not json")
         }
     }
+
+    @Test func lineSeparatorInsideATitleParses() throws {
+        let line = "{\"type\":\"data\",\"diff\":false,\"payload\":{\"title\":\"A\u{2028}B\",\"playing\":true}}"
+
+        #expect(try MediaRemotePayloadParser.info(fromStreamLine: Data(line.utf8))?.title == "A\u{2028}B")
+    }
 }

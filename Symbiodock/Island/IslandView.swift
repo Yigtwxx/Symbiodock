@@ -21,6 +21,13 @@ struct IslandView: View {
                 .fill(.black)
                 .overlay { content }
                 .frame(width: frame.width, height: frame.height)
+                // Content must not draw outside the shape while it springs between sizes.
+                .clipShape(UnevenRoundedRectangle(
+                    topLeadingRadius: 0,
+                    bottomLeadingRadius: radius,
+                    bottomTrailingRadius: radius,
+                    topTrailingRadius: 0,
+                    style: .continuous))
                 .offset(x: frame.minX, y: frame.minY)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .animation(.spring(response: 0.35, dampingFraction: 0.8), value: state.phase)

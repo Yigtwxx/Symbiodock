@@ -51,6 +51,8 @@ public protocol NowPlayingProvider: Sendable {
     /// False when the provider cannot work on this system.
     func isAvailable() async -> Bool
     /// Emits the current track, or nil when nothing is playing.
+    /// Each access starts a new observation (for `MediaRemoteProvider`, a new helper
+    /// process), so callers must read this once and keep the stream.
     /// The stream finishing means the provider has failed for good.
     var updates: AsyncStream<NowPlayingInfo?> { get }
     func send(_ command: PlaybackCommand) async

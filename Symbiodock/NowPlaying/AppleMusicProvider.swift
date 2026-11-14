@@ -10,9 +10,22 @@ struct AppleMusicProvider: NowPlayingProvider {
     let onConsentChange: @MainActor @Sendable (_ denied: Bool) -> Void
 
     /// Music must never be launched by us: every script is guarded by this.
+    /// An app that is quitting can stay listed for a moment; it counts as not running.
     @MainActor
     static var isMusicRunning: Bool {
-        !NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).isEmpty
+        NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+            .contains { !$0.isTerminated }
+    }
+
+    /// Music is local: a hung Music must not freeze the main thread for the default two minutes.
+    static func script(_ body: String) -> String {
+        """
+        tell application "Music"
+            with timeout of 2 seconds
+        \(body)
+            end timeout
+        end tell
+        """
     }
 
     func isAvailable() async -> Bool {
@@ -23,7 +36,7 @@ struct AppleMusicProvider: NowPlayingProvider {
 
     var updates: AsyncStream<NowPlayingInfo?> {
         let onConsentChange = onConsentChange
-        return AsyncStream { continuation in
+        return AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
             let task = Task { @MainActor in
                 let watcher = AppleMusicWatcher(
                     continuation: continuation, onConsentChange: onConsentChange)
@@ -46,7 +59,7 @@ struct AppleMusicProvider: NowPlayingProvider {
         }
         await MainActor.run {
             guard Self.isMusicRunning else { return }
-            _ = AppleScriptRunner.run("tell application \"Music\" to \(verb)")
+            _ = AppleScriptRunner.run(Self.script("        \(verb)"))
         }
     }
 }
@@ -64,16 +77,45 @@ private final class AppleMusicWatcher {
     /// Switch to `.polling` if the notification is not delivered on this macOS version.
     private static let mode: Mode = .notifications
 
-    private static let stateScript = """
-        tell application "Music"
-            if player state is stopped then return "stopped"
-            set t to current track
-            return (name of t) & linefeed & (artist of t) & linefeed & (album of t) & linefeed \
-        & (duration of t) & linefeed & (player position) & linefeed & (player state as text)
-        end tell
-        """
-    private static let artworkScript =
-        "tell application \"Music\" to get raw data of artwork 1 of current track"
+    /// Every field is read on its own: streams have no duration, and radio tracks can lack
+    /// an artist or album, which would otherwise fail the whole script. Fields are joined
+    /// with ASCII 31 because a title may contain a newline.
+    private static let stateScript = AppleMusicProvider.script("""
+                if player state is stopped then return "stopped"
+                set t to current track
+                set fName to ""
+                set fArtist to ""
+                set fAlbum to ""
+                set fDuration to ""
+                set fPosition to ""
+                set fState to ""
+                try
+                    set fName to name of t as text
+                end try
+                try
+                    set fArtist to artist of t as text
+                end try
+                try
+                    set fAlbum to album of t as text
+                end try
+                try
+                    set fDuration to duration of t as text
+                end try
+                try
+                    set fPosition to player position as text
+                end try
+                try
+                    set fState to player state as text
+                end try
+                set sep to ASCII character 31
+                return fName & sep & fArtist & sep & fAlbum & sep & fDuration & sep \
+        & fPosition & sep & fState
+        """)
+    private static let artworkScript = AppleMusicProvider.script(
+        "        get raw data of artwork 1 of current track")
+
+    /// After Music quits, answering with an Apple Event could launch it again.
+    private static let quitQuietPeriod: TimeInterval = 2
 
     private let continuation: AsyncStream<NowPlayingInfo?>.Continuation
     private let onConsentChange: @MainActor @Sendable (Bool) -> Void
@@ -81,6 +123,7 @@ private final class AppleMusicWatcher {
     private var timer: Timer?
     private var artworkKey: String?
     private var artwork: Data?
+    private var suppressRefreshUntil = Date.distantPast
 
     init(
         continuation: AsyncStream<NowPlayingInfo?>.Continuation,
@@ -107,8 +150,16 @@ private final class AppleMusicWatcher {
             let center = DistributedNotificationCenter.default()
             observers.append((center, center.addObserver(
                 forName: Notification.Name("com.apple.Music.playerInfo"), object: nil, queue: .main
-            ) { [weak self] _ in
-                MainActor.assumeIsolated { self?.refresh() }
+            ) { [weak self] note in
+                // Only the state string crosses into the main-actor closure.
+                let state = note.userInfo?["Player State"] as? String
+                MainActor.assumeIsolated {
+                    if state == "Stopped" {
+                        self?.musicDidStop()
+                    } else {
+                        self?.refresh()
+                    }
+                }
             }))
         case .polling:
             let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
@@ -128,12 +179,19 @@ private final class AppleMusicWatcher {
 
     /// Never ask a quitting Music for its state: the Apple Event would launch it again.
     private func musicDidQuit() {
+        musicDidStop()
+    }
+
+    /// Music posts "Stopped" while quitting, when it still looks like it is running.
+    private func musicDidStop() {
+        suppressRefreshUntil = Date().addingTimeInterval(Self.quitQuietPeriod)
         artworkKey = nil
         artwork = nil
         continuation.yield(nil)
     }
 
     private func refresh() {
+        guard Date() >= suppressRefreshUntil else { return }
         guard AppleMusicProvider.isMusicRunning else {
             continuation.yield(nil)
             return
@@ -153,7 +211,8 @@ private final class AppleMusicWatcher {
                 return
             }
             let key = [info.title, info.artist, info.album ?? ""].joined(separator: "\n")
-            if key != artworkKey {
+            // A failed fetch leaves `artwork` nil, so it is retried on the next refresh.
+            if key != artworkKey || artwork == nil {
                 artworkKey = key
                 let data = (try? AppleScriptRunner.run(Self.artworkScript).get())?.data
                 artwork = data.flatMap { $0.isEmpty ? nil : $0 }

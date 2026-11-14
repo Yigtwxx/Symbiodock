@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import SymbiodockCore
 
@@ -21,6 +22,30 @@ private struct FakeProvider: NowPlayingProvider {
 
     func isAvailable() async -> Bool { available }
     func send(_ command: PlaybackCommand) async { await log.record(command) }
+}
+
+private final class ReadFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    var wasRead: Bool { lock.withLock { value } }
+    func mark() { lock.withLock { value = true } }
+}
+
+/// Records whether `updates` was ever read.
+private struct WatchedProvider: NowPlayingProvider {
+    let flag = ReadFlag()
+    let checking = ReadFlag()
+    var updates: AsyncStream<NowPlayingInfo?> {
+        flag.mark()
+        return AsyncStream { $0.finish() }
+    }
+    func isAvailable() async -> Bool {
+        checking.mark()
+        // Cancellation ends the sleep early, so the run is cancelled while choosing.
+        try? await Task.sleep(for: .seconds(5))
+        return true
+    }
+    func send(_ command: PlaybackCommand) async {}
 }
 
 @MainActor
@@ -98,5 +123,20 @@ struct NowPlayingServiceTests {
         running.cancel()
         continuation.finish()
         await running.value
+    }
+
+    @Test func cancelledRunStartsNoProvider() async {
+        let provider = WatchedProvider()
+        let service = NowPlayingService(providers: [provider], onUpdate: { _ in })
+
+        let running = Task { await service.run() }
+        let deadline = ContinuousClock.now + .seconds(5)
+        while !provider.checking.wasRead, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        running.cancel()
+        await running.value
+
+        #expect(!provider.flag.wasRead)
     }
 }

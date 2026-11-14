@@ -243,6 +243,7 @@ struct NowPlayingInfo: Equatable, Sendable {
     var artworkData: Data?
     var duration: TimeInterval?
     var elapsed: TimeInterval?
+    var elapsedAt: Date?            // when elapsed was measured
     var isPlaying: Bool
     var sourceName: String        // "Music", "Spotify", "Safari", ...
 }
@@ -318,7 +319,7 @@ is missing (section 6).
 |---|---|
 | Nothing is playing | Idle state; at the notch the island is invisible |
 | Automation consent denied | `AppleMusicProvider` shows nothing; the island menu shows a "Music access needed" entry that opens the Automation settings pane |
-| MediaRemote helper exits | Restart with backoff, at most 3 times, then switch provider |
+| MediaRemote helper exits | Restart with backoff, at most 3 times, then switch provider. A helper that stayed up for more than 60 seconds resets the count. |
 | Artwork missing | Placeholder music glyph |
 | Display configuration changes | Recompute geometry, re-anchor to the saved anchor |
 | Saved anchor cannot be decoded | Fall back to `.notch` |

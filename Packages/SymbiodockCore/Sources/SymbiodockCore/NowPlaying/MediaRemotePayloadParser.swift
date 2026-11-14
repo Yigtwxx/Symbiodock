@@ -19,9 +19,15 @@ public enum MediaRemotePayloadParser {
         let artworkData: String?
     }
 
-    /// Returns nil when the line says nothing is playing. Throws on a malformed line.
+    /// Convenience for text input; forwards to the `Data` entry point.
     public static func info(fromStreamLine line: String) throws -> NowPlayingInfo? {
-        let payload = try JSONDecoder().decode(Envelope.self, from: Data(line.utf8)).payload
+        try info(fromStreamLine: Data(line.utf8))
+    }
+
+    /// Returns nil when the line says nothing is playing. Throws on a malformed line.
+    /// Takes bytes because the helper writes U+2028 and friends unescaped in titles.
+    public static func info(fromStreamLine line: Data) throws -> NowPlayingInfo? {
+        let payload = try JSONDecoder().decode(Envelope.self, from: line).payload
         guard let title = payload.title, !title.isEmpty else { return nil }
 
         let duration = payload.duration.flatMap { value in

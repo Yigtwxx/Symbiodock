@@ -32,6 +32,8 @@ public final class NowPlayingService {
                 }
             }
             guard let chosen else { break }
+            // Reading `updates` can start a process; do not do that for a cancelled run.
+            if Task.isCancelled { break }
 
             active = providers[chosen]
             for await info in providers[chosen].updates {

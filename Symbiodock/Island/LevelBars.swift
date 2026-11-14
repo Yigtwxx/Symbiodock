@@ -20,6 +20,7 @@ struct LevelBars: View {
             }
             .frame(height: Self.height)
         }
+        .accessibilityHidden(true)
     }
 
     private func level(_ index: Int, at time: TimeInterval) -> CGFloat {

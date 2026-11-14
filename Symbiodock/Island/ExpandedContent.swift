@@ -19,6 +19,7 @@ struct ExpandedContent: View {
             }
         }
         .padding(.top, topInset)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     private func track(_ info: NowPlayingInfo) -> some View {
@@ -72,15 +73,19 @@ private struct ProgressBar: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            let fraction = PlaybackProgress.fraction(for: info, at: context.date) ?? 0
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.18))
-                    Capsule().fill(.white.opacity(0.85))
-                        .frame(width: proxy.size.width * fraction)
+            // Reserve the height either way so the layout does not jump.
+            if let fraction = PlaybackProgress.fraction(for: info, at: context.date) {
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.white.opacity(0.18))
+                        Capsule().fill(.white.opacity(0.85))
+                            .frame(width: proxy.size.width * fraction)
+                    }
                 }
+                .frame(height: 4)
+            } else {
+                Color.clear.frame(height: 4)
             }
-            .frame(height: 4)
         }
     }
 }

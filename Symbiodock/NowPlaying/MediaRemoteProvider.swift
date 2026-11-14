@@ -39,7 +39,7 @@ struct MediaRemoteProvider: NowPlayingProvider {
 
     var updates: AsyncStream<NowPlayingInfo?> {
         let paths = paths
-        return AsyncStream { continuation in
+        return AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
             let task = Task.detached {
                 await Self.streamLoop(paths: paths, continuation: continuation)
                 continuation.finish()
@@ -103,9 +103,18 @@ struct MediaRemoteProvider: NowPlayingProvider {
 
         await withTaskCancellationHandler {
             do {
-                for try await line in pipe.fileHandleForReading.bytes.lines {
+                // Cut lines at 0x0A only: `.lines` also splits at U+2028, U+2029 and U+0085,
+                // which the helper writes unescaped inside titles.
+                var buffer = Data()
+                for try await byte in pipe.fileHandleForReading.bytes {
+                    guard byte == 0x0A else {
+                        buffer.append(byte)
+                        continue
+                    }
+                    defer { buffer.removeAll(keepingCapacity: true) }
+                    if buffer.isEmpty { continue }
                     do {
-                        continuation.yield(try MediaRemotePayloadParser.info(fromStreamLine: line))
+                        continuation.yield(try MediaRemotePayloadParser.info(fromStreamLine: buffer))
                     } catch {
                         // The line itself is never logged: it holds what the user is playing.
                         logger.error("Unreadable line from the MediaRemote helper.")
