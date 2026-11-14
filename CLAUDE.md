@@ -138,7 +138,8 @@ spec'te yazılı.
 - `mediaremote-adapter` macOS 27'de çalışıyor mu (milestone 2 başında deneme). Lisansı
   paketlemeden önce kontrol edilecek; GPL-3.0 ile uyumlu olmak zorunda.
 - `com.apple.Music.playerInfo` bildirimi macOS 27'de geliyor mu.
-- Global fare izleme izin istiyor mu; istiyorsa `NSEvent.mouseLocation` yoklamasına geçilir.
+- Fare izleme: `NSEvent` monitörleri macOS 27'de izin istemeden çalışıyor (sahibi 2026-11-14'te
+  elle doğruladı; Dock boyutu değişimi maddesi denenmedi).
 
 ## Doğrulama
 
