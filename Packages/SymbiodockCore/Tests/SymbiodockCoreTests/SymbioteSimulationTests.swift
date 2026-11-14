@@ -238,4 +238,151 @@ struct SymbioteSimulationTests {
         #expect((ys.min() ?? 0) > root.y - 30)
         #expect((ys.max() ?? 0) < root.y + 30)
     }
+
+    // MARK: Reaching for a surface
+
+    /// A simulation whose strands grow out of the island toward a flat surface along y = 16.
+    func reaching() -> SymbioteSimulation {
+        var configuration = SymbioteSimulation.Configuration()
+        configuration.tearDistance = 130
+        configuration.rootSpan = CGPoint(x: 80, y: 0)
+        return SymbioteSimulation(configuration: configuration, reaching: true)
+    }
+
+    /// Smallest distance from any drawn point to the surface.
+    func gapToSurface(_ frame: SymbioteFrame) -> CGFloat {
+        let ys = frame.ribbons.flatMap { $0 }.map(\.y) + frame.droplets.map { $0.center.y - $0.radius }
+        return (ys.min() ?? .infinity) - root.y
+    }
+
+    @Test func aReachingSimulationStartsWithNothingOnTheSurface() {
+        var simulation = reaching()
+        simulation.advance(root: root, island: island(at: 70), dt: 1.0 / 60)
+
+        #expect(!simulation.isTorn)
+        #expect(!simulation.isHolding)
+        #expect(!simulation.isFinished)
+        // Whatever has left the island is still far from the surface.
+        #expect(gapToSurface(simulation.frame) > 40)
+    }
+
+    @Test func feelersGrowTowardTheSurface() {
+        var simulation = reaching()
+        var previous = CGFloat.infinity
+        for _ in 0..<8 {
+            simulation.advance(root: root, island: island(at: 70), dt: 1.0 / 60)
+            let gap = gapToSurface(simulation.frame)
+            #expect(gap <= previous + 0.5)
+            previous = gap
+        }
+        #expect(previous < 20)
+        // Feelers carry a bead at the tip.
+        #expect(!simulation.frame.droplets.isEmpty)
+    }
+
+    @Test func everyStrandLandsAndHolds() {
+        var simulation = reaching()
+        hold(&simulation, at: 70, for: 0.6)
+
+        #expect(simulation.isHolding)
+        #expect(!simulation.isTorn)
+        let frame = simulation.frame
+        // Ten strands, and the mound each one spreads into where it holds the surface.
+        #expect(frame.ribbons.count == 20)
+        #expect(frame.droplets.isEmpty)
+        // Every strand ends flat on the surface: nothing is drawn past it.
+        #expect(abs(gapToSurface(frame)) < 0.01)
+    }
+
+    @Test func thinFeelersLandBeforeTheTrunk() {
+        var simulation = reaching()
+        hold(&simulation, at: 70, for: 0.2)
+
+        #expect(!simulation.isHolding)
+        // Some strands are on the surface already.
+        #expect(gapToSurface(simulation.frame) < 2)
+    }
+
+    @Test func aSurfaceIsHeldAlongItselfHoweverTheIslandIsPulled() {
+        var simulation = reaching()
+        // Dragged diagonally away from the hold.
+        let diagonal = CGPoint(x: root.x + 60, y: root.y + 60)
+        for _ in 0..<40 { simulation.advance(root: root, island: diagonal, dt: 1.0 / 60) }
+
+        #expect(simulation.isHolding)
+        // No strand ends above the surface, where a rotated spread would put some.
+        #expect(gapToSurface(simulation.frame) > -16)
+        let xs = simulation.frame.ribbons.flatMap { $0 }.filter { $0.y < root.y + 3 }.map(\.x)
+        #expect((xs.min() ?? 0) < root.x - 40)
+        #expect((xs.max() ?? 0) > root.x + 40)
+    }
+
+    @Test func heldStrandsTearLikeAnyOthers() {
+        var simulation = reaching()
+        hold(&simulation, at: 70, for: 0.6)
+        hold(&simulation, at: 131, for: 0.1)
+        #expect(simulation.isTorn)
+        #expect(!simulation.isHolding)
+        hold(&simulation, at: 131, for: 0.6)
+        #expect(simulation.isFinished)
+    }
+
+    @Test func feelersPulledOutOfRangeAreDrawnBackIn() {
+        var simulation = reaching()
+        hold(&simulation, at: 70, for: 0.05)
+        hold(&simulation, at: 140, for: 0.05)
+
+        #expect(simulation.isTorn)
+        #expect(!simulation.isHolding)
+        hold(&simulation, at: 140, for: 0.7)
+        #expect(simulation.isFinished)
+        #expect(simulation.frame.isEmpty)
+    }
+
+    @Test func tearCallsBackFeelersThatHaveNotLanded() {
+        var simulation = reaching()
+        hold(&simulation, at: 70, for: 0.1)
+        simulation.tear()
+
+        #expect(simulation.isTorn)
+        hold(&simulation, at: 70, for: 0.7)
+        #expect(simulation.isFinished)
+    }
+
+    @Test func thicknessScalesEveryStrand() {
+        func width(_ thickness: CGFloat) -> CGFloat {
+            var simulation = reaching()
+            hold(&simulation, at: 70, for: 0.6)
+            simulation.thickness = thickness
+            // A ribbon is one side forward and the other back: these two points face each
+            // other across the main strand, half way along it.
+            let polygon = simulation.frame.ribbons[0]
+            let near = polygon[polygon.count / 4]
+            let far = polygon[polygon.count - 1 - polygon.count / 4]
+            return hypot(near.x - far.x, near.y - far.y)
+        }
+        #expect(width(1) > 4)
+        #expect(abs(width(0.5) - width(1) / 2) < 0.6)
+        #expect(width(0) < 0.01)
+    }
+
+    @Test func reachingIsDeterministic() {
+        func run() -> SymbioteFrame {
+            var simulation = reaching()
+            hold(&simulation, at: 60, for: 0.17)
+            return simulation.frame
+        }
+        #expect(run() == run())
+    }
+
+    @Test func framesAddUpAndReportTheirBounds() {
+        var first = SymbioteFrame(ribbons: [[CGPoint(x: 0, y: 0), CGPoint(x: 10, y: 4)]])
+        let second = SymbioteFrame(droplets: [.init(center: CGPoint(x: 30, y: 30), radius: 5)])
+        #expect(SymbioteFrame().boundingBox == nil)
+
+        first.append(second)
+        #expect(first.ribbons.count == 1)
+        #expect(first.droplets.count == 1)
+        #expect(first.boundingBox == CGRect(x: 0, y: 0, width: 35, height: 35))
+    }
 }

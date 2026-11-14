@@ -110,4 +110,42 @@ struct SnapResolverTests {
             SnapResolver.anchor(forRelease: CGPoint(x: 900, y: 900), notch: notch, visibleFrame: .null)
                 == .notch)
     }
+
+    // MARK: Released while strands hold a surface
+
+    private func resolve(_ x: CGFloat, _ y: CGFloat, heldBy surface: IslandSurface?) -> IslandAnchor {
+        SnapResolver.anchor(
+            forRelease: CGPoint(x: x, y: y), attachedTo: surface, notch: notch, visibleFrame: visible)
+    }
+
+    @Test func withNoHoldTheNearestPlaceRuleApplies() {
+        #expect(resolve(756, 100, heldBy: nil) == resolve(756, 100))
+        #expect(resolve(300, 700, heldBy: nil) == resolve(300, 700))
+    }
+
+    @Test func aHeldNotchTakesTheIslandBackEvenFromOutsideItsCaptureRadius() {
+        #expect(resolve(756, 190) != .notch)
+        #expect(resolve(756, 190, heldBy: .notch) == .notch)
+    }
+
+    @Test func aHeldEdgeWinsOverANearerOne() {
+        // The center is nearer the top, but the strands hold the left edge.
+        expectEdge(resolve(110, 122), .top, 110.0 / 1512)
+        expectEdge(resolve(110, 122 + 400, heldBy: .edge(.left)), .left, 490.0 / 880)
+    }
+
+    @Test func aHeldEdgeWinsOverTheNotchCapture() {
+        expectEdge(resolve(756, 100, heldBy: .edge(.top)), .top, 0.5)
+    }
+
+    @Test func nearTheEndOfAHeldEdgeTheIslandGoesToThatCorner() {
+        #expect(resolve(60, 500, heldBy: .edge(.bottom)) == .corner(.bottomLeft))
+        #expect(resolve(1500, 500, heldBy: .edge(.bottom)) == .corner(.bottomRight))
+        #expect(resolve(700, 60, heldBy: .edge(.right)) == .corner(.topRight))
+        expectEdge(resolve(200, 500, heldBy: .edge(.bottom)), .bottom, 200.0 / 1512)
+    }
+
+    @Test func aHeldEdgeWithABrokenPointFallsBackToTheNotch() {
+        #expect(resolve(.nan, 100, heldBy: .edge(.top)) == .notch)
+    }
 }

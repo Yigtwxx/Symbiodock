@@ -54,6 +54,42 @@ public enum SnapResolver {
         return .edge(nearest.0, fraction: Double(min(max(along, 0), 1)))
     }
 
+    /// Where the island settles when it is released while its strands hold `surface`: on that
+    /// surface, whatever else is nearer. With no hold it is the plain nearest-place rule.
+    public static func anchor(
+        forRelease point: CGPoint, attachedTo surface: IslandSurface?, notch: CGRect,
+        visibleFrame: CGRect
+    ) -> IslandAnchor {
+        guard let surface else {
+            return anchor(forRelease: point, notch: notch, visibleFrame: visibleFrame)
+        }
+        guard case .edge(let edge) = surface else { return .notch }
+        guard point.x.isFinite, point.y.isFinite, !visibleFrame.isNull, !visibleFrame.isInfinite
+        else { return .notch }
+
+        let x = min(max(point.x, visibleFrame.minX), visibleFrame.maxX)
+        let y = min(max(point.y, visibleFrame.minY), visibleFrame.maxY)
+        // Only how far along the held edge counts: the island is pulled in against it.
+        let ends: [(ScreenCorner, CGFloat)]
+        let along: CGFloat
+        switch edge {
+        case .top, .bottom:
+            let (left, right): (ScreenCorner, ScreenCorner) =
+                edge == .top ? (.topLeft, .topRight) : (.bottomLeft, .bottomRight)
+            ends = [(left, x - visibleFrame.minX), (right, visibleFrame.maxX - x)]
+            along = visibleFrame.width > 0 ? (x - visibleFrame.minX) / visibleFrame.width : 0.5
+        case .left, .right:
+            let (top, bottom): (ScreenCorner, ScreenCorner) =
+                edge == .left ? (.topLeft, .bottomLeft) : (.topRight, .bottomRight)
+            ends = [(top, y - visibleFrame.minY), (bottom, visibleFrame.maxY - y)]
+            along = visibleFrame.height > 0 ? (y - visibleFrame.minY) / visibleFrame.height : 0.5
+        }
+        if let corner = ends.filter({ $0.1 <= cornerCaptureRadius }).min(by: { $0.1 < $1.1 }) {
+            return .corner(corner.0)
+        }
+        return .edge(edge, fraction: Double(min(max(along, 0), 1)))
+    }
+
     private static func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
         hypot(a.x - b.x, a.y - b.y)
     }

@@ -32,6 +32,28 @@ public struct SymbioteFrame: Equatable, Sendable {
 
     /// True when there is nothing to draw.
     public var isEmpty: Bool { ribbons.isEmpty && droplets.isEmpty }
+
+    /// Adds another frame's shapes to this one.
+    public mutating func append(_ other: SymbioteFrame) {
+        ribbons += other.ribbons
+        droplets += other.droplets
+        highlights += other.highlights
+    }
+
+    /// The smallest rect holding every shape, or nil when there is nothing to draw.
+    public var boundingBox: CGRect? {
+        var box: CGRect?
+        func include(_ rect: CGRect) { box = box?.union(rect) ?? rect }
+        for polygon in ribbons {
+            for point in polygon { include(CGRect(origin: point, size: .zero)) }
+        }
+        for droplet in droplets {
+            include(CGRect(
+                x: droplet.center.x - droplet.radius, y: droplet.center.y - droplet.radius,
+                width: droplet.radius * 2, height: droplet.radius * 2))
+        }
+        return box
+    }
 }
 
 /// Sticky strands between the place the island was attached (the root) and the island.
@@ -50,6 +72,9 @@ public struct SymbioteSimulation: Sendable {
         public var islandSpread = CGSize(width: 70, height: 9)
         /// Radius of the main strand where it meets a body.
         public var endRadius: CGFloat = 15
+        /// Set when the root is a flat surface rather than a body: strands take hold of it
+        /// along this vector (its length is half the span) however the island is pulled.
+        public var rootSpan: CGPoint?
 
         /// The default configuration.
         public init() {}
@@ -68,6 +93,10 @@ public struct SymbioteSimulation: Sendable {
     static let minimumNeckRadius: CGFloat = 1.3
     /// Strands at least this thick where they meet a body get lumps and a sheen.
     static let texturedRadius: CGFloat = 4
+    /// A reaching simulation sends its strands out one after another, thinnest first.
+    static let reachStagger = 0.014
+    /// How long a strand that has just landed takes to spread out on the surface.
+    static let contactDuration = 0.14
     /// Where the light comes from, for the sheen: up and to the left.
     static let lightDirection = CGPoint(x: -0.6, y: -0.8)
 
@@ -109,6 +138,8 @@ public struct SymbioteSimulation: Sendable {
     }
 
     private enum Phase: Sendable {
+        /// Growing out of the island toward the root; not yet holding it.
+        case reaching(elapsed: Double)
         case attached
         case pinching(elapsed: Double)
         case recoiling(elapsed: Double, Recoil)
@@ -118,6 +149,8 @@ public struct SymbioteSimulation: Sendable {
     private struct Strand: Sendable {
         var nodes: [Node] = []
         var phase: Phase = .attached
+        /// 0 when the strand has just landed on the root, 1 once it has spread out there.
+        var contact: CGFloat = 1
     }
 
     // MARK: State
@@ -130,25 +163,49 @@ public struct SymbioteSimulation: Sendable {
     private var accumulator = 0.0
     private var hasInput = false
 
+    /// Scales every strand's thickness; 1 is the normal look, 0 draws nothing.
+    /// Lowered while a landed island soaks its strands back up.
+    public var thickness: CGFloat = 1
+
     /// Creates a simulation with nothing to draw until the first `advance`.
-    public init(configuration: Configuration = Configuration()) {
+    /// - Parameter reaching: false starts with every strand joining the two bodies (the island
+    ///   is about to be pulled off its root); true starts with none, and the strands grow out
+    ///   of the island until they take hold of the root.
+    public init(configuration: Configuration = Configuration(), reaching: Bool = false) {
         self.configuration = configuration
-        strands = Self.blueprints.map { _ in Strand() }
+        strands = Self.blueprints.map { _ in
+            Strand(phase: reaching ? .reaching(elapsed: 0) : .attached)
+        }
     }
 
-    /// True from the step on which the main strand starts to break.
+    /// True from the step on which the main strand starts to break (or is called back before
+    /// it ever took hold).
     public var isTorn: Bool {
-        if case .attached = strands[0].phase { return false }
-        return true
+        switch strands[0].phase {
+        case .reaching, .attached: return false
+        case .pinching, .recoiling, .gone: return true
+        }
+    }
+
+    /// True while the main strand joins the island to the root.
+    public var isHolding: Bool {
+        if case .attached = strands[0].phase { return true }
+        return false
     }
 
     /// Breaks every strand that is still attached, right now. The drag controller calls this
     /// when `IslandState.drag(to:)` returns true, so the state and the effect cannot disagree
-    /// about whether the island has torn. Strands already breaking or gone are left alone.
+    /// about whether the island has torn. Strands still reaching are called back; strands
+    /// already breaking or gone are left alone.
     public mutating func tear() {
         for index in strands.indices {
-            if case .attached = strands[index].phase {
+            switch strands[index].phase {
+            case .attached:
                 strands[index].phase = .pinching(elapsed: 0)
+            case .reaching(let elapsed):
+                strands[index].phase = retraction(index, elapsed)
+            case .pinching, .recoiling, .gone:
+                break
             }
         }
     }
@@ -198,8 +255,22 @@ public struct SymbioteSimulation: Sendable {
         for index in strands.indices {
             let blueprint = Self.blueprints[index]
             switch strands[index].phase {
+            case .reaching(let elapsed):
+                follow(index, h)
+                let next = elapsed + h
+                if distance > configuration.tearDistance * blueprint.tearScale {
+                    // Out of range before it landed: the feeler is drawn back in.
+                    strands[index].phase = retraction(index, elapsed)
+                } else if Self.reachProgress(index, next) >= 1 {
+                    strands[index].phase = .attached
+                    strands[index].contact = 0
+                } else {
+                    strands[index].phase = .reaching(elapsed: next)
+                }
             case .attached:
                 follow(index, h)
+                strands[index].contact = min(
+                    strands[index].contact + CGFloat(h / Self.contactDuration), 1)
                 if distance > configuration.tearDistance * blueprint.tearScale {
                     strands[index].phase = .pinching(elapsed: 0)
                 }
@@ -257,11 +328,12 @@ public struct SymbioteSimulation: Sendable {
     private func attachments(_ index: Int) -> (root: CGPoint, island: CGPoint) {
         let blueprint = Self.blueprints[index]
         let across = axes().across
+        // A flat surface is held along itself; a body is held across the pull, scaled per
+        // axis so an attachment never leaves the body, whatever the pull direction.
+        let rootSpan = configuration.rootSpan ?? CGPoint(
+            x: across.x * configuration.rootSpread.width, y: across.y * configuration.rootSpread.height)
         return (
-            // Scaled per axis so an attachment never leaves its body, whatever the pull direction.
-            root + CGPoint(
-                x: across.x * configuration.rootSpread.width, y: across.y * configuration.rootSpread.height)
-                * blueprint.offset,
+            root + rootSpan * blueprint.offset,
             island + CGPoint(
                 x: across.x * configuration.islandSpread.width, y: across.y * configuration.islandSpread.height)
                 * blueprint.offset
@@ -281,6 +353,31 @@ public struct SymbioteSimulation: Sendable {
             let p = a * ((1 - u) * (1 - u)) + control * (2 * u * (1 - u)) + b * (u * u)
             return Node(position: p)
         }
+    }
+
+    /// How far a reaching strand has grown, 0...1. Thin strands set off first and are quick;
+    /// the trunk follows, so the island is seen to feel for the surface before it grabs it.
+    static func reachProgress(_ index: Int, _ elapsed: Double) -> Double {
+        let delay = Double(blueprints.count - 1 - index) * reachStagger
+        let duration = 0.11 + 0.09 * Double(blueprints[index].weight)
+        let t = min(max((elapsed - delay) / duration, 0), 1)
+        // Shoots out and slows as it arrives.
+        return 1 - (1 - t) * (1 - t) * (1 - t)
+    }
+
+    /// The feeler of a strand that never landed, drawn back into the island.
+    private func retraction(_ index: Int, _ elapsed: Double) -> Phase {
+        let progress = CGFloat(Self.reachProgress(index, elapsed))
+        let line = centerline(strands[index].nodes.map(\.position))
+        let total = line.lengths.last ?? 0
+        let length = total * progress
+        guard length > 0.5 else { return .gone }
+        let (_, b) = attachments(index)
+        let tip = point(on: line, at: total - length)
+        let endRadius = configuration.endRadius * Self.blueprints[index].weight
+        return .recoiling(elapsed: 0, Recoil(
+            rootLength: 0, islandLength: length, rootDirection: CGPoint(x: 0, y: 1),
+            islandDirection: (tip - b).normalized, tipRadius: max(0.35 * endRadius, 1.2)))
     }
 
     private func makeRecoil(_ index: Int, _ distance: CGFloat) -> Recoil {
@@ -315,6 +412,10 @@ public struct SymbioteSimulation: Sendable {
             let (a, b) = attachments(index)
 
             switch strands[index].phase {
+            case .reaching(let elapsed):
+                appendFeeler(
+                    to: &frame, index, endRadius: endRadius, distance: distance,
+                    progress: CGFloat(Self.reachProgress(index, elapsed)))
             case .attached:
                 appendBridge(to: &frame, index, endRadius: endRadius, distance: distance, pinch: 0)
             case .pinching(let elapsed):
@@ -349,9 +450,13 @@ public struct SymbioteSimulation: Sendable {
         let flareLength = max(1.7 * endRadius, 9)
         let breakLength = total * blueprint.neck
 
+        // A strand that has just landed spreads out on the root, a little too far at first.
+        let contact = strands[index].contact
+        let splat = contact + 1.6 * sin(.pi * contact) * (1 - contact)
         let radii = line.lengths.map { s -> CGFloat in
             // Liquid-bridge profile: flares exponentially into both bodies.
-            let flare = min(exp(-s / flareLength) + exp(-(total - s) / flareLength), 1)
+            let flare = min(
+                exp(-s / flareLength) * splat + exp(-(total - s) / flareLength), max(splat, 1))
             var radius = neck + (endRadius - neck) * flare
             // Thicker strands are slightly lumpy, like something organic rather than a drawn line.
             if endRadius >= Self.texturedRadius {
@@ -363,13 +468,50 @@ public struct SymbioteSimulation: Sendable {
             // With the bodies together there is no gap to bridge; without this the flares
             // would poke out of a resting island as bumps.
             radius *= smoothstep(0, 24, distance)
-            return radius
+            return radius * thickness
         }
-        frame.ribbons.append(ribbon(line.points, radii))
+        frame.ribbons.append(ribbon(line.points, radii, firstNormal: surfaceTangent))
+        appendFoot(to: &frame, at: line.points[0], radius: radii[0])
         if endRadius >= Self.texturedRadius {
             if let sheen = highlight(line.points, radii) { frame.highlights.append(sheen) }
             if let rim = rimLight(line.points, radii) { frame.highlights.append(rim) }
         }
+    }
+
+    /// A strand on its way out of the island: thick where it leaves, a thin tip with a bead.
+    private func appendFeeler(
+        to frame: inout SymbioteFrame, _ index: Int, endRadius: CGFloat, distance: CGFloat,
+        progress: CGFloat
+    ) {
+        let blueprint = Self.blueprints[index]
+        let line = centerline(strands[index].nodes.map(\.position))
+        let total = max(line.lengths.last ?? 0, 0.001)
+        // The strand runs root to island; the feeler is its island end.
+        let start = total * (1 - progress)
+        guard total - start > 0.5 else { return }
+        let neck = Self.neckRadius(
+            distance: distance, endRadius: endRadius, tearDistance: configuration.tearDistance * blueprint.tearScale)
+        let flareLength = max(1.7 * endRadius, 9)
+        let tipRadius = max(0.6 * neck, 0.8)
+        let scale = smoothstep(0, 24, distance) * thickness
+
+        var points = [point(on: line, at: start)]
+        var lengths = [start]
+        for i in line.points.indices where line.lengths[i] > start + 0.5 {
+            points.append(line.points[i])
+            lengths.append(line.lengths[i])
+        }
+        guard points.count >= 2 else { return }
+        let radii = lengths.map { s -> CGFloat in
+            let body = neck + (endRadius - neck) * min(exp(-(total - s) / flareLength), 1)
+            return (tipRadius + (body - tipRadius) * smoothstep(0, 16, s - start)) * scale
+        }
+        frame.ribbons.append(ribbon(points, radii))
+        if endRadius >= Self.texturedRadius, let sheen = highlight(points, radii) {
+            frame.highlights.append(sheen)
+        }
+        let bead = max(1.5 * neck, 1.5) * scale
+        if bead > 0.3 { frame.droplets.append(.init(center: points[0], radius: bead)) }
     }
 
     /// One half of a torn strand, pulling back into its body with a whip and a bead at its tip.
@@ -379,6 +521,8 @@ public struct SymbioteSimulation: Sendable {
         elapsed: Double, side: CGFloat
     ) {
         guard length > 0.5, fullLength > 0.5 else { return }
+        // `side` 1 is the half left on the root.
+        let onSurface = side > 0 && configuration.rootSpan != nil
         let across = CGPoint(x: -direction.y, y: direction.x)
         // The stub melts into the body as it gets short.
         let fade = min(1, length / 14)
@@ -390,14 +534,15 @@ public struct SymbioteSimulation: Sendable {
             let q = CGFloat(i) / CGFloat(count - 1)
             points.append(anchor + direction * (length * q) + across * (whip * q * q))
             let taper = (1 - q) * (1 - q)
-            radii.append((tipRadius + (endRadius - tipRadius) * taper) * fade)
+            radii.append((tipRadius + (endRadius - tipRadius) * taper) * fade * thickness)
         }
-        frame.ribbons.append(ribbon(points, radii))
+        frame.ribbons.append(ribbon(points, radii, firstNormal: onSurface ? surfaceTangent : nil))
+        if onSurface { appendFoot(to: &frame, at: anchor, radius: radii[0]) }
         if endRadius >= Self.texturedRadius, let sheen = highlight(points, radii) {
             frame.highlights.append(sheen)
         }
         if let tip = points.last {
-            let radius = tipRadius * 1.25 * fade
+            let radius = tipRadius * 1.25 * fade * thickness
             frame.droplets.append(.init(center: tip, radius: radius))
             if radius >= 2 {
                 // A glint on the bead, on the lit side.
@@ -408,6 +553,43 @@ public struct SymbioteSimulation: Sendable {
                 })
             }
         }
+    }
+
+    /// Unit vector along the surface the root is, or nil when the root is a body.
+    private var surfaceTangent: CGPoint? {
+        configuration.rootSpan.map(\.normalized)
+    }
+
+    /// Where a strand holds a flat surface it spreads into a low mound lying on it.
+    private func appendFoot(to frame: inout SymbioteFrame, at point: CGPoint, radius: CGFloat) {
+        guard let tangent = surfaceTangent, radius > 0.4 else { return }
+        // The mound rises on the island's side of the surface.
+        var up = CGPoint(x: -tangent.y, y: tangent.x)
+        let toIsland = island - root
+        if up.x * toIsland.x + up.y * toIsland.y < 0 { up = up * -1 }
+        let halfWidth = 1.7 * radius
+        let height = 0.6 * radius
+        var polygon: [CGPoint] = []
+        let steps = 10
+        for step in 0...steps {
+            let angle = CGFloat.pi * CGFloat(step) / CGFloat(steps)
+            polygon.append(point + tangent * (halfWidth * cos(angle)) + up * (height * sin(angle)))
+        }
+        // Ribbons all wind the same way; a shape wound the other way would punch a hole in
+        // them under the nonzero fill rule.
+        if signedArea(polygon) > 0 { polygon.reverse() }
+        frame.ribbons.append(polygon)
+    }
+
+    /// Shoelace area; ribbons built by `ribbon` are negative.
+    private func signedArea(_ polygon: [CGPoint]) -> CGFloat {
+        var sum: CGFloat = 0
+        for i in polygon.indices {
+            let a = polygon[i]
+            let b = polygon[(i + 1) % polygon.count]
+            sum += a.x * b.y - b.x * a.y
+        }
+        return sum / 2
     }
 
     // MARK: Geometry
@@ -486,18 +668,38 @@ public struct SymbioteSimulation: Sendable {
     }
 
     /// The outline of a curve with a radius at every point: one side forward, the other back.
-    private func ribbon(_ points: [CGPoint], _ radii: [CGFloat]) -> [CGPoint] {
+    /// - Parameter firstNormal: when set, the first end is cut along this unit vector instead
+    ///   of square to the curve, so a strand that meets a surface ends flat on it.
+    private func ribbon(
+        _ points: [CGPoint], _ radii: [CGFloat], firstNormal: CGPoint? = nil
+    ) -> [CGPoint] {
         var left: [CGPoint] = []
         var right: [CGPoint] = []
         for i in points.indices {
             let before = points[max(i - 1, 0)]
             let after = points[min(i + 1, points.count - 1)]
             let tangent = (after - before).normalized
-            let normal = CGPoint(x: -tangent.y, y: tangent.x)
+            var normal = CGPoint(x: -tangent.y, y: tangent.x)
+            if i == 0, let firstNormal {
+                // Keep the side the outline is already on.
+                let sameSide = normal.x * firstNormal.x + normal.y * firstNormal.y >= 0
+                normal = sameSide ? firstNormal : firstNormal * -1
+            }
             left.append(points[i] + normal * radii[i])
             right.append(points[i] - normal * radii[i])
         }
-        return left + right.reversed()
+        var outline = left + right.reversed()
+        if let firstNormal, let base = points.first, let end = points.last {
+            // A strand that leaves the surface at a slant would bulge through it just past
+            // its base; whatever crosses the surface is laid back onto it.
+            var up = CGPoint(x: -firstNormal.y, y: firstNormal.x)
+            if up.x * (end.x - base.x) + up.y * (end.y - base.y) < 0 { up = up * -1 }
+            for i in outline.indices {
+                let height = (outline[i].x - base.x) * up.x + (outline[i].y - base.y) * up.y
+                if height < 0 { outline[i] = outline[i] - up * height }
+            }
+        }
+        return outline
     }
 }
 
