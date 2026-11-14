@@ -6,7 +6,8 @@ notch with a symbiote-like stretch effect to dock on any screen edge or corner.
 
 ## Status
 
-Early development. Nothing is runnable yet.
+Early development. The notch island and hover expansion work; Now Playing,
+dragging and the symbiote effect are not built yet.
 
 ## Planned for the first version
 

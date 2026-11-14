@@ -61,9 +61,9 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 
 ## Durum
 
-- Faz 0-1 tamam: çekirdek paket (geometri, durum, yerleşim) testleriyle; agent uygulama
-  açılıyor, menü çubuğu öğesinden çıkılabiliyor.
-- Çentik paneli, hover, müzik verisi, sürükleme ve symbiote efekti yok. Faz 2 başlamadı.
+- Milestone 0 ve 1 tamamlandı: agent uygulama, menü çubuğu öğesi, çentik adası, hover ile
+  büyüme/küçülme, ada dışındaki tıklamaların geçmesi.
+- Müzik verisi, sürükleme ve symbiote efekti yok.
 - Xcode 27.2 ve XcodeGen 2.45.4 kurulu, `xcode-select` ile seçili.
 
 ## "Yapılacakları yap" denince
@@ -109,7 +109,7 @@ Durmadan devam edilecek durumlar:
 - [x] **Faz 1 — Milestone 0: iskelet.** Çekirdek paket (geometri, durum, yerleşim) testleriyle;
       agent uygulama açılıyor; menü çubuğu öğesinden çıkılabiliyor.
       Plan: `docs/superpowers/plans/2026-11-14-m0-m1-notch-island.md`, Görev 1-3.
-- [ ] **Faz 2 — Milestone 1: çentik adası.** Şeffaf panel çentikte; hover ile büyüyor ve
+- [x] **Faz 2 — Milestone 1: çentik adası.** Şeffaf panel çentikte; hover ile büyüyor ve
       küçülüyor; ada dışındaki tıklamalar alttaki uygulamaya geçiyor.
       Plan: aynı dosya, Görev 4-5.
 - [ ] **Faz 3 — Milestone 2: Now Playing.** Plan yok, yazılacak (spec 5.7, 5.8). İlk görev
