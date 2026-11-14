@@ -2370,18 +2370,20 @@ enum AgentPetReliefs {
         }
     }
 
-    /// A plump creature: a round body ringed by eight lobes, like a burst, with two tall
-    /// narrow eyes, each one line wide.
+    /// A plump creature standing on two small feet: one big round body with five soft
+    /// bumps (on top, at the shoulders, at the hips), so its outline is a rounded star,
+    /// and two small upright eyes, each one line wide.
     private static var claudeCode: AgentPetRelief {
-        let body = dome(0.50, 0.50, 0.31, 0.29, 0.56)
-        let lobes = union(
-            dome(0.50, 0.22, 0.16, 0.15, 0.42), dome(0.50, 0.78, 0.16, 0.15, 0.42),
-            dome(0.19, 0.50, 0.15, 0.16, 0.40), dome(0.81, 0.50, 0.15, 0.16, 0.40),
-            dome(0.28, 0.30, 0.16, 0.16, 0.42), dome(0.72, 0.30, 0.16, 0.16, 0.42),
-            dome(0.28, 0.70, 0.16, 0.16, 0.42), dome(0.72, 0.70, 0.16, 0.16, 0.42))
+        let body = dome(0.50, 0.48, 0.37, 0.33, 0.58)
+        let bumps = union(
+            dome(0.50, 0.19, 0.18, 0.15, 0.34),
+            dome(0.21, 0.36, 0.17, 0.17, 0.34), dome(0.79, 0.36, 0.17, 0.17, 0.34),
+            dome(0.27, 0.70, 0.18, 0.15, 0.34), dome(0.73, 0.70, 0.18, 0.15, 0.34))
+        let feet = union(
+            dome(0.38, 0.90, 0.10, 0.075, 0.26), dome(0.62, 0.90, 0.10, 0.075, 0.26))
         return cut(
-            union(body, lobes),
-            box(0.38, 0.39, 0.43, 0.59), box(0.57, 0.39, 0.62, 0.59))
+            union(body, bumps, feet),
+            box(0.38, 0.40, 0.43, 0.54), box(0.57, 0.40, 0.62, 0.54))
     }
 
     /// A plump cloud of round lobes with a prompt glowing on its front: ">" and "_".

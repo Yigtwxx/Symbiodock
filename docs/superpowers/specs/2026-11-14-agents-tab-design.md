@@ -295,7 +295,7 @@ state uses.
 
 | Tool | Colour | Pet |
 |---|---|---|
-| Claude Code | `#D97757` | A plump creature: a round body ringed by eight lobes, like a burst, with two tall narrow eyes |
+| Claude Code | `#D97757` | A plump creature on two small feet: one big round body with five soft bumps, so its outline is a rounded star, and two small upright eyes |
 | Codex | `#4F9CF9` → `#8B5CF6` | A plump cloud of round lobes, blue at its left and violet at its right, with a prompt glowing on its front: `>` and `_` |
 | Gemini CLI | `#9D7BFF` | A four-pointed star, faceted like a cut stone, and a small one far behind it |
 | Cursor Agent | `#D7D7DB` | A cube seen from a corner; the light gives each of its three faces its own tone |
