@@ -2,7 +2,7 @@ import CoreGraphics
 
 /// Island frames in panel-local coordinates.
 public enum IslandLayout {
-    public static let expandedSize = CGSize(width: 440, height: 134)
+    public static let expandedSize = CGSize(width: 480, height: 134)
     public static let hitPadding: CGFloat = 4
     /// Width added on each side of the notch while a track is shown collapsed.
     public static let collapsedWingWidth: CGFloat = 36

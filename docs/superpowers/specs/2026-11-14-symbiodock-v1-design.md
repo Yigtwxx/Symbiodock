@@ -174,7 +174,7 @@ to the island frame.
   paused player does not occupy the menu bar; they never appear for a track that
   was already paused. The expanded island still shows a paused track.
 - At the notch, expanded: grows downward and sideways from the notch, about
-  440 × 134 pt (changed from 360 × 150 on 2026-11-14: the owner found it a little
+  480 × 134 pt (changed from 360 × 150 on 2026-11-14: the owner found it a little
   thick and asked for longer and thinner, then set this size).
 - At an edge or corner: docked flush against the border of the display's
   `visibleFrame` (so it never covers the menu bar or the system Dock), shaped the
