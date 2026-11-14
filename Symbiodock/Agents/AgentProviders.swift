@@ -7,6 +7,7 @@ enum AgentProviders {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return [
             ClaudeCodeProvider(home: home.appendingPathComponent(".claude", isDirectory: true)),
+            CodexProvider(home: home.appendingPathComponent(".codex", isDirectory: true)),
         ]
     }
 }
