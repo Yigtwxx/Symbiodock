@@ -5,6 +5,7 @@ extension ScreenMetrics {
     init(screen: NSScreen) {
         self.init(
             frame: screen.frame,
+            visibleFrame: screen.visibleFrame,
             safeAreaTop: screen.safeAreaInsets.top,
             auxiliaryTopLeftWidth: screen.auxiliaryTopLeftArea?.width,
             auxiliaryTopRightWidth: screen.auxiliaryTopRightArea?.width)

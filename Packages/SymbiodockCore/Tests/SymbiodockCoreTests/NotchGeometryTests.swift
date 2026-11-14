@@ -5,7 +5,8 @@ import Testing
 struct NotchGeometryTests {
     @Test func notchDisplayUsesTheGapBetweenAuxiliaryAreas() {
         let metrics = ScreenMetrics(
-            frame: CGRect(x: 0, y: 0, width: 1512, height: 982), safeAreaTop: 32,
+            frame: CGRect(x: 0, y: 0, width: 1512, height: 982),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1512, height: 982), safeAreaTop: 32,
             auxiliaryTopLeftWidth: 662, auxiliaryTopRightWidth: 662)
 
         #expect(NotchGeometry.notchRect(for: metrics)
@@ -14,7 +15,8 @@ struct NotchGeometryTests {
 
     @Test func displayWithoutNotchGetsCenteredVirtualNotch() {
         let metrics = ScreenMetrics(
-            frame: CGRect(x: 1512, y: 0, width: 1920, height: 1080), safeAreaTop: 0,
+            frame: CGRect(x: 1512, y: 0, width: 1920, height: 1080),
+            visibleFrame: CGRect(x: 1512, y: 0, width: 1920, height: 1080), safeAreaTop: 0,
             auxiliaryTopLeftWidth: nil, auxiliaryTopRightWidth: nil)
 
         #expect(NotchGeometry.notchRect(for: metrics)
