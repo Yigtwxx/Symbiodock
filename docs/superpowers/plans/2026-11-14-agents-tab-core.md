@@ -1390,7 +1390,7 @@ struct CodexRolloutParserTests {
     }
 
     @Test func readsARootThread() throws {
-        let meta = try #require(CodexRolloutParser.meta(fromHead: data([rootMeta, "{\"cut")))
+        let meta = try #require(CodexRolloutParser.meta(fromHead: data([rootMeta, "{\"cut"])))
         #expect(meta.id == "t-root")
         #expect(meta.cwd == "/Users/me/Projects/Demo")
         #expect(meta.originator == "Codex Desktop")
@@ -1451,6 +1451,15 @@ struct CodexRolloutParserTests {
                 == nil)
         // A turn line without a readable time is not trusted.
         #expect(CodexRolloutParser.turnState(inTail: data([event("task_started", at: "soon")])) == nil)
+    }
+
+    @Test func hostileTimestampsAreNotTrusted() {
+        for stamp in ["", "99999999999-01-01T00:00:00Z", "2026-13-45T99:99:99Z", "1e999", "2026-11-14T18:00:00+99:99"] {
+            let tail = data(["{\"timestamp\":\"\(stamp)\",\"type\":\"event_msg\",\"payload\":{\"type\":\"task_started\"}}"])
+            _ = CodexRolloutParser.turnState(inTail: tail)
+        }
+        let number = data(["{\"timestamp\":1e999,\"type\":\"event_msg\",\"payload\":{\"type\":\"task_started\"}}"])
+        #expect(CodexRolloutParser.turnState(inTail: number) == nil)
     }
 
     @Test func cutLinesAndOtherLineTypesAreSkipped() throws {

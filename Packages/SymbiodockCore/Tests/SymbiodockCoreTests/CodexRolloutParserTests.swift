@@ -1,0 +1,150 @@
+import Foundation
+import Testing
+@testable import SymbiodockCore
+
+struct CodexRolloutParserTests {
+    private func data(_ lines: [String]) -> Data { Data(lines.joined(separator: "\n").utf8) }
+
+    private let rootMeta = """
+        {"timestamp":"2026-11-14T13:36:47.100Z","ordinal":0,"type":"session_meta","payload":{"session_id":"t-root","id":"t-root","timestamp":"2026-11-14T13:36:47.000Z","cwd":"/Users/me/Projects/Demo","originator":"Codex Desktop","source":"vscode"}}
+        """
+    private let childMeta = """
+        {"timestamp":"2026-11-14T13:40:00.000Z","type":"session_meta","payload":{"session_id":"t-root","id":"t-child","parent_thread_id":"t-root","cwd":"/Users/me","originator":"Codex Desktop","source":{"subagent":{"thread_spawn":{"parent_thread_id":"t-root"}}}}}
+        """
+
+    private func event(_ type: String, at time: String, extra: String = "") -> String {
+        "{\"timestamp\":\"\(time)\",\"type\":\"event_msg\",\"payload\":{\"type\":\"\(type)\"\(extra)}}"
+    }
+
+    @Test func readsARootThread() throws {
+        let meta = try #require(CodexRolloutParser.meta(fromHead: data([rootMeta, "{\"cut"])))
+        #expect(meta.id == "t-root")
+        #expect(meta.cwd == "/Users/me/Projects/Demo")
+        #expect(meta.originator == "Codex Desktop")
+        #expect(!meta.isSubagent)
+    }
+
+    @Test func recognisesASubagentThread() throws {
+        let meta = try #require(CodexRolloutParser.meta(fromHead: data([childMeta])))
+        #expect(meta.id == "t-child")
+        #expect(meta.isSubagent)
+    }
+
+    @Test func rejectsAHeadThatIsNotSessionMeta() {
+        #expect(CodexRolloutParser.meta(fromHead: Data()) == nil)
+        #expect(CodexRolloutParser.meta(fromHead: data(["not json"])) == nil)
+        #expect(CodexRolloutParser.meta(fromHead: data([event("task_started", at: "2026-11-14T13:00:00Z")])) == nil)
+        #expect(
+            CodexRolloutParser.meta(fromHead: data(["{\"type\":\"session_meta\",\"payload\":{\"cwd\":\"/a\"}}"]))
+                == nil)
+    }
+
+    @Test func anOpenTurnIsWorking() throws {
+        let state = try #require(
+            CodexRolloutParser.turnState(
+                inTail: data([
+                    event("task_started", at: "2026-11-14T18:00:00.000Z"),
+                    event("task_complete", at: "2026-11-14T18:01:00.000Z"),
+                    event("task_started", at: "2026-11-14T18:05:00.250Z"),
+                    event("token_count", at: "2026-11-14T18:06:00.000Z"),
+                ])))
+        #expect(state.isWorking)
+        #expect(state.since == Date(timeIntervalSince1970: 1_794_679_500.25))
+    }
+
+    @Test func aCompletedOrAbortedTurnIsIdle() throws {
+        let done = try #require(
+            CodexRolloutParser.turnState(
+                inTail: data([
+                    event("task_started", at: "2026-11-14T18:00:00.000Z"),
+                    event("task_complete", at: "2026-11-14T18:01:00.000Z", extra: ",\"last_agent_message\":\"task_started again\""),
+                ])))
+        #expect(!done.isWorking)
+        #expect(done.since == Date(timeIntervalSince1970: 1_794_679_260))
+
+        let aborted = try #require(
+            CodexRolloutParser.turnState(
+                inTail: data([
+                    event("task_started", at: "2026-11-14T18:00:00Z"),
+                    event("turn_aborted", at: "2026-11-14T18:00:30Z"),
+                ])))
+        #expect(!aborted.isWorking)
+    }
+
+    @Test func aTailWithoutATurnHasNoState() {
+        #expect(CodexRolloutParser.turnState(inTail: Data()) == nil)
+        #expect(
+            CodexRolloutParser.turnState(inTail: data([event("token_count", at: "2026-11-14T18:00:00Z")]))
+                == nil)
+        // A turn line without a readable time is not trusted.
+        #expect(CodexRolloutParser.turnState(inTail: data([event("task_started", at: "soon")])) == nil)
+    }
+
+    @Test func hostileTimestampsAreNotTrusted() {
+        for stamp in ["", "99999999999-01-01T00:00:00Z", "2026-13-45T99:99:99Z", "1e999", "2026-11-14T18:00:00+99:99"] {
+            let tail = data(["{\"timestamp\":\"\(stamp)\",\"type\":\"event_msg\",\"payload\":{\"type\":\"task_started\"}}"])
+            _ = CodexRolloutParser.turnState(inTail: tail)
+        }
+        let number = data(["{\"timestamp\":1e999,\"type\":\"event_msg\",\"payload\":{\"type\":\"task_started\"}}"])
+        #expect(CodexRolloutParser.turnState(inTail: number) == nil)
+    }
+
+    @Test func cutLinesAndOtherLineTypesAreSkipped() throws {
+        let state = try #require(
+            CodexRolloutParser.turnState(
+                inTail: data([
+                    "task_started\",\"cut\":true}}",
+                    "{\"timestamp\":\"2026-11-14T18:00:00Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"task_started\"}}",
+                    event("task_complete", at: "2026-11-14T18:01:00Z"),
+                ])))
+        #expect(!state.isWorking)
+    }
+
+    @Test func listingRule() {
+        let now = Date(timeIntervalSince1970: 100_000)
+        let working = CodexTurnState(isWorking: true, since: now)
+        let idle = CodexTurnState(isWorking: false, since: now)
+        #expect(CodexRolloutParser.isListed(idle, modified: now.addingTimeInterval(-29 * 60), now: now))
+        #expect(!CodexRolloutParser.isListed(idle, modified: now.addingTimeInterval(-31 * 60), now: now))
+        #expect(CodexRolloutParser.isListed(working, modified: now.addingTimeInterval(-119 * 60), now: now))
+        #expect(!CodexRolloutParser.isListed(working, modified: now.addingTimeInterval(-121 * 60), now: now))
+    }
+
+    @Test func buildsASession() throws {
+        let meta = try #require(CodexRolloutParser.meta(fromHead: data([rootMeta])))
+        let since = Date(timeIntervalSince1970: 50)
+        let working = CodexRolloutParser.session(
+            meta: meta, state: CodexTurnState(isWorking: true, since: since),
+            title: "Tune the monitor", pid: 99)
+        #expect(working.id == "codex:t-root")
+        #expect(working.tool == .codex)
+        #expect(working.title == "Tune the monitor")
+        #expect(working.projectPath == "/Users/me/Projects/Demo")
+        #expect(working.activity == .working)
+        #expect(working.since == since)
+        #expect(working.pid == 99)
+
+        let untitled = CodexRolloutParser.session(
+            meta: meta, state: CodexTurnState(isWorking: false, since: since), title: nil, pid: nil)
+        #expect(untitled.title == "Demo")
+        #expect(untitled.activity == .idle)
+
+        let bare = CodexRolloutParser.session(
+            meta: CodexThreadMeta(id: "x", cwd: nil, isSubagent: false, originator: nil),
+            state: CodexTurnState(isWorking: false, since: since), title: "  ", pid: nil)
+        #expect(bare.title == "Codex")
+    }
+
+    @Test func indexKeepsTheLastTitleOfAThread() {
+        let titles = CodexSessionIndex.titles(
+            from: data([
+                "cut\":\"line\"}",
+                "{\"id\":\"t1\",\"thread_name\":\"Old name\",\"updated_at\":\"2026-11-14T11:00:00Z\"}",
+                "{\"id\":\"t2\",\"thread_name\":\"Other\",\"updated_at\":\"2026-11-14T11:00:00Z\"}",
+                "{\"id\":\"t1\",\"thread_name\":\"New name\",\"updated_at\":\"2026-11-14T12:00:00Z\"}",
+                "{\"id\":\"t3\",\"thread_name\":\"\"}",
+                "{\"thread_name\":\"No id\"}",
+            ]))
+        #expect(titles == ["t1": "New name", "t2": "Other"])
+    }
+}
