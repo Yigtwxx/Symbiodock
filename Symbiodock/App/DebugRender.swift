@@ -105,7 +105,7 @@ private struct PetGallery: View {
             }
             HStack(spacing: 18) {
                 caption("working").frame(width: 44)
-                ForEach([0.0, 0.7, 1.4], id: \.self) { time in
+                ForEach([0.3, 0.65, 1.0], id: \.self) { time in
                     AgentPet(tool: .claudeCode, state: .working, size: 48, frozenAt: time)
                     AgentPet(tool: .codex, state: .working, size: 48, frozenAt: time)
                 }

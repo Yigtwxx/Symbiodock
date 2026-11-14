@@ -210,8 +210,9 @@ hands the merged list to the board on the main actor.
 
 Animation is paced for the same reason. Redrawing a view more often than about every
 0.35 s keeps the full-screen panel's update cycle awake, which costs about 5 % of a core
-whatever is drawn. Slow motion (a pet stirring) is drawn a few times a second; motion that
-must be smooth and never rests (the turning arc, the rim's breath) runs in Core Animation;
+whatever is drawn. Motion that
+must be smooth and never rests (the turning arc, the rim's breath, a working pet's wave)
+runs in Core Animation;
 short motions with rests between (knocks, the passing highlight) are drawn only
 while they last. `FramePacer` (core) decides when a frame is due and is tested never to
 give the same moment twice.
@@ -322,9 +323,12 @@ logo file is bundled or downloaded.
 
 The pet moves with its session, and only a little:
 
-- Working: each line is a little longer or shorter, by at most 2.5 % of the figure's
-  side (under a point), each at its own slow pace of two to four seconds a cycle. It
-  stirs; it does not dance. This is all the motion a working pet has.
+- Working: a wave from left to right, like people standing up in a stadium. One crest
+  crosses the pet in 1.3 s, every 2.4 s, and the pet rests in between. Each line, with
+  its ground and the figure on it, is lifted by up to 7 % of the pet's side, rising and
+  sinking along a raised cosine about five lines wide; the figure does not deform. It is
+  played by Core Animation, one repeating animation for each line, all on one clock, so
+  that two pets wave in step.
 - Needs input: it stands still; the status mark's knock and the rim light say it.
 - Finished it stands still at full strength; running it is at 70 %, idle at 45 %.
 - With Reduce Motion on it never moves.

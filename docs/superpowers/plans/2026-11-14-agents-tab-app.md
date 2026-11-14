@@ -34,6 +34,7 @@ Spec: `docs/superpowers/specs/2026-11-14-agents-tab-design.md`.
 | `Symbiodock/Island/Agents/AgentPalette.swift` | The state colours and each tool's colour |
 | `Symbiodock/Island/Agents/AgentStatusMark.swift` | The 14 pt mark and its looks |
 | `Symbiodock/Island/Agents/AgentPet.swift` | A tool's pet, drawn from bars |
+| `Symbiodock/Island/Agents/AgentPetWave.swift` | A working pet as Core Animation layers: one per line, each with a repeating lift animation sampled from `AgentPetMotion.wave` (added after this plan; the block below quotes `AgentPet.swift` as it now is, and `AgentPetArt` there is the cache the layers reuse) |
 | `Symbiodock/Island/Agents/AgentsContent.swift` | The Agents tab: rows, empty state |
 | `Symbiodock/Island/Agents/AgentFaces.swift` | Collapsed faces for the notch, the capsule and the strip |
 | `Symbiodock/Island/RimLight.swift` | The light along the collapsed island's rim |
@@ -327,8 +328,8 @@ import SymbiodockCore
 
 /// A tool's pet: a small field of fine vertical lines in the tool's colour, in which the
 /// figure shows as the lines growing brighter and dimmer along their length, the way light
-/// falls on a form. It moves with its session: the lines stir a little while the session
-/// works, and the pet hops while the session needs input.
+/// falls on a form. It moves with its session: while the session works the lines lift one
+/// after another, a wave from left to right; otherwise it stands still.
 struct AgentPet: View {
     let tool: AgentTool
     var state: AgentRowState = .finished
@@ -338,49 +339,19 @@ struct AgentPet: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Redrawing more often than every 0.35 s keeps the whole island's update cycle awake,
-    /// which costs about 5 % of a core (see `FrameSchedule`). A pet of the collapsed island
-    /// (24 pt) stirs by under a point, a step of under a point at this rate; larger pets
-    /// only show while the island is open and can afford more.
-    private var stirInterval: TimeInterval { size <= 30 ? 0.4 : 1.0 / 12.0 }
-    /// A hop lasts 0.3 s; two of them start every beat.
-    private static let hopFrameInterval = 1.0 / 20.0
-    private static let hopWindow = 2 * AgentPetMotion.hopLength + 0.05
-
     var body: some View {
         Group {
-            if let frozenAt {
-                figure(time: frozenAt, moving: true)
+            if frozenAt == nil, state == .working, !reduceMotion {
+                // Smooth motion that never rests: Core Animation plays it, the app draws nothing.
+                AgentPetWave(tool: tool, strength: strength, side: size)
+                    .frame(width: size, height: size)
             } else {
-                TimelineView(schedule) { context in
-                    figure(time: context.date.timeIntervalSinceReferenceDate, moving: moves)
-                }
+                figure(waveAt: state == .working ? frozenAt : nil)
             }
         }
-        .frame(width: size, height: size)
+        .frame(width: size, height: size, alignment: .bottom)
         .accessibilityElement()
         .accessibilityLabel(tool.displayName)
-    }
-
-    private var isNeedsInput: Bool {
-        if case .needsInput = state { true } else { false }
-    }
-
-    /// When the pet has to be redrawn: always at the stir's pace while it works; only
-    /// during the hops while it needs input.
-    private var schedule: FrameSchedule {
-        if isNeedsInput, moves {
-            return FrameSchedule(
-                interval: Self.hopFrameInterval,
-                pulse: .init(
-                    anchor: Date(timeIntervalSinceReferenceDate: 0), period: AgentPetMotion.hopPeriod,
-                    length: Self.hopWindow))
-        }
-        return FrameSchedule(interval: stirInterval, paused: !moves)
-    }
-
-    private var moves: Bool {
-        !reduceMotion && (state == .working || isNeedsInput)
     }
 
     /// A pet whose session is doing nothing steps back.
@@ -392,25 +363,26 @@ struct AgentPet: View {
         }
     }
 
-    private func figure(time: TimeInterval, moving: Bool) -> some View {
+    /// The pet drawn once. With `waveAt` its lines are lifted as the wave has them at that
+    /// moment. The canvas reaches above the pet by the wave's height, so that nothing is cut.
+    private func figure(waveAt time: TimeInterval?) -> some View {
         let art = AgentPetArt.art(for: tool, strength: strength)
         let lines = art.lines
         let grounds = art.grounds
-        let stirs = moving && state == .working
-        let hop = moving && isNeedsInput ? AgentPetMotion.hop(at: time) : 0
+        let headroom = size * AgentPetMotion.waveHeight
         return Canvas { context, canvas in
-            let side = min(canvas.width, canvas.height)
+            let side = canvas.width
             let bar = side * AgentPetFigure.barWidth
+            let inset = side * AgentPetArt.groundInset
             for (column, stretches) in lines.enumerated() {
                 let x = side * AgentPetFigure.pitch * CGFloat(column)
-                // While its session works, each line is a little longer or shorter.
-                let reach = stirs ? AgentPetMotion.sway(column: column, at: time) : 0
-                let inset = side * (AgentPetMotion.swayAmplitude - reach)
-                let whole = CGRect(x: x, y: inset, width: bar, height: side - 2 * inset)
+                let lift = time.map { side * AgentPetMotion.wave(column: column, at: $0) } ?? 0
+                let top = headroom - lift
+                let whole = CGRect(x: x, y: top + inset, width: bar, height: side - 2 * inset)
                 context.fill(Path(roundedRect: whole, cornerRadius: bar / 2), with: .color(grounds[column]))
                 for stretch in stretches {
                     let rect = CGRect(
-                        x: x, y: side * stretch.top, width: bar,
+                        x: x, y: top + side * stretch.top, width: bar,
                         height: max(side * (stretch.bottom - stretch.top), bar))
                         .intersection(whole)
                     guard !rect.isNull, rect.height > 0 else { continue }
@@ -418,20 +390,24 @@ struct AgentPet: View {
                         Path(roundedRect: rect, cornerRadius: bar / 2),
                         with: .linearGradient(
                             stretch.gradient,
-                            startPoint: CGPoint(x: x, y: side * stretch.top),
-                            endPoint: CGPoint(x: x, y: side * stretch.bottom)))
+                            startPoint: CGPoint(x: x, y: top + side * stretch.top),
+                            endPoint: CGPoint(x: x, y: top + side * stretch.bottom)))
                 }
             }
         }
-        .offset(y: -size * hop)
+        .frame(width: size, height: size + headroom)
     }
 }
 
 /// The pets as they are drawn: for each line, the stretches where the figure is, each with
 /// the gradient that carries its light and shade. Worked out once for each tool and
-/// strength; a pet is redrawn many times a second while its session works.
+/// strength.
 @MainActor
-private enum AgentPetArt {
+enum AgentPetArt {
+    /// How far the ground of a line stops short of the pet's top and bottom, as a fraction
+    /// of its side.
+    static let groundInset = 0.025
+
     struct Stretch {
         let top: Double
         let bottom: Double

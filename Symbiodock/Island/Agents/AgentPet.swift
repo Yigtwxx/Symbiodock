@@ -3,8 +3,8 @@ import SymbiodockCore
 
 /// A tool's pet: a small field of fine vertical lines in the tool's colour, in which the
 /// figure shows as the lines growing brighter and dimmer along their length, the way light
-/// falls on a form. It moves with its session: the lines stir a little while the session
-/// works, and it stands still while the session needs input.
+/// falls on a form. It moves with its session: while the session works the lines lift one
+/// after another, a wave from left to right; otherwise it stands still.
 struct AgentPet: View {
     let tool: AgentTool
     var state: AgentRowState = .finished
@@ -14,33 +14,19 @@ struct AgentPet: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Redrawing more often than every 0.35 s keeps the whole island's update cycle awake,
-    /// which costs about 5 % of a core (see `FrameSchedule`). A pet of the collapsed island
-    /// (24 pt) stirs by under a point, a step of under a point at this rate; larger pets
-    /// only show while the island is open and can afford more.
-    private var stirInterval: TimeInterval { size <= 30 ? 0.4 : 1.0 / 12.0 }
     var body: some View {
         Group {
-            if let frozenAt {
-                figure(time: frozenAt, moving: true)
+            if frozenAt == nil, state == .working, !reduceMotion {
+                // Smooth motion that never rests: Core Animation plays it, the app draws nothing.
+                AgentPetWave(tool: tool, strength: strength, side: size)
+                    .frame(width: size, height: size)
             } else {
-                TimelineView(schedule) { context in
-                    figure(time: context.date.timeIntervalSinceReferenceDate, moving: moves)
-                }
+                figure(waveAt: state == .working ? frozenAt : nil)
             }
         }
-        .frame(width: size, height: size)
+        .frame(width: size, height: size, alignment: .bottom)
         .accessibilityElement()
         .accessibilityLabel(tool.displayName)
-    }
-
-    /// The pet is redrawn at the stir's pace while it works and never otherwise.
-    private var schedule: FrameSchedule {
-        FrameSchedule(interval: stirInterval, paused: !moves)
-    }
-
-    private var moves: Bool {
-        !reduceMotion && state == .working
     }
 
     /// A pet whose session is doing nothing steps back.
@@ -52,24 +38,26 @@ struct AgentPet: View {
         }
     }
 
-    private func figure(time: TimeInterval, moving: Bool) -> some View {
+    /// The pet drawn once. With `waveAt` its lines are lifted as the wave has them at that
+    /// moment. The canvas reaches above the pet by the wave's height, so that nothing is cut.
+    private func figure(waveAt time: TimeInterval?) -> some View {
         let art = AgentPetArt.art(for: tool, strength: strength)
         let lines = art.lines
         let grounds = art.grounds
-        let stirs = moving && state == .working
+        let headroom = size * AgentPetMotion.waveHeight
         return Canvas { context, canvas in
-            let side = min(canvas.width, canvas.height)
+            let side = canvas.width
             let bar = side * AgentPetFigure.barWidth
+            let inset = side * AgentPetArt.groundInset
             for (column, stretches) in lines.enumerated() {
                 let x = side * AgentPetFigure.pitch * CGFloat(column)
-                // While its session works, each line is a little longer or shorter.
-                let reach = stirs ? AgentPetMotion.sway(column: column, at: time) : 0
-                let inset = side * (AgentPetMotion.swayAmplitude - reach)
-                let whole = CGRect(x: x, y: inset, width: bar, height: side - 2 * inset)
+                let lift = time.map { side * AgentPetMotion.wave(column: column, at: $0) } ?? 0
+                let top = headroom - lift
+                let whole = CGRect(x: x, y: top + inset, width: bar, height: side - 2 * inset)
                 context.fill(Path(roundedRect: whole, cornerRadius: bar / 2), with: .color(grounds[column]))
                 for stretch in stretches {
                     let rect = CGRect(
-                        x: x, y: side * stretch.top, width: bar,
+                        x: x, y: top + side * stretch.top, width: bar,
                         height: max(side * (stretch.bottom - stretch.top), bar))
                         .intersection(whole)
                     guard !rect.isNull, rect.height > 0 else { continue }
@@ -77,19 +65,24 @@ struct AgentPet: View {
                         Path(roundedRect: rect, cornerRadius: bar / 2),
                         with: .linearGradient(
                             stretch.gradient,
-                            startPoint: CGPoint(x: x, y: side * stretch.top),
-                            endPoint: CGPoint(x: x, y: side * stretch.bottom)))
+                            startPoint: CGPoint(x: x, y: top + side * stretch.top),
+                            endPoint: CGPoint(x: x, y: top + side * stretch.bottom)))
                 }
             }
         }
+        .frame(width: size, height: size + headroom)
     }
 }
 
 /// The pets as they are drawn: for each line, the stretches where the figure is, each with
 /// the gradient that carries its light and shade. Worked out once for each tool and
-/// strength; a pet is redrawn many times a second while its session works.
+/// strength.
 @MainActor
-private enum AgentPetArt {
+enum AgentPetArt {
+    /// How far the ground of a line stops short of the pet's top and bottom, as a fraction
+    /// of its side.
+    static let groundInset = 0.025
+
     struct Stretch {
         let top: Double
         let bottom: Double

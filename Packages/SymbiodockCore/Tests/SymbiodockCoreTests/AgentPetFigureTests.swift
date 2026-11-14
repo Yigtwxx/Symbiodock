@@ -116,30 +116,90 @@ struct AgentPetFigureTests {
         #expect(empty)
     }
 
-    @Test func aWorkingPetStirsOnlyALittle() {
-        for step in 0..<400 {
-            let time = Double(step) * 0.037
-            let values = (0..<AgentPetFigure.lineCount).map { AgentPetMotion.sway(column: $0, at: time) }
-            let small = values.allSatisfy { abs($0) <= AgentPetMotion.swayAmplitude + 1e-9 }
-            #expect(small)
+    private static let frame = 1.0 / 60.0
+    private static let columns = 0..<AgentPetFigure.lineCount
+
+    /// The moment in one period at which a line is lifted the most, found by sampling.
+    private func peak(ofColumn column: Int) -> (time: TimeInterval, lift: Double, count: Int) {
+        let steps = 2400
+        let values = (0..<steps).map {
+            AgentPetMotion.wave(column: column, at: Double($0) * AgentPetMotion.wavePeriod / Double(steps))
         }
-        #expect(AgentPetMotion.swayAmplitude <= 0.03)
-        // The lines do not move in step.
-        #expect(AgentPetMotion.sway(column: 0, at: 1) != AgentPetMotion.sway(column: 3, at: 1))
+        let top = values.max() ?? 0
+        let first = values.firstIndex(of: top) ?? 0
+        // Count separate rises above 90 % of the height.
+        var rises = 0
+        for index in values.indices where values[index] > 0.9 * AgentPetMotion.waveHeight {
+            if index == 0 || values[index - 1] <= 0.9 * AgentPetMotion.waveHeight { rises += 1 }
+        }
+        return (Double(first) * AgentPetMotion.wavePeriod / Double(steps), top, rises)
     }
 
-    @Test func aWorkingPetMovesSlowly() {
-        // No line may change by more than a small part of its travel between two frames
-        // at 20 frames a second: slow enough not to flicker.
-        let frame = 1.0 / 20.0
-        for step in 0..<400 {
-            let time = Double(step) * frame
-            for column in 0..<AgentPetFigure.lineCount {
-                let change = abs(
-                    AgentPetMotion.sway(column: column, at: time + frame)
-                        - AgentPetMotion.sway(column: column, at: time))
-                #expect(change <= AgentPetMotion.swayAmplitude * 0.2)
+    @Test func aLineIsNeverLiftedBeyondTheWaveHeight() {
+        for step in 0..<1000 {
+            let time = Double(step) * 0.0071
+            for column in Self.columns {
+                let lift = AgentPetMotion.wave(column: column, at: time)
+                #expect(lift >= 0 && lift <= AgentPetMotion.waveHeight + 1e-12)
             }
         }
+        #expect(AgentPetMotion.waveHeight <= 0.1)
+    }
+
+    @Test func everyLineRisesToTheFullHeightOncePerPeriod() {
+        for column in Self.columns {
+            let result = peak(ofColumn: column)
+            #expect(abs(result.lift - AgentPetMotion.waveHeight) < AgentPetMotion.waveHeight * 0.01, "\(column)")
+            #expect(result.count == 1, "\(column)")
+        }
+    }
+
+    @Test func theCrestTravelsFromLeftToRight() {
+        let left = peak(ofColumn: 0).time
+        let middle = peak(ofColumn: AgentPetFigure.lineCount / 2).time
+        let right = peak(ofColumn: AgentPetFigure.lineCount - 1).time
+        #expect(left < middle)
+        #expect(middle < right)
+        #expect(right <= AgentPetMotion.waveTravel)
+    }
+
+    @Test func thePetRestsOnceTheCrestHasLeft() {
+        var time = AgentPetMotion.waveTravel
+        while time < AgentPetMotion.wavePeriod {
+            for column in Self.columns {
+                #expect(AgentPetMotion.wave(column: column, at: time) == 0)
+            }
+            time += 0.01
+        }
+        // And the pet starts the period at rest, too.
+        for column in Self.columns {
+            #expect(AgentPetMotion.wave(column: column, at: 0) < 1e-9)
+        }
+    }
+
+    @Test func theLiftChangesSmoothly() {
+        // Between two frames at 60 a second no line may jump by more than a quarter of the
+        // height it can be lifted.
+        for step in 0..<1500 {
+            let time = Double(step) * 0.0013 - 1
+            for column in Self.columns {
+                let change = abs(
+                    AgentPetMotion.wave(column: column, at: time + Self.frame)
+                        - AgentPetMotion.wave(column: column, at: time))
+                #expect(change <= AgentPetMotion.waveHeight * 0.25)
+            }
+        }
+    }
+
+    @Test func theWaveRepeatsEveryPeriodAndAlsoBeforeTheReferenceDate() {
+        for step in 0..<200 {
+            let time = Double(step) * 0.017
+            for column in Self.columns {
+                let now = AgentPetMotion.wave(column: column, at: time)
+                #expect(abs(AgentPetMotion.wave(column: column, at: time + AgentPetMotion.wavePeriod) - now) < 1e-9)
+                #expect(abs(AgentPetMotion.wave(column: column, at: time - 5 * AgentPetMotion.wavePeriod) - now) < 1e-9)
+            }
+        }
+        #expect(AgentPetMotion.wave(column: 10, at: -AgentPetMotion.wavePeriod + 0.65) > 0)
     }
 }

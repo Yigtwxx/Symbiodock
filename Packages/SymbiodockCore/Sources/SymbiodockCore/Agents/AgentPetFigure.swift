@@ -130,15 +130,30 @@ extension AgentPetFigure {
 
 /// How a pet moves. Pure functions of time, so the views only draw.
 public enum AgentPetMotion {
-    /// How far the end of a line moves in or out while its session works: a fortieth of
-    /// the figure's side, under a point on screen. Enough to see that it is alive, no more.
-    public static let swayAmplitude = 0.025
+    /// How far a line is lifted at the crest of the wave, as a fraction of the pet's side.
+    public static let waveHeight = 0.07
+    /// Seconds from the start of one crest to the start of the next.
+    public static let wavePeriod: TimeInterval = 2.4
+    /// Seconds a crest takes to cross the pet, from entering at the left to leaving at the
+    /// right; the pet rests for the remainder of the period.
+    public static let waveTravel: TimeInterval = 1.3
+    /// How many lines wide a crest is: the width of the raised cosine.
+    public static let waveWidth = 5.0
 
-    /// How far one line is longer (positive) or shorter at `time`. Every line breathes at
-    /// its own slow pace (a cycle takes two to four seconds), so the pet stirs gently
-    /// instead of marching in step.
-    public static func sway(column: Int, at time: TimeInterval) -> Double {
-        let pace = 2.4 + 0.9 * sin(Double(column) * 2.3)
-        return swayAmplitude * sin(time * pace + Double(column) * 1.7)
+    /// How far line `column` (0 is the leftmost of `AgentPetFigure.lineCount`) is lifted at
+    /// `time`, as a fraction of the pet's side, from 0 to `waveHeight`. One crest travels from
+    /// the left edge to the right edge, each line rising and sinking smoothly as it passes,
+    /// like people standing up in a stadium; then the pet rests until the next crest.
+    public static func wave(column: Int, at time: TimeInterval) -> Double {
+        var beat = time.truncatingRemainder(dividingBy: wavePeriod)
+        if beat < 0 { beat += wavePeriod }
+        guard beat < waveTravel else { return 0 }
+        // The crest enters half its width before the first line and leaves half its width
+        // after the last, so every line is at rest when the crest starts and ends.
+        let reach = Double(AgentPetFigure.lineCount - 1) + waveWidth
+        let crest = -waveWidth / 2 + reach * beat / waveTravel
+        let distance = abs(Double(column) - crest)
+        guard distance < waveWidth / 2 else { return 0 }
+        return waveHeight * 0.5 * (1 + cos(2 * .pi * distance / waveWidth))
     }
 }
