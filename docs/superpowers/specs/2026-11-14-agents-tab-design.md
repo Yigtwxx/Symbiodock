@@ -145,8 +145,13 @@ All paths are under the user's home. A missing directory means no sessions.
 
 - Source: `~/.claude/sessions/<pid>.json`, one file per running session. Fields used:
   `pid`, `sessionId`, `cwd`, `name`, `status`, `waitingFor`, `statusUpdatedAt`, `spare`.
-- A file is used only if its process is alive (`kill(pid, 0)`), `spare` is not true, and
-  the file is at most 64 KB. `*.key` files are never opened.
+- A file is used only if its process is live, `spare` is not true, and the file is at most
+  64 KB. Live is decided from the scan's process list (`ClaudeSessionParser.isLive`): a
+  process with that pid exists, is the user's own (its path is not empty), and started no
+  later than two seconds after the file was last written. A file left behind by a crash,
+  a kill or a reboot is thereby not revived by a recycled pid, and another user's process
+  never counts. Only when the process list is empty (the scan failed) is `kill(pid, 0)`
+  used, so that a failed scan does not hide every session. `*.key` files are never opened.
 - `status`: `busy` → working, `idle` → idle, `waiting` → needs input. Any other value →
   running. Observed live: `busy` → `waiting` with `waitingFor: "input needed"` while a
   question was open → `busy`.
@@ -215,7 +220,9 @@ must be smooth and never rests (the turning arc, the rim's breath, a working pet
 runs in Core Animation;
 short motions with rests between (knocks, the passing highlight) are drawn only
 while they last. `FramePacer` (core) decides when a frame is due and is tested never to
-give the same moment twice.
+give the same moment twice. It also starts again from the present (`next(now:)`) when its
+next frame lies more than a second behind it, as after sleep, or further ahead than it
+could legitimately wait, as after the clock was set back.
 
 ## 7. Appearance
 
@@ -262,8 +269,13 @@ when `showsWings` is true; Agents when `hasFace` is true.
 | Floating capsule (200 × 36) | Pet, the lead session's title, status mark |
 | Side strip (36 × 170) | Pet on top, the title rotated in the middle, status mark at the bottom |
 
-When the face is Media and `attention` is not `.none`, the status mark of the lead
-session takes the place of the level bars. The rim light shows on either face.
+When the face is Media and `attention` is not `.none`, the status mark of the row that
+causes the attention (the first that needs input, else the first that has finished;
+`attentionRow`) takes the place of the level bars.
+
+A docked island whose agents face has no lead (every session idle or merely running)
+shows the first session of the list (`spokesperson`); the idle text appears only when the
+list is empty. The notch shows nothing without a lead. The rim light shows on either face.
 
 With its wings the island is also 2 pt taller than the notch (`IslandLayout.notchLip`):
 the camera housing hides what lies behind it, and this strip is what shows of the island's

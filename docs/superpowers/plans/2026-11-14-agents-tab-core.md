@@ -1396,7 +1396,7 @@ git push origin main
 - Produces:
   - `CodexThreadMeta` (`id: String`, `cwd: String?`, `isSubagent: Bool`, `originator: String?`).
   - `CodexTurnState` (`isWorking: Bool`, `since: Date`).
-  - `CodexRolloutParser.headSize` (65 536), `.tailSize` (262 144), `.meta(fromHead: Data) -> CodexThreadMeta?`, `.turnState(inTail: Data) -> CodexTurnState?`, `.isListed(_ state: CodexTurnState, modified: Date, now: Date) -> Bool`, `.session(meta:state:title:pid:) -> AgentSession`.
+  - `CodexRolloutParser.headSize` (1 048 576), `.tailSize` (262 144), `.meta(fromHead: Data) -> CodexThreadMeta?`, `.turnState(inTail: Data) -> CodexTurnState?`, `.isListed(_ state: CodexTurnState, modified: Date, now: Date) -> Bool`, `.session(meta:state:title:pid:) -> AgentSession`.
   - `CodexSessionIndex.titles(from: Data) -> [String: String]`.
 
 Background, verified on this Mac on 2026-11-14:
@@ -1605,8 +1605,9 @@ public struct CodexTurnState: Equatable, Sendable {
 
 /// Reads `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, one JSON object per line.
 public enum CodexRolloutParser {
-    /// The first line is about 22 KB; this leaves room.
-    public static let headSize = 64 * 1024
+    /// The first line is about 22 KB; this leaves ample room, and the provider keeps the
+    /// meta once found.
+    public static let headSize = 1024 * 1024
     public static let tailSize = 256 * 1024
     /// An idle thread is listed this long after its file last changed.
     public static let idleListing: TimeInterval = 30 * 60

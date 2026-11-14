@@ -1877,13 +1877,13 @@ In `Symbiodock/Island/IslandView.swift`:
             }
         } else if IslandLayout.isSideDocked(state.anchor) {
             if agentsSpeak {
-                AgentSideFace(row: lead)
+                AgentSideFace(row: state.board.spokesperson)
             } else {
                 SideCollapsedContent(info: state.nowPlaying, attention: attention)
             }
         } else {
             if agentsSpeak {
-                AgentFloatingFace(row: lead)
+                AgentFloatingFace(row: state.board.spokesperson)
             } else {
                 FloatingCollapsedContent(info: state.nowPlaying, attention: attention)
             }
@@ -2115,7 +2115,7 @@ enum FileReading {
     /// path would block the scan; it is opened without waiting (`O_NONBLOCK` lets the
     /// open of a pipe return at once) and then turned away.
     private static func openRegularFile(_ url: URL) -> FileHandle? {
-        let descriptor = open(url.path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
+        let descriptor = open(url.path, O_RDONLY | O_NONBLOCK | O_NOCTTY | O_CLOEXEC)
         guard descriptor >= 0 else { return nil }
         var info = stat()
         guard fstat(descriptor, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else {
@@ -2320,7 +2320,7 @@ actor ClaudeCodeProvider: AgentSessionProvider {
                   let stamp = FileReading.stamp(of: url),
                   let data = FileReading.whole(url, maxBytes: ClaudeSessionParser.maximumFileSize),
                   let record = ClaudeSessionParser.record(from: data),
-                  Self.isAlive(record.pid)
+                  Self.isLive(record.pid, modified: stamp.modified, among: context.processes)
             else { return nil }
             return ClaudeSessionParser.session(
                 from: record,
@@ -2351,9 +2351,16 @@ actor ClaudeCodeProvider: AgentSessionProvider {
         return question
     }
 
-    /// A session file can outlive a process that was killed.
-    private nonisolated static func isAlive(_ pid: Int32) -> Bool {
-        kill(pid, 0) == 0 || errno == EPERM
+    /// A session file can outlive its process, and its pid can then belong to anything.
+    /// The process list the scan already has decides (see `ClaudeSessionParser.isLive`).
+    /// Only when that list is empty, because the scan failed, is the pid probed, so that
+    /// a failed scan does not make every session vanish. `EPERM` does not count: that pid
+    /// belongs to another user.
+    private nonisolated static func isLive(
+        _ pid: Int32, modified: Date, among processes: [ProcessSnapshot]
+    ) -> Bool {
+        if processes.isEmpty { return kill(pid, 0) == 0 }
+        return ClaudeSessionParser.isLive(pid: pid, fileModified: modified, among: processes)
     }
 }
 ```
@@ -2907,6 +2914,7 @@ The island is always on screen, so animation must cost almost nothing. Measured:
 
 ```swift
 import SwiftUI
+import SymbiodockCore
 
 // How the island's animations are paced.
 //
@@ -2922,14 +2930,11 @@ import SwiftUI
 
 /// Draws a `TimelineView` from a timer, `interval` seconds apart. With a `pulse` it draws
 /// only while the motion lasts and once more at its end, so that the view comes to rest.
+/// The stepping is `FramePacer`'s, in the core package, where it is tested never to stand
+/// still: a schedule that repeats a date makes SwiftUI spin on the main thread. It also
+/// starts again from the present after sleep or a clock change.
 struct FrameSchedule: TimelineSchedule {
-    /// A motion that repeats: it lasts `length` seconds at the start of every `period`,
-    /// counted from `anchor`.
-    struct Pulse {
-        let anchor: Date
-        let period: TimeInterval
-        let length: TimeInterval
-    }
+    typealias Pulse = FramePacer.Pulse
 
     let interval: TimeInterval
     var pulse: Pulse?
@@ -2937,42 +2942,14 @@ struct FrameSchedule: TimelineSchedule {
     var paused = false
 
     func entries(from startDate: Date, mode: Mode) -> Entries {
-        return Entries(schedule: self, upcoming: startDate)
+        Entries(pacer: FramePacer(interval: interval, pulse: pulse, paused: paused, from: startDate))
     }
 
     struct Entries: Sequence, IteratorProtocol {
-        let schedule: FrameSchedule
-        var upcoming: Date
-        var started = false
+        var pacer: FramePacer
 
         mutating func next() -> Date? {
-            if started, schedule.paused { return nil }
-            started = true
-            let current = upcoming
-            // Every step moves on by at least a millisecond, whatever the arithmetic says:
-            // a step of zero would make SwiftUI walk the sequence forever.
-            let following = current.addingTimeInterval(Swift.max(schedule.interval, 0.001))
-            guard let pulse = schedule.pulse else {
-                upcoming = following
-                return current
-            }
-            var phase = current.timeIntervalSince(pulse.anchor).truncatingRemainder(dividingBy: pulse.period)
-            if phase < 0 { phase += pulse.period }
-            // A date that falls a hair before a beat belongs to that beat; otherwise the
-            // next beat would round to this very date and the loop would never move on.
-            if pulse.period - phase < 0.001 { phase = 0 }
-            let beatStart = current.addingTimeInterval(-phase)
-            if phase < pulse.length - 0.001 {
-                // Inside the motion: the next frame, but no later than its end.
-                let end = beatStart.addingTimeInterval(pulse.length)
-                upcoming = following < end ? following : end
-            } else {
-                upcoming = beatStart.addingTimeInterval(pulse.period)
-            }
-            if !(upcoming >= current.addingTimeInterval(0.001)) {
-                upcoming = current.addingTimeInterval(0.001)
-            }
-            return current
+            pacer.next(now: Date())
         }
     }
 }
