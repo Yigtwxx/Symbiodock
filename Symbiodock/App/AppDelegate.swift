@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var islandMenu: IslandMenu?
     private var overlayController: OverlayController?
     private var nowPlaying: NowPlayingCoordinator?
+    private var agents: AgentSessionCoordinator?
     private var terminationSignalSource: DispatchSourceSignal?
     private var wingsExpiry: Task<Void, Never>?
 
@@ -45,7 +46,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let demo = DemoAgents.requested {
             DemoAgents.apply(demo, to: state)
             overlayController.refreshPointer()
+        } else {
+            startAgents()
         }
+        #else
+        startAgents()
         #endif
 
         let nowPlaying = NowPlayingCoordinator(
@@ -65,6 +70,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Otherwise the perl helper would outlive the app until its next write.
         nowPlaying?.stop()
+        agents?.stop()
+    }
+
+    /// Starts looking for agent sessions.
+    private func startAgents() {
+        let agents = AgentSessionCoordinator(
+            providers: AgentProviders.all(),
+            isWatching: { [weak self] in
+                self.map { $0.state.phase == .expanded && $0.state.selectedTab == .agents } ?? false
+            },
+            onUpdate: { [weak self] sessions in
+                guard let self else { return }
+                let hadWings = self.state.showsWings
+                self.state.setAgentSessions(sessions)
+                // The collapsed hit rect depends on whether the wings are shown.
+                if self.state.showsWings != hadWings { self.overlayController?.refreshPointer() }
+            })
+        agents.start()
+        self.agents = agents
     }
 
     /// Hides the collapsed wings a while after playback pauses, unless it resumes first.

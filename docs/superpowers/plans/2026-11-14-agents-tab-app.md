@@ -2241,7 +2241,7 @@ This task is being carried out by a Claude Code session, so at least one real se
 ```bash
 xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock -configuration Debug -derivedDataPath build build 2>&1 | tail -3
 pkill -x Symbiodock; while pgrep -x Symbiodock >/dev/null; do sleep 0.1; done
-(log stream --style compact --predicate 'subsystem == "com.yigtwxx.Symbiodock" && category == "agents"' > build/agents.log 2>&1 &) ; sleep 1
+(/usr/bin/log stream --style compact --predicate 'subsystem == "com.yigtwxx.Symbiodock" && category == "agents"' > build/agents.log 2>&1 &) ; sleep 1
 open build/Build/Products/Debug/Symbiodock.app; sleep 8
 pkill -f 'log stream --style compact --predicate .subsystem == "com.yigtwxx.Symbiodock"'
 cat build/agents.log; ls ~/.claude/sessions/*.json | wc -l
@@ -2417,7 +2417,7 @@ xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock
 pgrep -fl 'MacOS/codex$' | wc -l
 find ~/.codex/sessions -name 'rollout-*.jsonl' -mmin -30 | wc -l
 pkill -x Symbiodock; while pgrep -x Symbiodock >/dev/null; do sleep 0.1; done
-(log stream --style compact --predicate 'subsystem == "com.yigtwxx.Symbiodock" && category == "agents"' > build/agents.log 2>&1 &) ; sleep 1
+(/usr/bin/log stream --style compact --predicate 'subsystem == "com.yigtwxx.Symbiodock" && category == "agents"' > build/agents.log 2>&1 &) ; sleep 1
 open build/Build/Products/Debug/Symbiodock.app; sleep 8
 pkill -f 'log stream --style compact --predicate .subsystem == "com.yigtwxx.Symbiodock"'
 cat build/agents.log
@@ -2536,7 +2536,7 @@ mkdir -p build/fake && printf 'import Foundation\nsleep(45)\n' > build/fake/main
 (cd build && script -q /dev/null fake/opencode >/dev/null 2>&1 &)
 sleep 1; ps -o pid,tty,comm -p "$(pgrep -f 'fake/opencode$' | head -1)"
 pkill -x Symbiodock; while pgrep -x Symbiodock >/dev/null; do sleep 0.1; done
-(log stream --style compact --predicate 'subsystem == "com.yigtwxx.Symbiodock" && category == "agents"' > build/agents.log 2>&1 &) ; sleep 1
+(/usr/bin/log stream --style compact --predicate 'subsystem == "com.yigtwxx.Symbiodock" && category == "agents"' > build/agents.log 2>&1 &) ; sleep 1
 open build/Build/Products/Debug/Symbiodock.app; sleep 8
 pkill -f 'log stream --style compact --predicate .subsystem == "com.yigtwxx.Symbiodock"'
 cat build/agents.log; pkill -x Symbiodock; pkill -f 'fake/opencode$'
