@@ -14,72 +14,53 @@ struct RimLight: View {
     var frozenAt: TimeInterval?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var appeared = Date()
-    /// The finished light has made its one pass and is now still.
-    @State private var settled = false
 
     private static let breathPeriod: TimeInterval = 1.8
     private static let passPeriod: TimeInterval = 3.6
     private static let passLength: TimeInterval = 0.9
-    /// The highlight crosses the island in under a second and needs more while it does.
-    private static let passInterval: TimeInterval = 1.0 / 30.0
+    private static let dimmestLevel = 0.35
+    private static let brightestLevel = 0.9
 
     var body: some View {
         Group {
             if attention == .none {
                 EmptyView()
             } else if let frozenAt {
-                light(elapsed: frozenAt, moving: true)
-            } else if breathes {
-                // The breath never rests, so Core Animation plays it; the highlight crosses
-                // the rim in under a second and is redrawn only while it does.
-                ZStack {
-                    Breathing(dimmest: Float(Self.dimmestLevel / Self.brightestLevel), period: Self.breathPeriod) {
-                        glow(color: AgentPalette.alert, level: Self.brightestLevel)
-                    }
-                    TimelineView(passSchedule) { context in
-                        highlightLayer(
-                            pass: Self.pass(
-                                elapsed: context.date.timeIntervalSince(appeared), repeating: true))
-                    }
-                }
+                light(elapsed: frozenAt)
             } else {
-                TimelineView(FrameSchedule(interval: Self.passInterval, paused: !moves)) { context in
-                    light(elapsed: context.date.timeIntervalSince(appeared), moving: moves)
-                }
+                livingLight
             }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
-        .onAppear { restart() }
-        .onChange(of: attention) { restart() }
     }
 
-    private static let dimmestLevel = 0.35
-    private static let brightestLevel = 0.9
-
-    /// Whether the needs-input light is breathing.
-    private var breathes: Bool { attention == .needsInput && !reduceMotion }
-
-    /// The highlight's passes, one every `passPeriod`.
-    private var passSchedule: FrameSchedule {
-        FrameSchedule(
-            interval: Self.passInterval,
-            pulse: .init(anchor: appeared, period: Self.passPeriod, length: Self.passLength + 0.05))
-    }
-
-    private var moves: Bool {
-        !reduceMotion && (attention == .needsInput || (attention == .finished && !settled))
-    }
-
-    private func restart() {
-        let stamp = Date()
-        appeared = stamp
-        settled = false
-        guard attention == .finished else { return }
-        Task {
-            try? await Task.sleep(for: .seconds(Self.passLength + 0.1))
-            if appeared == stamp { settled = true }
+    /// The light as it lives: nothing here redraws frame by frame. The glow is drawn once;
+    /// Core Animation breathes it (`Breathing`) and carries the highlight across the rim
+    /// (`RimPass`). With Reduce Motion the glow stands still and nothing passes.
+    private var livingLight: some View {
+        ZStack {
+            if attention == .needsInput, !reduceMotion {
+                Breathing(dimmest: Float(Self.dimmestLevel / Self.brightestLevel), period: Self.breathPeriod) {
+                    glow(color: AgentPalette.alert, level: Self.brightestLevel)
+                }
+            } else if attention == .needsInput {
+                glow(color: AgentPalette.alert, level: 0.8)
+            } else {
+                glow(color: AgentPalette.mint, level: 0.5)
+            }
+            if !reduceMotion {
+                // A question that waits sends the highlight across again and again; a
+                // session that finishes sends it once. A new state is a new view, so a new
+                // state starts a new pass.
+                RimPass(
+                    isVertical: isVertical, travel: Self.passLength,
+                    period: attention == .needsInput ? Self.passPeriod : nil
+                ) {
+                    highlightStroke
+                }
+                .id(attention)
+            }
         }
     }
 
@@ -96,20 +77,19 @@ struct RimLight: View {
         return beat >= 0 && beat < passLength ? beat / passLength : nil
     }
 
-    /// The whole light at one moment: the glow, and the highlight if it is on its way.
-    private func light(elapsed: TimeInterval, moving: Bool) -> some View {
+    /// The whole light `elapsed` seconds after it appeared, drawn still; for renders.
+    private func light(elapsed: TimeInterval) -> some View {
         let color = attention == .needsInput ? AgentPalette.alert : AgentPalette.mint
         let level: Double
         let pass: Double?
         switch attention {
         case .needsInput:
             // Breathes between 35 % and 90 %.
-            level = moving
-                ? 0.625 + 0.275 * sin(2 * .pi * elapsed / Self.breathPeriod) : 0.8
-            pass = moving ? Self.pass(elapsed: elapsed, repeating: true) : nil
+            level = 0.625 + 0.275 * sin(2 * .pi * elapsed / Self.breathPeriod)
+            pass = Self.pass(elapsed: elapsed, repeating: true)
         case .finished, .none:
             level = 0.5
-            pass = moving ? Self.pass(elapsed: elapsed, repeating: false) : nil
+            pass = Self.pass(elapsed: elapsed, repeating: false)
         }
         return ZStack {
             glow(color: color, level: level)
@@ -129,6 +109,14 @@ struct RimLight: View {
         .mask { Rectangle().padding(edgeInsets) }
     }
 
+    /// The lit stroke the highlight shows, whole: the band that reveals part of it is added
+    /// by `RimPass`, or by `highlightLayer` for a still picture.
+    private var highlightStroke: some View {
+        outline.strokeBorder(highlight, lineWidth: 1.5)
+            .mask { Rectangle().padding(edgeInsets) }
+    }
+
+    /// The highlight at one moment, drawn still; for renders.
     @ViewBuilder
     private func highlightLayer(pass: Double?) -> some View {
         if let pass {

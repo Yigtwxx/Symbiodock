@@ -8,7 +8,7 @@ import SymbiodockCore
 /// others stand back a little. The view is larger than the pet by the most a line can grow,
 /// so a line at the crest is never cut.
 /// The layers are built once; the render server plays the animations and the app does no
-/// work per frame (see `FrameSchedule` for why that matters). At rest the pet looks as the
+/// work per frame (see `LayerAnimation.swift` for why that matters). At rest the pet looks as the
 /// still `Canvas` drawing does. Nothing moves up or down.
 struct AgentPetWave: NSViewRepresentable {
     let tool: AgentTool
