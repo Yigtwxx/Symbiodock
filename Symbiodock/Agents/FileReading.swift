@@ -47,7 +47,7 @@ enum FileReading {
     /// path would block the scan; it is opened without waiting (`O_NONBLOCK` lets the
     /// open of a pipe return at once) and then turned away.
     private static func openRegularFile(_ url: URL) -> FileHandle? {
-        let descriptor = open(url.path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
+        let descriptor = open(url.path, O_RDONLY | O_NONBLOCK | O_NOCTTY | O_CLOEXEC)
         guard descriptor >= 0 else { return nil }
         var info = stat()
         guard fstat(descriptor, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else {

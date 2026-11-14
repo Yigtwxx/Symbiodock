@@ -31,7 +31,7 @@ public struct CodexTurnState: Equatable, Sendable {
 /// Reads `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, one JSON object per line.
 public enum CodexRolloutParser {
     /// The first line is about 22 KB; this leaves room.
-    public static let headSize = 64 * 1024
+    public static let headSize = 1024 * 1024
     public static let tailSize = 256 * 1024
     /// An idle thread is listed this long after its file last changed.
     public static let idleListing: TimeInterval = 30 * 60

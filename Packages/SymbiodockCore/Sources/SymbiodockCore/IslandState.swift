@@ -177,7 +177,9 @@ public final class IslandState {
 
     /// Applies a tab order, repaired if it is damaged. A collapsed island will open on it.
     public func setTabOrder(_ order: [IslandTab]) {
-        tabOrder = TabOrder.repaired(TabOrder.encode(order))
+        let repaired = TabOrder.repaired(TabOrder.encode(order))
+        // Assign only on change: every assignment redraws the island.
+        if repaired != tabOrder { tabOrder = repaired }
     }
 
     /// A click on a tab.

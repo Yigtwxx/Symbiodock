@@ -392,4 +392,31 @@ struct IslandStateTests {
         state.setTabOrder([.media])
         #expect(state.tabOrder == [.media, .agents])
     }
+
+    @Test func startingADragFromTheExpandedAgentsTabClearsFinishedMarks() {
+        let state = IslandState()
+        state.setAgentSessions([agent("a", .working)])
+        state.setAgentSessions([agent("a", .idle)])
+        state.setHovering(true)
+        #expect(state.selectedTab == .agents)
+        #expect(state.board.attention == .finished)
+        state.beginDrag(at: .zero, from: .zero)
+        #expect(state.board.attention == .none)
+    }
+
+    @Test func anIdenticalSessionListLeavesTheBoardEqual() {
+        let state = IslandState()
+        let sessions = [agent("a", .working), agent("b", .needsInput(prompt: "ok?"))]
+        state.setAgentSessions(sessions)
+        let before = state.board
+        state.setAgentSessions(sessions)
+        #expect(state.board == before)
+    }
+
+    @Test func theSameTabOrderInGivesTheSameOrderOut() {
+        let state = IslandState()
+        state.setTabOrder([.agents, .media])
+        state.setTabOrder([.agents, .media])
+        #expect(state.tabOrder == [.agents, .media])
+    }
 }
