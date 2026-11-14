@@ -5,19 +5,28 @@ import AppKit
 /// Symbiodock is an agent app without a Dock icon or a menu bar item,
 /// so this menu is the only way to quit.
 @MainActor
-final class IslandMenu: NSObject {
+final class IslandMenu: NSObject, NSMenuDelegate {
     let menu = NSMenu()
     private let musicAccessItem: NSMenuItem
     private let musicAccessSeparator = NSMenuItem.separator()
+    private let launchAtLoginItem: NSMenuItem
 
     override init() {
         musicAccessItem = NSMenuItem(
             title: "Music access needed", action: #selector(openAutomationSettings), keyEquivalent: "")
+        launchAtLoginItem = NSMenuItem(
+            title: "Launch at login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         super.init()
+
+        menu.delegate = self
 
         musicAccessItem.target = self
         menu.addItem(musicAccessItem)
         menu.addItem(musicAccessSeparator)
+
+        launchAtLoginItem.target = self
+        menu.addItem(launchAtLoginItem)
+        menu.addItem(.separator())
 
         let quit = NSMenuItem(
             title: "Quit Symbiodock",
@@ -32,6 +41,15 @@ final class IslandMenu: NSObject {
     func setMusicAccessNeeded(_ needed: Bool) {
         musicAccessItem.isHidden = !needed
         musicAccessSeparator.isHidden = !needed
+    }
+
+    /// The checkmark reflects the system's real status each time the menu opens.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        launchAtLoginItem.state = LoginItem.isEnabled ? .on : .off
+    }
+
+    @objc private func toggleLaunchAtLogin() {
+        LoginItem.setEnabled(!LoginItem.isEnabled)
     }
 
     @objc private func openAutomationSettings() {

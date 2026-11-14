@@ -63,10 +63,16 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 
 ## Durum
 
-- Faz 0-3 kodu tamam: çekirdek paket testleriyle; agent uygulama ve ada sağ tık menüsü;
-  çentik adası, hover, tıklama geçişi; Now Playing (MediaRemote yardımcı süreci + Apple Music
-  yedeği), kapalı adada kapak ve seviye çubukları, açık adada parça bilgisi ve kontroller.
-- Sürükleme, symbiote efekti ve girişte başlatma yok. Faz 4 başlamadı.
+- Faz 0-2 tamam ve sahibi elle doğruladı: çekirdek paket, agent uygulama, çentik adası,
+  hover, tıklama geçişi.
+- Faz 3 (Now Playing) ve Faz 6 (girişte başlatma) kodu tamam, `main`'de; **sahibinin elle
+  kontrolü bekliyor** (sahibi 2026-11-14 akşamı Mac'in başında değildi). Kontrol listeleri:
+  `docs/superpowers/plans/2026-11-14-m2-now-playing.md` ve
+  `docs/superpowers/plans/2026-11-14-m5-launch-at-login.md` sonunda. Apple Music yedek yolu
+  (AppleScript, izin penceresi) hiç çalıştırılmadı.
+- Menü çubuğunda öğe yok; menü adaya sağ tıkla açılır.
+- Sürükleme ve symbiote efekti yok. Sahibi, Faz 3'ü görmeden Faz 4'ün pencere/sürükleme
+  tarafına başlanmamasını, ama planının ve testli çekirdeğinin yazılmasını onayladı.
 - Xcode 27.2 ve XcodeGen 2.45.4 kurulu, `xcode-select` ile seçili.
 
 ## "Yapılacakları yap" denince
@@ -127,7 +133,8 @@ Durmadan devam edilecek durumlar:
       korunuyor; ada menüsünde "Return to notch".
 - [ ] **Faz 5 — Milestone 4: symbiote efekti.** Plan yok, yazılacak (spec 5.5 titreşim, 5.6).
       Uzama, incelen lifler, kopma ve geri çekilme; kopma ve yapışmada trackpad titreşimi.
-- [ ] **Faz 6 — Milestone 5: girişte başlatma.** Plan yok, yazılacak (spec 5.9). Ada
+- [x] **Faz 6 — Milestone 5: girişte başlatma.** Kod tamam, elle kontrol bekliyor.
+      Plan: `docs/superpowers/plans/2026-11-14-m5-launch-at-login.md`. Ada
       menüsünde "Launch at login" aç/kapa.
 
 v1 bunlarla biter. Sonrası (widget'lar, kişiselleştirme, dil desteği, imzalama, site) için
