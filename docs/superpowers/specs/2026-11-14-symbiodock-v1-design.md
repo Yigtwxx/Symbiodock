@@ -26,7 +26,8 @@ built behind a small interface.
 - Hover expand / collapse.
 - Now Playing with playback controls.
 - Drag, symbiote stretch-and-tear effect, snapping, return to the notch.
-- A menu bar status item with "Return to notch" and "Quit".
+- A menu bar status item with "Return to notch", "Launch at login" and "Quit".
+- Trackpad haptic feedback when the island tears off and when it snaps.
 - Remembering the last dock position across launches.
 
 ### Out of scope for v1
@@ -38,6 +39,12 @@ built behind a small interface.
 - A settings window.
 - Scrubbing the progress bar (progress is display-only).
 - Mac App Store distribution.
+- Themes or any other visual customization. The island is flat black in v1;
+  customization is planned for later.
+- Localization. All user-facing text is English, written as plain literals.
+  Language support is planned for much later.
+- Signing with a Developer ID, notarization, the website and paid downloads
+  (section 11).
 
 ## 3. Platform and constraints
 
@@ -48,7 +55,7 @@ built behind a small interface.
 | Development machine | macOS 27.0.1, Swift 6.4.2 |
 | App type | Agent app (`LSUIElement = true`): no Dock icon, no main window |
 | Sandbox | Off. Apple Events and the MediaRemote helper do not work in the sandbox |
-| Distribution | Outside the App Store |
+| Distribution | Outside the App Store; see section 11 |
 | Hardware | Apple Silicon and Intel Macs; Macs without a notch get a virtual notch (section 5.2) |
 
 Xcode is required to build, sign and debug the app. At the time of writing
@@ -184,6 +191,11 @@ transitions and feeds the pointer location to the symbiote simulation.
 
 The resolved anchor is saved to `UserDefaults` and restored at launch.
 
+Haptics: `DragController` plays a trackpad haptic through
+`NSHapticFeedbackManager` at two moments: `.generic` when the island tears
+off, `.alignment` when it snaps to its anchor. Nothing is played for mouse
+users, because the system only drives the trackpad.
+
 ### 5.6 Symbiote effect
 
 Two parts: a simulation and a renderer.
@@ -285,10 +297,15 @@ protocol stays in place for later sources (for example a Spotify provider).
 
 ### 5.9 StatusItemController
 
-A menu bar item with two permanent entries: "Return to notch" (sets the anchor
-to `.notch`) and "Quit". An agent app has no other way to quit. A third entry,
-"Music access needed", appears only while Automation consent is missing
-(section 6).
+A menu bar item with three permanent entries:
+
+- "Return to notch": sets the anchor to `.notch`.
+- "Launch at login": a checkmark toggle backed by `SMAppService.mainApp`. The
+  checkmark reflects the service's real status each time the menu opens.
+- "Quit": an agent app has no other way to quit.
+
+A fourth entry, "Music access needed", appears only while Automation consent
+is missing (section 6).
 
 ## 6. Error handling
 
@@ -300,6 +317,7 @@ to `.notch`) and "Quit". An agent app has no other way to quit. A third entry,
 | Artwork missing | Placeholder music glyph |
 | Display configuration changes | Recompute geometry, re-anchor to the saved anchor |
 | Saved anchor cannot be decoded | Fall back to `.notch` |
+| Login item registration fails | The toggle stays unchecked; the error is logged |
 
 Logging uses `os.Logger`. Raw helper output and raw Apple Event replies are
 not written to logs.
@@ -333,7 +351,8 @@ small pieces.
 | 1 | Notch island | Panel sits on the notch; hover expands and collapses with placeholder content; clicks outside the island pass through |
 | 2 | Now Playing | MediaRemote spike result recorded; real track data and working controls from at least Apple Music |
 | 3 | Drag and snap | Island can be dragged off, snaps to edges and corners, returns to the notch, position survives relaunch |
-| 4 | Symbiote effect | Stretch, thinning tendrils, tear and retract, from the notch and from any edge |
+| 4 | Symbiote effect | Stretch, thinning tendrils, tear and retract, from the notch and from any edge; haptics at tear and snap |
+| 5 | Launch at login | The menu toggle registers and unregisters the login item, and its state is correct after a relaunch |
 
 Implementation plans are written per milestone, because milestone 2 depends
 on a spike result. The first plan covers milestones 0 and 1.
@@ -350,4 +369,21 @@ on a spike result. The first plan covers milestones 0 and 1.
 
 ## 10. License
 
-MIT. See `LICENSE` in the repository root.
+GNU General Public License v3.0. See `LICENSE` in the repository root.
+Anyone may build and use the app; derivative works must stay under the GPL.
+Every bundled third-party component must have a GPL-compatible license.
+
+## 11. Distribution
+
+Decided by the owner on 2026-11-14:
+
+- Free: clone the repository and build from source.
+- Paid: a ready-made build sold as a download on a website, with no license
+  key and no license check inside the app.
+
+Selling a ready-made build requires Developer ID signing and notarization,
+which need a paid Apple Developer membership. The owner will arrange this,
+the website and the payment provider after the app itself is built. Until
+then builds are ad-hoc signed and run only on the machine that built them.
+With ad-hoc signing macOS may ask for the Automation consent again after a
+rebuild.

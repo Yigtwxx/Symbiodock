@@ -22,7 +22,8 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 - En düşük macOS: 14.0
 - Agent uygulama (`LSUIElement = true`), sandbox kapalı, App Store dışı dağıtım
 - Geliştirme makinesi: macOS 27.0.1, Swift 6.4.2
-- Lisans: MIT
+- Lisans: GPL-3.0
+- Arayüz dili: yalnızca İngilizce (dil desteği çok sonra)
 
 ## Karar kaydı (2026-11-14)
 
@@ -40,7 +41,15 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 | Proje üretimi | XcodeGen (`project.yml`), `.xcodeproj` commit edilmez | Komut satırından üretilebilir ve diff'i okunur |
 | Kod yerleşimi | Saf mantık `Packages/SymbiodockCore` paketinde, AppKit/SwiftUI app hedefinde | Mantık uygulama açılmadan `swift test` ile test edilir |
 | Telif satırı | `Yigtwxx` | Sahibinin tercihi |
-| Lisans | MIT | Public, kişisel araç |
+| Lisans | GPL-3.0 (MIT'ten değiştirildi) | Kaynak açık + ücretli hazır sürüm modeli; kapalı kaynak kopyaları engeller |
+| Dağıtım | Ücretsiz: GitHub'dan clone edip derleme. Ücretli: web sitesinden hazır sürüm indirme, lisans anahtarı yok | Sahibinin iş modeli; kaynak açıkken anahtar kontrolü anlamsız |
+| İmzalama, site, ödeme | Uygulama bitince ele alınacak; o zamana kadar ad-hoc imza | Sahibi: "site kısmı en son" |
+| Görünüm | v1'de düz siyah; kişiselleştirme sonra | Sahibinin tercihi |
+| Tam ekran | Ada tam ekran uygulamaların üstünde de görünür kalır | Sahibinin tercihi |
+| Girişte başlatma | v1'de var, menüde aç/kapa (milestone 5) | Sahibinin tercihi |
+| Geri bildirim | Kopma ve yapışma anında trackpad titreşimi, ses yok | Sahibinin tercihi |
+| Arayüz dili | Tamamen İngilizce; çeviri altyapısı kurulmaz | Dil desteği çok sonra gelecek |
+| v1 sonrası widget'lar | Henüz kararlaştırılmadı | Sahibi sonra söyleyecek; sorma, o açana kadar bekle |
 | Depo | `Yigtwxx/Symbiodock`, public | Sahibinin isteği |
 
 ## Git
@@ -68,15 +77,15 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
    bir denemenin sonucuna bağlı.
 
 Milestone'lar: 0 proje iskeleti → 1 çentik adası ve hover → 2 Now Playing →
-3 sürükleme ve yapışma → 4 symbiote efekti.
+3 sürükleme ve yapışma → 4 symbiote efekti → 5 girişte başlatma.
 
 ## Doğrulanmamış varsayımlar
 
 Bunlar denenmedi; ilgili milestone'da ilk iş olarak doğrulanacak. Her birinin yedeği
 spec'te yazılı.
 
-- `mediaremote-adapter` macOS 27'de çalışıyor mu (milestone 2 başında deneme). Lisansı da
-  paketlemeden önce kontrol edilecek.
+- `mediaremote-adapter` macOS 27'de çalışıyor mu (milestone 2 başında deneme). Lisansı
+  paketlemeden önce kontrol edilecek; GPL-3.0 ile uyumlu olmak zorunda.
 - `com.apple.Music.playerInfo` bildirimi macOS 27'de geliyor mu.
 - Global fare izleme izin istiyor mu; istiyorsa `NSEvent.mouseLocation` yoklamasına geçilir.
 
