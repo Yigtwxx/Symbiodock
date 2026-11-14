@@ -38,6 +38,8 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 | Efekt tekniği | SwiftUI `Canvas`: incelen şerit lifler, altta metaball katmanı (blur + alpha threshold), üstte net çizim; yetmezse Metal shader | Araştırma ve prototip: daire zinciri boncuk gibi duruyor, ince lifler filtrede kayboluyor (spec 5.6) |
 | Kenara tutunma | Kopmuş ada bir kenara (~70 pt) ya da çentiğe yaklaşınca lifler uzanıp tutunur; lifler tutunmuşken bırakılırsa o yüzeye yapışır, açıkta bırakılırsa en yakın kenara gider (2026-11-14) | Sahibinin isteği: "ortada durmasın, yapışkanmış gibi; yaklaşınca yine venom efekti, bırakınca o kenara yapışsın" (spec 5.5, 5.6) |
 | Çentik dışı konum | `visibleFrame` kenarına sıfır mesafe, çentik gibi: kenara değen köşeler köşeli, serbest köşeler yuvarlak (2026-11-14; önceki: 8 pt içeride yüzen kapsül) | Sahibi: "tamamen 0 olsun, kenara direkt çentik gibi dursun"; menü çubuğunu ve Dock'u yine kapatmaz |
+| Yan kenarda dikey ada | Sağ/sol kenarda kapalı ada 36 × 170 pt dikey şerit: üstte platform simgesi, ortada 90° döndürülmüş parça adı, altta seviye çubukları; hover'da kenardan içeri 480 × 170 açılır. Köşeler ve üst/alt kenar yatay kalır (2026-11-14) | Sahibi: "sağa veya sola yapışırsa dikey yapışsın"; açık ada şeritten kısa olursa hover titrer (spec: `2026-11-14-side-docking-design.md`) |
+| Platform simgesi | Yalnızca dikey şeritte. Music/Spotify: uygulama simgesi. Tarayıcı: Safari ve Chrome'a AppleScript ile sekmeler sorulur, YouTube/Kick/Twitch logosu gösterilir (Simple Icons, CC0); izin yoksa tarayıcı simgesi (2026-11-14) | Sahibi: "yt ise yt"; sistem yalnızca tarayıcıyı söylüyor, site için Automation izni şart ve sahibi onayladı |
 | Mimari | Spec bölüm 4-5 | Sahibi onayladı |
 | Proje üretimi | XcodeGen (`project.yml`), `.xcodeproj` commit edilmez | Komut satırından üretilebilir ve diff'i okunur |
 | Kod yerleşimi | Saf mantık `Packages/SymbiodockCore` paketinde, AppKit/SwiftUI app hedefinde | Mantık uygulama açılmadan `swift test` ile test edilir |
@@ -74,6 +76,10 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 - Kenara tutunma efekti (2026-11-14 gece, sahibi uzaktayken eklendi): kod `main`'de, ekran
   dışı görüntülerle doğrulandı, canlı denenmedi. Elle kontrol maddeleri 14-20,
   `2026-11-14-m3-m4-window-drag-and-effect.md` içinde.
+- Yan kenarda dikey ada ve platform simgesi (2026-11-14 gece): kod `main`'de. Çalışan
+  uygulamada ekran görüntüsüyle doğrulandı: sağ kenarda şerit, Safari'de YouTube logosu.
+  Denenmedi: hover ile açılma, şeridi sürükleyip koparma ve geri oturtma, Chrome, Kick ve
+  Twitch, iznin reddi. Elle kontrol listesi `2026-11-14-side-docking.md` sonunda.
 - Hiç çalıştırılmamış yollar: Apple Music yedeği (AppleScript, izin penceresi), canlı
   sürükleme (fare olaylarının monitöre ulaşması), trackpad titreşimi.
 - Menü çubuğunda öğe yok; menü adaya sağ tıkla açılır (Return to notch, Launch at login,

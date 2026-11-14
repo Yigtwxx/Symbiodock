@@ -1,6 +1,6 @@
 # Side Docking and Platform Icon Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** An island docked on the left or right edge becomes a vertical strip (platform icon, rotated title, level bars) that opens sideways on hover.
 
@@ -31,7 +31,7 @@ Spec: `docs/superpowers/specs/2026-11-14-side-docking-design.md`.
 - `IslandLayout.sideCollapsedSize: CGSize` = 36 × 170
 - `IslandLayout.isSideDocked(_ anchor: IslandAnchor) -> Bool`
 
-- [ ] **Step 1: Failing tests** (append to `IslandLayoutTests`, using its `floating(_:_:hasTrack:)` helper; `visible` is `(0, 38, 1512, 880)`)
+- [x] **Step 1: Failing tests** (append to `IslandLayoutTests`, using its `floating(_:_:hasTrack:)` helper; `visible` is `(0, 38, 1512, 880)`)
 
 ```swift
 // MARK: Side docking
@@ -77,10 +77,10 @@ Spec: `docs/superpowers/specs/2026-11-14-side-docking-design.md`.
 }
 ```
 
-- [ ] **Step 2:** `swift test --package-path Packages/SymbiodockCore --filter IslandLayoutTests` → fails to compile (`sideCollapsedSize` missing).
-- [ ] **Step 3: Implement.** Add the constant and `isSideDocked`; in `frame(anchor:…)` replace `place(isExpanded ? expandedSize : floatingCollapsedSize)` with `place(isExpanded ? expandedSize : collapsedSize(at: anchor))`, where `collapsedSize(at:)` returns `sideCollapsedSize` when side-docked. The expanded size on a side edge is 480 × max(134, 170), so the open island always contains the strip; extend `hoveringADockedIslandNeverMovesItFromUnderThePointer` to the left and right edges. Fix any existing test that assumed 200 × 36 on a left/right edge.
-- [ ] **Step 4:** tests pass.
-- [ ] **Step 5:** commit `feat(core): lay a side-docked island out as a vertical strip`.
+- [x] **Step 2:** `swift test --package-path Packages/SymbiodockCore --filter IslandLayoutTests` → fails to compile (`sideCollapsedSize` missing).
+- [x] **Step 3: Implement.** Add the constant and `isSideDocked`; in `frame(anchor:…)` replace `place(isExpanded ? expandedSize : floatingCollapsedSize)` with `place(isExpanded ? expandedSize : collapsedSize(at: anchor))`, where `collapsedSize(at:)` returns `sideCollapsedSize` when side-docked. The expanded size on a side edge is 480 × max(134, 170), so the open island always contains the strip; extend `hoveringADockedIslandNeverMovesItFromUnderThePointer` to the left and right edges. Fix any existing test that assumed 200 × 36 on a left/right edge.
+- [x] **Step 4:** tests pass.
+- [x] **Step 5:** commit `feat(core): lay a side-docked island out as a vertical strip`.
 
 ### Task 2: Platform on NowPlayingInfo (core)
 
@@ -102,7 +102,7 @@ public var sourceBundleIdentifier: String?
 public var site: MediaSite?
 ```
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```swift
 struct MediaSiteTests {
@@ -140,10 +140,10 @@ struct MediaSiteTests {
 
 Parser tests: a Safari payload gives `sourceBundleIdentifier == "com.apple.Safari"` (the parent, not the GPU helper) and `site == nil`; a payload with no identifier gives nil; the Apple Music parser gives `"com.apple.Music"`. Existing full-value comparisons gain `sourceBundleIdentifier:`.
 
-- [ ] **Step 2:** run, fails to compile.
-- [ ] **Step 3: Implement.** Host from `URLComponents(string:)?.host`, lowercased; a host matches a domain when it equals it or ends with `"." + domain`. Title: split on whitespace, take the last word stripped of punctuation, compare case-insensitively with `youtube`, `kick`, `twitch`.
-- [ ] **Step 4:** tests pass.
-- [ ] **Step 5:** commit `feat(core): carry the source app and site on NowPlayingInfo`.
+- [x] **Step 2:** run, fails to compile.
+- [x] **Step 3: Implement.** Host from `URLComponents(string:)?.host`, lowercased; a host matches a domain when it equals it or ends with `"." + domain`. Title: split on whitespace, take the last word stripped of punctuation, compare case-insensitively with `youtube`, `kick`, `twitch`.
+- [x] **Step 4:** tests pass.
+- [x] **Step 5:** commit `feat(core): carry the source app and site on NowPlayingInfo`.
 
 ### Task 3: Finding the playing tab (core)
 
@@ -163,7 +163,7 @@ public enum BrowserTabs {
 }
 ```
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```swift
 struct BrowserTabsTests {
@@ -210,10 +210,10 @@ struct BrowserTabsTests {
 }
 ```
 
-- [ ] **Step 2:** run, fails to compile.
-- [ ] **Step 3: Implement.** Match is case-insensitive containment either way; the contained string must be at least 4 characters.
-- [ ] **Step 4:** tests pass.
-- [ ] **Step 5:** commit `feat(core): find the browser tab that is playing`.
+- [x] **Step 2:** run, fails to compile.
+- [x] **Step 3: Implement.** Match is case-insensitive containment either way; the contained string must be at least 4 characters.
+- [x] **Step 4:** tests pass.
+- [x] **Step 5:** commit `feat(core): find the browser tab that is playing`.
 
 ### Task 4: The strip (app views)
 
@@ -224,8 +224,8 @@ struct BrowserTabsTests {
 
 **Interfaces — consumes:** `IslandLayout.isSideDocked`, `NowPlayingInfo.site`, `.sourceBundleIdentifier`. **Produces:** `PlatformIcon(info: NowPlayingInfo, size: CGFloat)`, `SideCollapsedContent(info: NowPlayingInfo?)`.
 
-- [ ] **Step 1:** `PlatformIcon`: site → cached `NSImage` from `Bundle.main.url(forResource: site.rawValue, withExtension: "svg")`; else bundle identifier → `NSWorkspace.shared.urlForApplication(withBundleIdentifier:)` → `icon(forFile:)`, cached; else the `music.note` glyph on the same tile `ArtworkView` uses.
-- [ ] **Step 2:** `SideCollapsedContent`: `VStack` of icon (20 pt), rotated title, `LevelBars`. The title is laid out with the strip's free height as its width, then turned:
+- [x] **Step 1:** `PlatformIcon`: site → cached `NSImage` from `Bundle.main.url(forResource: site.rawValue, withExtension: "svg")`; else bundle identifier → `NSWorkspace.shared.urlForApplication(withBundleIdentifier:)` → `icon(forFile:)`, cached; else the `music.note` glyph on the same tile `ArtworkView` uses.
+- [x] **Step 2:** `SideCollapsedContent`: `VStack` of icon (20 pt), rotated title, `LevelBars`. The title is laid out with the strip's free height as its width, then turned:
 
 ```swift
 GeometryReader { proxy in
@@ -239,10 +239,10 @@ GeometryReader { proxy in
 }
 ```
 
-- [ ] **Step 3:** wire into `IslandView.content(atNotch:)`; fix the capsule radius in `DragSession.islandPath`.
-- [ ] **Step 4:** `xcodegen generate && xcodebuild …` builds; the SVGs are in `Contents/Resources`.
-- [ ] **Step 5:** run the app docked on a side edge and look at it (screenshot).
-- [ ] **Step 6:** commit `feat: show a side-docked island as a vertical strip`.
+- [x] **Step 3:** wire into `IslandView.content(atNotch:)`; fix the capsule radius in `DragSession.islandPath`.
+- [x] **Step 4:** `xcodegen generate && xcodebuild …` builds; the SVGs are in `Contents/Resources`.
+- [x] **Step 5:** run the app docked on a side edge and look at it (screenshot).
+- [x] **Step 6:** commit `feat: show a side-docked island as a vertical strip`.
 
 ### Task 5: Site detection (app)
 
@@ -263,7 +263,7 @@ GeometryReader { proxy in
 }
 ```
 
-- [ ] **Step 1:** `BrowserTabScript`. Permission off the main thread:
+- [x] **Step 1:** `BrowserTabScript`. Permission off the main thread:
 
 ```swift
 private nonisolated static func automationStatus(_ bundleIdentifier: String) async -> OSStatus {
@@ -302,16 +302,16 @@ end tell
 
 Run it only when the browser is running (`NSRunningApplication`), so it is never launched.
 
-- [ ] **Step 2:** `SiteResolver.publish`: non-browser → pass through. Browser → set `site` from the cache when `(bundle, title)` matches the cached key, otherwise from `MediaSite.site(inPageTitle:)`; publish; if the key is not cached and no lookup is running, start one. When a lookup ends: cache `(key, site)`, republish the latest info if its key matches, and start another lookup if the latest key differs.
-- [ ] **Step 3:** wire into `NowPlayingCoordinator`; update the usage description in both files.
-- [ ] **Step 4:** build; run with a browser playing; the owner allows the prompt; the logo appears.
-- [ ] **Step 5:** commit `feat: show the playing site's logo for browser playback`.
+- [x] **Step 2:** `SiteResolver.publish`: non-browser → pass through. Browser → set `site` from the cache when `(bundle, title)` matches the cached key, otherwise from `MediaSite.site(inPageTitle:)`; publish; if the key is not cached and no lookup is running, start one. When a lookup ends: cache `(key, site)`, republish the latest info if its key matches, and start another lookup if the latest key differs.
+- [x] **Step 3:** wire into `NowPlayingCoordinator`; update the usage description in both files.
+- [x] **Step 4:** build; run with a browser playing; the owner allows the prompt; the logo appears.
+- [x] **Step 5:** commit `feat: show the playing site's logo for browser playback`.
 
 ### Task 6: Records
 
-- [ ] Add the decisions (side docking, platform icon, browser Automation) to the decision table and `Durum` in `CLAUDE.md`; note the unverified parts (prompt, Chrome, Kick/Twitch titles).
-- [ ] Append the hand checklist below to this plan.
-- [ ] Commit `docs: record side docking and the platform icon`.
+- [x] Add the decisions (side docking, platform icon, browser Automation) to the decision table and `Durum` in `CLAUDE.md`; note the unverified parts (prompt, Chrome, Kick/Twitch titles).
+- [x] Append the hand checklist below to this plan.
+- [x] Commit `docs: record side docking and the platform icon`.
 
 ## Hand checklist (owner)
 
