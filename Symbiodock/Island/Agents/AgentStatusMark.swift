@@ -13,6 +13,11 @@ struct AgentStatusMark: View {
     /// When the mark last became finished: one ring goes outward from then.
     @State private var finishedAt: Date?
 
+    /// The knocks and the ring are short; this is plenty for them. The working spinner is
+    /// not drawn frame by frame at all: Core Animation turns it (`SpinningArc`).
+    private static let frameInterval = 1.0 / 20.0
+    /// The knocks and their rings are over this long into each beat; the mark rests after.
+    private static let knockWindow: TimeInterval = 1.25
     private static let stroke: CGFloat = 1.75
     private static let turnPeriod: TimeInterval = 1.1
     private static let knockPeriod: TimeInterval = 2.4
@@ -24,7 +29,7 @@ struct AgentStatusMark: View {
             if let frozenAt {
                 mark(time: frozenAt, burst: nil, moving: true)
             } else {
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !moves)) { context in
+                TimelineView(schedule) { context in
                     mark(
                         time: context.date.timeIntervalSinceReferenceDate,
                         burst: finishedAt.map { context.date.timeIntervalSince($0) },
@@ -60,6 +65,25 @@ struct AgentStatusMark: View {
         !reduceMotion && (state == .working || isNeedsInput || finishedAt != nil)
     }
 
+    /// Whether Core Animation is turning the arc.
+    private var spins: Bool {
+        !reduceMotion && state == .working && frozenAt == nil
+    }
+
+    /// When the mark has to be redrawn: while it knocks, and while the finished ring goes
+    /// out. The turning arc needs no redraws.
+    private var schedule: FrameSchedule {
+        if isNeedsInput, !reduceMotion {
+            return FrameSchedule(
+                interval: Self.frameInterval,
+                pulse: .init(
+                    anchor: Date(timeIntervalSinceReferenceDate: 0), period: Self.knockPeriod,
+                    length: Self.knockWindow))
+        }
+        return FrameSchedule(
+            interval: Self.frameInterval, paused: reduceMotion || finishedAt == nil)
+    }
+
     private var color: Color {
         switch state {
         case .working: .white.opacity(0.9)
@@ -86,6 +110,11 @@ struct AgentStatusMark: View {
                 .trim(from: 0, to: state == .working ? 0.75 : 1)
                 .stroke(color, style: StrokeStyle(lineWidth: Self.stroke, lineCap: .round))
                 .rotationEffect(.degrees(turn - 90))
+                .opacity(spins ? 0 : 1)
+            if spins {
+                SpinningArc(color: color, lineWidth: Self.stroke, period: Self.turnPeriod)
+                    .transition(.opacity)
+            }
             Circle()
                 .fill(color)
                 .frame(width: size * 0.29, height: size * 0.29)

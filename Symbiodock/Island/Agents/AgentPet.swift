@@ -14,15 +14,21 @@ struct AgentPet: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// The stir is slow; it needs no more frames than this.
-    private static let frameInterval = 1.0 / 20.0
+    /// Redrawing more often than every 0.35 s keeps the whole island's update cycle awake,
+    /// which costs about 5 % of a core (see `FrameSchedule`). A pet of the collapsed island
+    /// (24 pt) stirs by under a point, a step of under a point at this rate; larger pets
+    /// only show while the island is open and can afford more.
+    private var stirInterval: TimeInterval { size <= 30 ? 0.4 : 1.0 / 12.0 }
+    /// A hop lasts 0.3 s; two of them start every beat.
+    private static let hopFrameInterval = 1.0 / 20.0
+    private static let hopWindow = 2 * AgentPetMotion.hopLength + 0.05
 
     var body: some View {
         Group {
             if let frozenAt {
                 figure(time: frozenAt, moving: true)
             } else {
-                TimelineView(.animation(minimumInterval: Self.frameInterval, paused: !moves)) { context in
+                TimelineView(schedule) { context in
                     figure(time: context.date.timeIntervalSinceReferenceDate, moving: moves)
                 }
             }
@@ -34,6 +40,19 @@ struct AgentPet: View {
 
     private var isNeedsInput: Bool {
         if case .needsInput = state { true } else { false }
+    }
+
+    /// When the pet has to be redrawn: always at the stir's pace while it works; only
+    /// during the hops while it needs input.
+    private var schedule: FrameSchedule {
+        if isNeedsInput, moves {
+            return FrameSchedule(
+                interval: Self.hopFrameInterval,
+                pulse: .init(
+                    anchor: Date(timeIntervalSinceReferenceDate: 0), period: AgentPetMotion.hopPeriod,
+                    length: Self.hopWindow))
+        }
+        return FrameSchedule(interval: stirInterval, paused: !moves)
     }
 
     private var moves: Bool {
@@ -50,8 +69,9 @@ struct AgentPet: View {
     }
 
     private func figure(time: TimeInterval, moving: Bool) -> some View {
-        let lines = AgentPetArt.lines(for: tool, strength: strength)
-        let grounds = AgentPetArt.grounds(for: tool, strength: strength)
+        let art = AgentPetArt.art(for: tool, strength: strength)
+        let lines = art.lines
+        let grounds = art.grounds
         let stirs = moving && state == .working
         let hop = moving && isNeedsInput ? AgentPetMotion.hop(at: time) : 0
         return Canvas { context, canvas in
@@ -100,24 +120,36 @@ private enum AgentPetArt {
         let strength: Int
     }
 
-    private static var cache: [Key: [[Stretch]]] = [:]
+    /// Everything about a pet that does not depend on time.
+    struct Art {
+        let lines: [[Stretch]]
+        let grounds: [Color]
+    }
+
+    private static var cache: [Key: Art] = [:]
 
     /// Where a line stands across the pet, from 0 at the left to 1 at the right.
     private static func position(ofLine index: Int) -> Double {
         Double(index) / Double(max(AgentPetFigure.lineCount - 1, 1))
     }
 
+    static func art(for tool: AgentTool, strength: Double) -> Art {
+        let key = Key(tool: tool, strength: Int((strength * 100).rounded()))
+        if let known = cache[key] { return known }
+        let art = Art(lines: lines(for: tool, strength: strength), grounds: grounds(for: tool, strength: strength))
+        cache[key] = art
+        return art
+    }
+
     /// The colour of each line where there is no figure.
-    static func grounds(for tool: AgentTool, strength: Double) -> [Color] {
+    private static func grounds(for tool: AgentTool, strength: Double) -> [Color] {
         (0..<AgentPetFigure.lineCount).map {
             AgentPalette.tint(
                 for: tool, strength: strength * AgentPetFigure.groundStrength, across: position(ofLine: $0))
         }
     }
 
-    static func lines(for tool: AgentTool, strength: Double) -> [[Stretch]] {
-        let key = Key(tool: tool, strength: Int((strength * 100).rounded()))
-        if let known = cache[key] { return known }
+    private static func lines(for tool: AgentTool, strength: Double) -> [[Stretch]] {
         let figure = AgentPetFigure.figure(for: tool)
         let lines = figure.lines.indices.map { index in
             figure.stretches(ofLine: index).map { stretch in
@@ -133,7 +165,6 @@ private enum AgentPetArt {
                 return Stretch(top: stretch.top, bottom: stretch.bottom, gradient: Gradient(stops: stops))
             }
         }
-        cache[key] = lines
         return lines
     }
 }
