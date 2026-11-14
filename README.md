@@ -18,4 +18,13 @@ Early development. Nothing is runnable yet.
 ## Tech
 
 - Swift / SwiftUI + AppKit
-- macOS only
+- macOS 14 or later
+
+## Design
+
+The v1 design is described in
+[docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md](docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md).
+
+## License
+
+[MIT](LICENSE)
