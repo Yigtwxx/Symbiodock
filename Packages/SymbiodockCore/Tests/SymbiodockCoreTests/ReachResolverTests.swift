@@ -63,12 +63,31 @@ struct ReachResolverTests {
         #expect(found?.root == CGPoint(x: 756, y: 28))
     }
 
+    @Test func theNotchIsReachedWhereverAReleaseWouldReturnToIt() {
+        // Beside the notch, under the menu bar: nearer the top edge than the notch's hold,
+        // but inside the capture radius, so released here the island goes back to the notch.
+        #expect(SnapResolver.anchor(
+            forRelease: CGPoint(x: 860, y: 60), notch: notch, visibleFrame: visible) == .notch)
+        #expect(target(860, 60)?.surface == .notch)
+        // The strands can start from anywhere in that radius, so the main one must hold there.
+        for step in 0..<64 {
+            let angle = CGFloat(step) / 64 * 2 * .pi
+            let x = notch.midX + cos(angle) * SnapResolver.notchCaptureRadius
+            let y = max(notch.midY + sin(angle) * SnapResolver.notchCaptureRadius, 18)
+            if let found = target(x, y), found.surface == .notch {
+                #expect(found.distance < ReachResolver.notchTearDistance - 10)
+            }
+        }
+    }
+
     @Test func aStandInNotchIsHeldAtTheDisplayEdge() {
         #expect(target(756, 80, physical: false)?.root == CGPoint(x: 756, y: 0))
     }
 
     @Test func besideTheNotchTheTopEdgeIsReached() {
         #expect(target(1000, 80)?.surface == .edge(.top))
+        // Just outside the notch's capture radius.
+        #expect(target(900, 60)?.surface == .edge(.top))
     }
 
     @Test func theHoldRunsTheWayStrandsSpreadAcrossTheIsland() {

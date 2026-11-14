@@ -55,7 +55,9 @@ public enum SnapResolver {
     }
 
     /// Where the island settles when it is released while its strands hold `surface`: on that
-    /// surface, whatever else is nearer. With no hold it is the plain nearest-place rule.
+    /// surface, whichever edge is nearer. With no hold it is the plain nearest-place rule.
+    /// The notch's capture radius outranks a held edge: `ReachResolver` hands the island to
+    /// the notch there anyway, and a release must not depend on whether that has happened yet.
     public static func anchor(
         forRelease point: CGPoint, attachedTo surface: IslandSurface?, notch: CGRect,
         visibleFrame: CGRect
@@ -66,6 +68,9 @@ public enum SnapResolver {
         guard case .edge(let edge) = surface else { return .notch }
         guard point.x.isFinite, point.y.isFinite, !visibleFrame.isNull, !visibleFrame.isInfinite
         else { return .notch }
+        if distance(point, CGPoint(x: notch.midX, y: notch.midY)) <= notchCaptureRadius {
+            return .notch
+        }
 
         let x = min(max(point.x, visibleFrame.minX), visibleFrame.maxX)
         let y = min(max(point.y, visibleFrame.minY), visibleFrame.maxY)

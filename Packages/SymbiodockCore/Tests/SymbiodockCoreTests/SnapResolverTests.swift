@@ -134,14 +134,19 @@ struct SnapResolverTests {
         expectEdge(resolve(110, 122 + 400, heldBy: .edge(.left)), .left, 490.0 / 880)
     }
 
-    @Test func aHeldEdgeWinsOverTheNotchCapture() {
-        expectEdge(resolve(756, 100, heldBy: .edge(.top)), .top, 0.5)
+    @Test func theNotchCaptureOutranksAHeldEdge() {
+        // The reach hands the island to the notch inside this radius; a release that comes
+        // before it has done so must end the same way.
+        #expect(resolve(756, 100, heldBy: .edge(.top)) == .notch)
+        #expect(resolve(860, 60, heldBy: .edge(.top)) == .notch)
+        // Just outside the radius the held edge decides again.
+        expectEdge(resolve(900, 60, heldBy: .edge(.top)), .top, 900.0 / 1512)
     }
 
     @Test func nearTheEndOfAHeldEdgeTheIslandGoesToThatCorner() {
         #expect(resolve(60, 500, heldBy: .edge(.bottom)) == .corner(.bottomLeft))
         #expect(resolve(1500, 500, heldBy: .edge(.bottom)) == .corner(.bottomRight))
-        #expect(resolve(700, 60, heldBy: .edge(.right)) == .corner(.topRight))
+        #expect(resolve(1300, 60, heldBy: .edge(.right)) == .corner(.topRight))
         expectEdge(resolve(200, 500, heldBy: .edge(.bottom)), .bottom, 200.0 / 1512)
     }
 

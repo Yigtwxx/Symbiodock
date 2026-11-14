@@ -35,13 +35,16 @@ public struct ReachTarget: Equatable, Sendable {
 public enum ReachResolver {
     /// Strands shoot out once the island is this close (pt) to an edge.
     public static let edgeReach: CGFloat = 80
-    /// Strands shoot out once the island is this close (pt) to the notch.
+    /// Strands shoot out once the island is this close (pt) to the notch. They also do
+    /// wherever a release would return the island to the notch
+    /// (`SnapResolver.notchCaptureRadius`), so the strands always show where it will go.
     public static let notchReach: CGFloat = 88
     /// Distance (pt) from its hold at which the thickest strand to an edge gives way.
     /// Thin strands go at 67 % of this, which must stay above `edgeReach`.
     public static let edgeTearDistance: CGFloat = 130
-    /// The same for the notch; 67 % of it must stay above `notchReach`.
-    public static let notchTearDistance: CGFloat = 140
+    /// The same for the notch; 67 % of it must stay above `notchReach`, and all of it above
+    /// the farthest the strands can start from (about 125 pt, at the rim of the capture radius).
+    public static let notchTearDistance: CGFloat = 150
 
     /// Strands leave the island from this far inside the side that faces the surface.
     static let bodyInset: CGFloat = 12
@@ -85,7 +88,9 @@ public enum ReachResolver {
             x: notch.midX, y: notchIsPhysical ? max(notch.maxY - 4, notch.minY) : notch.minY)
         let toNotch = distance(
             notchRoot, islandPoint(body: body, surface: .notch, visibleFrame: visibleFrame))
-        if toNotch < notchReach {
+        let fromNotchCenter = distance(
+            CGPoint(x: notch.midX, y: notch.midY), CGPoint(x: body.midX, y: body.midY))
+        if toNotch < notchReach || fromNotchCenter <= SnapResolver.notchCaptureRadius {
             return ReachTarget(
                 surface: .notch, root: notchRoot, tangent: CGPoint(x: -1, y: 0),
                 halfSpan: notch.width * 0.33, distance: toNotch)

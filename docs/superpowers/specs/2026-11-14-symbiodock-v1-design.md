@@ -205,12 +205,15 @@ to the edge the strands formed on"): if the island's strands hold a surface when
 released (see 5.6, "Reaching"), it settles on that surface, whatever else is nearer:
 the notch, or that edge at the island's position along it (the corner at the end of
 that edge when within 80 pt of it). `SnapResolver.anchor(forRelease:attachedTo:…)`.
+The notch's capture radius (rule 1 below) outranks a held edge, so the area from
+which a release returns to the notch is exactly what it was before.
 
 `ReachResolver` (pure, in `SymbiodockCore`) decides which surface a carried island
 reaches for. Surfaces are the notch and the four borders of the visible frame. The
 notch is in reach within 88 pt of the point where it is held (just inside the lower
-side of a physical notch; the display's top edge for a stand-in notch) and wins over
-the edge beside it. Otherwise the edge nearest the island's own side (not its center)
+side of a physical notch; the display's top edge for a stand-in notch), and anywhere
+inside its capture radius, so the strands always show where a release will go; it
+wins over the edge beside it. Otherwise the edge nearest the island's own side (not its center)
 is in reach within 80 pt, measured from 12 pt inside that side. An island pushed past
 an edge (over the menu bar or the Dock) counts as pressed against it. The hold never
 spreads past a corner.
@@ -272,7 +275,9 @@ island that nears a surface.
   neighbouring mounds web together in the metaball layer.
 - `DragSession` creates one such simulation when `ReachResolver` reports a surface in
   reach of a torn-off island, with the hold fixed where the strands first landed.
-  The main strand to an edge gives way 130 pt from its hold (140 pt for the notch);
+  The main strand to an edge gives way 130 pt from its hold (150 pt for the notch).
+  A strand that is out of its own range when the reach starts waits and sets off
+  once the island comes closer, so more strands join as it nears;
   what is left snaps back while a new set reaches from the island's new position, so
   an island slid along an edge keeps tearing loose and catching again.
 - On release the island glides to its place and the strands are soaked back up

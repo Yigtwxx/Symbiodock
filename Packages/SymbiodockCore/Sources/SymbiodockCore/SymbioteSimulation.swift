@@ -258,9 +258,15 @@ public struct SymbioteSimulation: Sendable {
             case .reaching(let elapsed):
                 follow(index, h)
                 let next = elapsed + h
-                if distance > configuration.tearDistance * blueprint.tearScale {
-                    // Out of range before it landed: the feeler is drawn back in.
+                if distance > configuration.tearDistance {
+                    // Too far for even the main strand: the reach is over.
                     strands[index].phase = retraction(index, elapsed)
+                } else if distance > configuration.tearDistance * blueprint.tearScale {
+                    // Too far for this strand. One that has not set off yet waits for the
+                    // island to come closer; one already on its way is drawn back in.
+                    if Self.reachProgress(index, elapsed) > 0 {
+                        strands[index].phase = retraction(index, elapsed)
+                    }
                 } else if Self.reachProgress(index, next) >= 1 {
                     strands[index].phase = .attached
                     strands[index].contact = 0
@@ -368,6 +374,8 @@ public struct SymbioteSimulation: Sendable {
     /// The feeler of a strand that never landed, drawn back into the island.
     private func retraction(_ index: Int, _ elapsed: Double) -> Phase {
         let progress = CGFloat(Self.reachProgress(index, elapsed))
+        // No nodes before the first `advance`: nothing has grown yet.
+        guard progress > 0, !strands[index].nodes.isEmpty else { return .gone }
         let line = centerline(strands[index].nodes.map(\.position))
         let total = line.lengths.last ?? 0
         let length = total * progress
@@ -403,7 +411,8 @@ public struct SymbioteSimulation: Sendable {
     /// The goo to draw for the current state.
     public var frame: SymbioteFrame {
         var frame = SymbioteFrame()
-        guard hasInput else { return frame }
+        // Soaked up completely: nothing, not even a hairline of sheen.
+        guard hasInput, thickness > 0.001 else { return frame }
         let distance = root.distance(to: island)
 
         for index in strands.indices {
@@ -662,7 +671,7 @@ public struct SymbioteSimulation: Sendable {
             normal = normal * side
             let t = CGFloat(i - range.lowerBound) / CGFloat(range.count - 1)
             shifted.append(points[i] + normal * (radii[i] * inset))
-            widths.append(max(radii[i] * width * sin(CGFloat.pi * t), 0.12))
+            widths.append(max(radii[i] * width * sin(CGFloat.pi * t), 0.12 * min(thickness, 1)))
         }
         return ribbon(shifted, widths)
     }

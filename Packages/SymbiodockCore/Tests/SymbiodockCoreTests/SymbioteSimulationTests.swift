@@ -363,7 +363,7 @@ struct SymbioteSimulationTests {
         }
         #expect(width(1) > 4)
         #expect(abs(width(0.5) - width(1) / 2) < 0.6)
-        #expect(width(0) < 0.01)
+        #expect(width(0.1) < width(0.5))
     }
 
     @Test func reachingIsDeterministic() {
@@ -384,5 +384,36 @@ struct SymbioteSimulationTests {
         #expect(first.ribbons.count == 1)
         #expect(first.droplets.count == 1)
         #expect(first.boundingBox == CGRect(x: 0, y: 0, width: 35, height: 35))
+    }
+
+    @Test func tearBeforeTheFirstInputDoesNotCrash() {
+        var simulation = reaching()
+        simulation.tear()
+        #expect(simulation.isTorn)
+        #expect(simulation.isFinished)
+        #expect(simulation.frame.isEmpty)
+    }
+
+    @Test func strandsOutOfTheirOwnRangeWaitForTheIslandToComeCloser() {
+        var simulation = reaching()
+        // 110 pt: within the main strand's range (130), beyond the thin ones' (87).
+        hold(&simulation, at: 110, for: 0.6)
+        #expect(simulation.isHolding)
+        // Strands and their mounds come in pairs once landed.
+        let far = simulation.frame.ribbons.count
+        #expect(far >= 2 && far < 20)
+
+        hold(&simulation, at: 60, for: 0.6)
+        #expect(simulation.frame.ribbons.count == 20)
+    }
+
+    @Test func fullySoakedUpStrandsDrawNothingAtAll() {
+        var simulation = reaching()
+        hold(&simulation, at: 70, for: 0.6)
+        #expect(!simulation.frame.highlights.isEmpty)
+
+        simulation.thickness = 0
+        #expect(simulation.frame.isEmpty)
+        #expect(simulation.frame.highlights.isEmpty)
     }
 }

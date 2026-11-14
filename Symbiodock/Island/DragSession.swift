@@ -24,9 +24,12 @@ final class DragSession {
     /// After the release the strands that hold a surface are soaked back up over this span
     /// (seconds since the release); it ends before `OverlayController.settleDuration`.
     private static let soakStart = 0.2
-    private static let soakEnd = 0.5
-    /// Torn strands still snapping back, beside the ones holding now.
-    private static let maxFadingReaches = 3
+    private static let soakEnd = 0.45
+    /// Sets of torn strands still snapping back, beside the set holding now. Each lasts
+    /// about 0.7 s and a fast slide along an edge tears one loose every 130 pt.
+    private static let maxFadingReaches = 8
+    /// Strands shorter than this are hidden inside the island: no tick for a catch nobody sees.
+    private static let visibleCatchDistance: CGFloat = 6
 
     /// Strands thrown at a surface, and the fixed place where they took hold of it.
     private struct Reach {
@@ -193,7 +196,9 @@ final class DragSession {
                 }
             }
         }
-        if targetCenter == nil { placeBody() } else { settleElapsed += dt }
+        // Wall-clock, not the clamped step: a hitch must not leave strands behind when the
+        // resting island takes over.
+        if targetCenter == nil { placeBody() } else { settleElapsed += max(elapsed, 0) }
         if simulation.isTorn, !rootOutlivesTheTear {
             rootScale = max(0, rootScale - CGFloat(dt / Self.rootShrinkTime))
         }
@@ -258,18 +263,21 @@ final class DragSession {
         let soak = targetCenter == nil
             ? 1 : 1 - Self.smoothstep(Self.soakStart, Self.soakEnd, settleElapsed)
         var goo = SymbioteFrame()
-        func advance(_ reach: inout Reach) {
+        /// Returns how long the strands are after the step.
+        @discardableResult
+        func advance(_ reach: inout Reach) -> CGFloat {
+            let point = ReachResolver.islandPoint(
+                body: body, surface: reach.surface, visibleFrame: visibleFrame)
             reach.simulation.thickness = CGFloat(soak)
-            reach.simulation.advance(
-                root: reach.root,
-                island: ReachResolver.islandPoint(
-                    body: body, surface: reach.surface, visibleFrame: visibleFrame),
-                dt: dt)
+            reach.simulation.advance(root: reach.root, island: point, dt: dt)
             goo.append(reach.simulation.frame)
+            return hypot(point.x - reach.root.x, point.y - reach.root.y)
         }
         if var current = reach {
-            advance(&current)
-            if current.simulation.isHolding, !current.hasCaught {
+            let length = advance(&current)
+            // An island pressed against the surface holds it with strands too short to see;
+            // the catch is felt once they show.
+            if current.simulation.isHolding, !current.hasCaught, length > Self.visibleCatchDistance {
                 current.hasCaught = true
                 if targetCenter == nil { onCatch?() }
             }
@@ -312,6 +320,9 @@ final class DragSession {
     }
 
     private func retire(_ reach: Reach) {
+        var reach = reach
+        // Strands still waiting to set off must not start from a set that has let go.
+        reach.simulation.tear()
         guard !reach.simulation.isFinished else { return }
         fadingReaches.append(reach)
         if fadingReaches.count > Self.maxFadingReaches { fadingReaches.removeFirst() }
