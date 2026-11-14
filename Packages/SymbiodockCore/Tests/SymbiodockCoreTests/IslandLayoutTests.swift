@@ -7,61 +7,61 @@ struct IslandLayoutTests {
     let screen = CGSize(width: 1512, height: 982)
 
     @Test func collapsedIslandIsExactlyTheNotch() {
-        #expect(IslandLayout.frame(phase: .collapsed, notch: notch, screenSize: screen, hasTrack: false) == notch)
+        #expect(IslandLayout.frame(phase: .collapsed, notch: notch, screenSize: screen, showsWings: false) == notch)
     }
 
     @Test func expandedIslandIsCenteredOnTheNotchAndHangsFromTheTop() {
-        #expect(IslandLayout.frame(phase: .expanded, notch: notch, screenSize: screen, hasTrack: false)
+        #expect(IslandLayout.frame(phase: .expanded, notch: notch, screenSize: screen, showsWings: false)
             == CGRect(x: 516, y: 0, width: 480, height: 134))
     }
 
     @Test func expandedIslandStaysInsideTheLeftEdge() {
         let leftNotch = CGRect(x: 10, y: 0, width: 200, height: 32)
 
-        #expect(IslandLayout.frame(phase: .expanded, notch: leftNotch, screenSize: screen, hasTrack: false)
+        #expect(IslandLayout.frame(phase: .expanded, notch: leftNotch, screenSize: screen, showsWings: false)
             == CGRect(x: 0, y: 0, width: 480, height: 134))
     }
 
     @Test func expandedIslandStaysInsideTheRightEdge() {
         let rightNotch = CGRect(x: 1302, y: 0, width: 200, height: 32)
 
-        #expect(IslandLayout.frame(phase: .expanded, notch: rightNotch, screenSize: screen, hasTrack: false)
+        #expect(IslandLayout.frame(phase: .expanded, notch: rightNotch, screenSize: screen, showsWings: false)
             == CGRect(x: 1032, y: 0, width: 480, height: 134))
     }
 
     @Test func expandedIslandIsNeverNarrowerThanTheNotch() {
         let wideNotch = CGRect(x: 500, y: 0, width: 520, height: 32)
 
-        #expect(IslandLayout.frame(phase: .expanded, notch: wideNotch, screenSize: screen, hasTrack: false)
+        #expect(IslandLayout.frame(phase: .expanded, notch: wideNotch, screenSize: screen, showsWings: false)
             == CGRect(x: 500, y: 0, width: 520, height: 134))
     }
 
     @Test func hitRectIsTheFrameGrownByFourPoints() {
-        #expect(IslandLayout.hitRect(phase: .collapsed, notch: notch, screenSize: screen, hasTrack: false)
+        #expect(IslandLayout.hitRect(phase: .collapsed, notch: notch, screenSize: screen, showsWings: false)
             == CGRect(x: 658, y: -4, width: 196, height: 40))
-        #expect(IslandLayout.hitRect(phase: .expanded, notch: notch, screenSize: screen, hasTrack: false)
+        #expect(IslandLayout.hitRect(phase: .expanded, notch: notch, screenSize: screen, showsWings: false)
             == CGRect(x: 512, y: -4, width: 488, height: 142))
     }
 
     @Test func collapsedIslandWithATrackGrowsAWingOnEachSide() {
-        #expect(IslandLayout.frame(phase: .collapsed, notch: notch, screenSize: screen, hasTrack: true)
+        #expect(IslandLayout.frame(phase: .collapsed, notch: notch, screenSize: screen, showsWings: true)
             == CGRect(x: 626, y: 0, width: 260, height: 32))
     }
 
     @Test func collapsedWingsStayOnScreen() {
         let leftNotch = CGRect(x: 10, y: 0, width: 200, height: 32)
 
-        #expect(IslandLayout.frame(phase: .collapsed, notch: leftNotch, screenSize: screen, hasTrack: true)
+        #expect(IslandLayout.frame(phase: .collapsed, notch: leftNotch, screenSize: screen, showsWings: true)
             == CGRect(x: 0, y: 0, width: 272, height: 32))
     }
 
     @Test func expandedIslandIgnoresTheTrack() {
-        #expect(IslandLayout.frame(phase: .expanded, notch: notch, screenSize: screen, hasTrack: true)
+        #expect(IslandLayout.frame(phase: .expanded, notch: notch, screenSize: screen, showsWings: true)
             == CGRect(x: 516, y: 0, width: 480, height: 134))
     }
 
     @Test func hitRectFollowsTheWings() {
-        #expect(IslandLayout.hitRect(phase: .collapsed, notch: notch, screenSize: screen, hasTrack: true)
+        #expect(IslandLayout.hitRect(phase: .collapsed, notch: notch, screenSize: screen, showsWings: true)
             == CGRect(x: 622, y: -4, width: 268, height: 40))
     }
 
@@ -70,20 +70,20 @@ struct IslandLayoutTests {
     let visible = CGRect(x: 0, y: 32, width: 1512, height: 880)
 
     private func floating(
-        _ anchor: IslandAnchor, _ phase: IslandPhase = .collapsed, hasTrack: Bool = false
+        _ anchor: IslandAnchor, _ phase: IslandPhase = .collapsed, showsWings: Bool = false
     ) -> CGRect {
         IslandLayout.frame(
             anchor: anchor, phase: phase, notch: notch, visibleFrame: visible,
-            screenSize: screen, hasTrack: hasTrack)
+            screenSize: screen, showsWings: showsWings)
     }
 
     @Test func notchAnchorMatchesTheNotchLayout() {
         for phase in [IslandPhase.collapsed, .expanded] {
-            for hasTrack in [false, true] {
+            for showsWings in [false, true] {
                 #expect(
-                    floating(.notch, phase, hasTrack: hasTrack)
+                    floating(.notch, phase, showsWings: showsWings)
                         == IslandLayout.frame(
-                            phase: phase, notch: notch, screenSize: screen, hasTrack: hasTrack))
+                            phase: phase, notch: notch, screenSize: screen, showsWings: showsWings))
             }
         }
     }
@@ -112,8 +112,8 @@ struct IslandLayoutTests {
 
     @Test func floatingIslandIgnoresWhetherThereIsATrack() {
         #expect(
-            floating(.corner(.topLeft), hasTrack: false)
-                == floating(.corner(.topLeft), hasTrack: true))
+            floating(.corner(.topLeft), showsWings: false)
+                == floating(.corner(.topLeft), showsWings: true))
     }
 
     @Test func edgeFractionSlidesAlongTheEdge() {
@@ -183,7 +183,7 @@ struct IslandLayoutTests {
         #expect(
             IslandLayout.hitRect(
                 anchor: .corner(.topLeft), phase: .collapsed, notch: notch,
-                visibleFrame: visible, screenSize: screen, hasTrack: false)
+                visibleFrame: visible, screenSize: screen, showsWings: false)
                 == CGRect(x: -4, y: 28, width: 208, height: 44))
     }
 
@@ -219,10 +219,10 @@ struct IslandLayoutTests {
     @Test func dragPhasesLayOutLikeCollapsed() {
         let anchors: [IslandAnchor] = [.notch, .edge(.left, fraction: 0.3), .corner(.topRight)]
         for anchor in anchors {
-            for hasTrack in [false, true] {
-                let collapsed = floating(anchor, .collapsed, hasTrack: hasTrack)
+            for showsWings in [false, true] {
+                let collapsed = floating(anchor, .collapsed, showsWings: showsWings)
                 for phase in [IslandPhase.stretching, .detached, .settling] {
-                    #expect(floating(anchor, phase, hasTrack: hasTrack) == collapsed, "\(anchor) \(phase)")
+                    #expect(floating(anchor, phase, showsWings: showsWings) == collapsed, "\(anchor) \(phase)")
                 }
             }
         }
@@ -235,7 +235,7 @@ struct IslandLayoutTests {
     ) -> CGRect {
         IslandLayout.frame(
             anchor: anchor, phase: phase, notch: notch, visibleFrame: visible,
-            screenSize: screen, hasTrack: false)
+            screenSize: screen, showsWings: false)
     }
 
     private func isFinite(_ rect: CGRect) -> Bool {
@@ -267,20 +267,20 @@ struct IslandLayoutTests {
 
         let middle = IslandLayout.frame(
             anchor: .edge(.top, fraction: 0.5), phase: .collapsed, notch: notch,
-            visibleFrame: full, screenSize: screen, hasTrack: false)
+            visibleFrame: full, screenSize: screen, showsWings: false)
         #expect(!middle.intersects(notch))
         #expect(middle == CGRect(x: 656, y: 40, width: 200, height: 36))
 
         let expanded = IslandLayout.frame(
             anchor: .edge(.top, fraction: 0.5), phase: .expanded, notch: notch,
-            visibleFrame: full, screenSize: screen, hasTrack: false)
+            visibleFrame: full, screenSize: screen, showsWings: false)
         #expect(!expanded.intersects(notch))
         #expect(expanded.minY == 40)
 
         // Away from the notch the top edge is still the top edge.
         let aside = IslandLayout.frame(
             anchor: .edge(.top, fraction: 0.1), phase: .collapsed, notch: notch,
-            visibleFrame: full, screenSize: screen, hasTrack: false)
+            visibleFrame: full, screenSize: screen, showsWings: false)
         #expect(aside.minY == 0)
     }
 
@@ -298,15 +298,23 @@ struct IslandLayoutTests {
                     let anchor = IslandAnchor.edge(edge, fraction: Double(step) / 200)
                     let collapsed = IslandLayout.hitRect(
                         anchor: anchor, phase: .collapsed, notch: notch,
-                        visibleFrame: visible, screenSize: screen, hasTrack: false)
+                        visibleFrame: visible, screenSize: screen, showsWings: false)
                     let expanded = IslandLayout.hitRect(
                         anchor: anchor, phase: .expanded, notch: notch,
-                        visibleFrame: visible, screenSize: screen, hasTrack: false)
+                        visibleFrame: visible, screenSize: screen, showsWings: false)
                     #expect(
                         expanded.contains(collapsed),
                         "\(edge) fraction \(Double(step) / 200), visible \(visible)")
                 }
             }
         }
+    }
+
+    @Test func dockedEdgesAreTheOnesTheIslandTouches() {
+        #expect(IslandLayout.dockedEdges(anchor: .notch) == [.top])
+        #expect(IslandLayout.dockedEdges(anchor: .edge(.left, fraction: 0.5)) == [.left])
+        #expect(IslandLayout.dockedEdges(anchor: .edge(.bottom, fraction: 0.2)) == [.bottom])
+        #expect(IslandLayout.dockedEdges(anchor: .corner(.topRight)) == [.top, .right])
+        #expect(IslandLayout.dockedEdges(anchor: .corner(.bottomLeft)) == [.bottom, .left])
     }
 }

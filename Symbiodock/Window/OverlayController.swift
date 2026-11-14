@@ -149,7 +149,7 @@ final class OverlayController {
         IslandLayout.frame(
             anchor: state.anchor, phase: phase, notch: geometry.notch,
             visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
-            hasTrack: state.showsWings)
+            showsWings: state.showsWings)
     }
 
     /// Clicks reach the panel only while this is on. While the panel accepts events the
@@ -212,7 +212,7 @@ final class OverlayController {
         let hitRect = IslandLayout.hitRect(
             anchor: state.anchor, phase: state.phase, notch: geometry.notch,
             visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
-            hasTrack: state.showsWings)
+            showsWings: state.showsWings)
         let inside = hitRect.contains(metrics.localPoint(fromGlobal: point))
 
         // Assign only on change: this runs on every mouse move system-wide.

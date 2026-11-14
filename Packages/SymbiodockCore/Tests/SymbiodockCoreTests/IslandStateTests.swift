@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import Testing
 @testable import SymbiodockCore
 
@@ -292,5 +293,103 @@ struct IslandStateTests {
         let state = stretching()
         state.finishSettling()
         #expect(state.phase == .stretching)
+    }
+
+    private func agent(_ id: String, _ activity: AgentActivity) -> AgentSession {
+        AgentSession(
+            id: id, tool: .claudeCode, title: id, projectPath: nil, activity: activity,
+            since: Date(timeIntervalSince1970: 0), pid: nil)
+    }
+
+    @Test func aWorkingAgentWidensTheIsland() {
+        let state = IslandState()
+        #expect(!state.showsWings)
+        state.setAgentSessions([agent("a", .working)])
+        #expect(state.showsWings)
+        #expect(state.face == .agents)
+        state.setAgentSessions([])
+        #expect(!state.showsWings)
+        #expect(state.face == .none)
+    }
+
+    @Test func theFaceFollowsTheTabOrder() {
+        let state = IslandState()
+        state.setNowPlaying(track(playing: true))
+        state.setAgentSessions([agent("a", .working)])
+        #expect(state.face == .agents)
+        state.setTabOrder([.media, .agents])
+        #expect(state.face == .media)
+        #expect(state.tabOrder == [.media, .agents])
+    }
+
+    @Test func hoverOpensTheFirstTabWithContent() {
+        let state = IslandState()
+        state.setTabOrder([.agents, .media])
+        state.setNowPlaying(track(playing: true))
+        state.setHovering(true)
+        #expect(state.selectedTab == .media)
+    }
+
+    @Test func hoverOpensAgentsWhenOneNeedsInput() {
+        let state = IslandState()
+        state.setTabOrder([.media, .agents])
+        state.setNowPlaying(track(playing: true))
+        state.setAgentSessions([agent("a", .needsInput(prompt: nil))])
+        state.setHovering(true)
+        #expect(state.selectedTab == .agents)
+    }
+
+    @Test func aClickChangesTheTabAndNewSessionsDoNot() {
+        let state = IslandState()
+        state.setTabOrder([.media, .agents])
+        state.setNowPlaying(track(playing: true))
+        state.setHovering(true)
+        #expect(state.selectedTab == .media)
+        state.setAgentSessions([agent("a", .needsInput(prompt: nil))])
+        #expect(state.selectedTab == .media)
+        state.selectTab(.agents)
+        #expect(state.selectedTab == .agents)
+    }
+
+    @Test func leavingTheAgentsTabClearsFinishedMarks() {
+        let state = IslandState()
+        state.setAgentSessions([agent("a", .working)])
+        state.setAgentSessions([agent("a", .idle)])
+        #expect(state.board.attention == .finished)
+
+        state.setHovering(true)
+        #expect(state.selectedTab == .agents)
+        // Still marked while it is being looked at.
+        #expect(state.board.attention == .finished)
+
+        state.setHovering(false)
+        #expect(state.board.attention == .none)
+        #expect(!state.showsWings)
+    }
+
+    @Test func switchingAwayFromAgentsAlsoClearsFinishedMarks() {
+        let state = IslandState()
+        state.setAgentSessions([agent("a", .working)])
+        state.setAgentSessions([agent("a", .idle)])
+        state.setHovering(true)
+        state.selectTab(.media)
+        #expect(state.board.attention == .none)
+    }
+
+    @Test func collapsingFromTheMediaTabKeepsFinishedMarks() {
+        let state = IslandState()
+        state.setTabOrder([.media, .agents])
+        state.setNowPlaying(track(playing: true))
+        state.setHovering(true)
+        state.setAgentSessions([agent("a", .working)])
+        state.setAgentSessions([agent("a", .idle)])
+        state.setHovering(false)
+        #expect(state.board.attention == .finished)
+    }
+
+    @Test func aDamagedTabOrderIsRepaired() {
+        let state = IslandState()
+        state.setTabOrder([.media])
+        #expect(state.tabOrder == [.media, .agents])
     }
 }

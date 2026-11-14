@@ -27,7 +27,7 @@ struct IslandView: View {
         let frame = IslandLayout.frame(
             anchor: state.anchor, phase: state.phase, notch: geometry.notch,
             visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
-            hasTrack: state.showsWings)
+            showsWings: state.showsWings)
         // Wherever it rests, the island sits against its screen edge the way the notch does:
         // square on that edge, rounded on the free side.
         let radii = IslandLayout.cornerRadii(

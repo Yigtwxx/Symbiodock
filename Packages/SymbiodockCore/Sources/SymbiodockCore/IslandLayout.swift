@@ -8,11 +8,11 @@ public enum IslandLayout {
     public static let collapsedWingWidth: CGFloat = 36
 
     public static func frame(
-        phase: IslandPhase, notch: CGRect, screenSize: CGSize, hasTrack: Bool
+        phase: IslandPhase, notch: CGRect, screenSize: CGSize, showsWings: Bool
     ) -> CGRect {
         switch phase {
         case .collapsed, .stretching, .detached, .settling:
-            guard hasTrack else { return notch }
+            guard showsWings else { return notch }
             return anchored(
                 width: notch.width + 2 * collapsedWingWidth, height: notch.height,
                 notch: notch, screenSize: screenSize)
@@ -26,9 +26,9 @@ public enum IslandLayout {
 
     /// The area in which the pointer counts as hovering the island.
     public static func hitRect(
-        phase: IslandPhase, notch: CGRect, screenSize: CGSize, hasTrack: Bool
+        phase: IslandPhase, notch: CGRect, screenSize: CGSize, showsWings: Bool
     ) -> CGRect {
-        frame(phase: phase, notch: notch, screenSize: screenSize, hasTrack: hasTrack)
+        frame(phase: phase, notch: notch, screenSize: screenSize, showsWings: showsWings)
             .insetBy(dx: -hitPadding, dy: -hitPadding)
     }
 
@@ -54,6 +54,18 @@ extension IslandLayout {
     public static let collapsedCornerRadius: CGFloat = 10
     /// Radius of the island's free corners while expanded.
     public static let expandedCornerRadius: CGFloat = 24
+
+    /// The screen edges the resting island lies against.
+    public static func dockedEdges(anchor: IslandAnchor) -> Set<ScreenEdge> {
+        switch anchor {
+        case .notch: [.top]
+        case .edge(let edge, _): [edge]
+        case .corner(.topLeft): [.top, .left]
+        case .corner(.topRight): [.top, .right]
+        case .corner(.bottomLeft): [.bottom, .left]
+        case .corner(.bottomRight): [.bottom, .right]
+        }
+    }
 
     /// The island's outline at rest. Docked, it sits against the screen edge the way the
     /// notch does: the corners on that edge are square and only the free ones are rounded.
@@ -102,7 +114,7 @@ extension IslandLayout {
     /// The island frame for any anchor, in panel-local coordinates.
     public static func frame(
         anchor: IslandAnchor, phase: IslandPhase, notch: CGRect,
-        visibleFrame: CGRect, screenSize: CGSize, hasTrack: Bool
+        visibleFrame: CGRect, screenSize: CGSize, showsWings: Bool
     ) -> CGRect {
         // Every phase other than `.expanded` is laid out as collapsed.
         let isExpanded = phase == .expanded
@@ -110,7 +122,7 @@ extension IslandLayout {
         if anchor == .notch {
             return frame(
                 phase: isExpanded ? .expanded : .collapsed, notch: notch,
-                screenSize: screenSize, hasTrack: hasTrack)
+                screenSize: screenSize, showsWings: showsWings)
         }
 
         // A docked island lies flush against the border of the visible frame.
@@ -175,11 +187,11 @@ extension IslandLayout {
     /// The area in which the pointer counts as hovering the island: its frame grown by `hitPadding`.
     public static func hitRect(
         anchor: IslandAnchor, phase: IslandPhase, notch: CGRect,
-        visibleFrame: CGRect, screenSize: CGSize, hasTrack: Bool
+        visibleFrame: CGRect, screenSize: CGSize, showsWings: Bool
     ) -> CGRect {
         frame(
             anchor: anchor, phase: phase, notch: notch, visibleFrame: visibleFrame,
-            screenSize: screenSize, hasTrack: hasTrack)
+            screenSize: screenSize, showsWings: showsWings)
             .insetBy(dx: -hitPadding, dy: -hitPadding)
     }
 }

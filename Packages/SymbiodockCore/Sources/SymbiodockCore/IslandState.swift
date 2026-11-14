@@ -37,10 +37,26 @@ public final class IslandState {
     public private(set) var phase: IslandPhase = .collapsed
     public private(set) var nowPlaying: NowPlayingInfo?
 
-    /// Whether the collapsed island shows its wings (artwork and level bars).
+    /// Whether the media face is shown collapsed (artwork and level bars).
     /// True while something plays, and for a grace period after it pauses, so a
     /// paused player does not occupy the menu bar all day.
-    public private(set) var showsWings = false
+    public private(set) var mediaWings = false
+
+    /// The agent sessions, ordered, with what deserves attention.
+    public private(set) var board = AgentSessionBoard()
+    /// The tabs in the order the user chose.
+    public private(set) var tabOrder: [IslandTab] = TabOrder.default
+    /// The tab the expanded island shows.
+    public private(set) var selectedTab: IslandTab = TabOrder.default[0]
+
+    /// Whether the collapsed island at the notch is widened by its wings.
+    public var showsWings: Bool { mediaWings || board.hasFace }
+
+    /// What the collapsed island shows.
+    public var face: IslandFace {
+        TabSelection.face(
+            order: tabOrder, mediaHasFace: mediaWings, agentsHasFace: board.hasFace)
+    }
 
     /// Where the island rests when it is not being dragged.
     public private(set) var anchor: IslandAnchor = .notch
@@ -69,6 +85,12 @@ public final class IslandState {
     /// Ignored unless the island is collapsed or expanded, so a late timer cannot cancel a drag.
     public func setHovering(_ hovering: Bool) {
         guard phase == .collapsed || phase == .expanded else { return }
+        if hovering, phase == .collapsed {
+            selectedTab = TabSelection.tabToOpen(
+                order: tabOrder, attention: board.attention,
+                mediaHasContent: nowPlaying != nil, agentsHasContent: !board.rows.isEmpty)
+        }
+        if !hovering, phase == .expanded { leaveSelectedTab() }
         phase = hovering ? .expanded : .collapsed
     }
 
@@ -81,6 +103,7 @@ public final class IslandState {
     /// Starts a drag from a collapsed or expanded island; ignored otherwise.
     public func beginDrag(at point: CGPoint, from origin: CGPoint) {
         guard phase == .collapsed || phase == .expanded else { return }
+        if phase == .expanded { leaveSelectedTab() }
         phase = .stretching
         dragOrigin = origin
         dragStart = point
@@ -131,9 +154,9 @@ public final class IslandState {
     public func setNowPlaying(_ info: NowPlayingInfo?) {
         nowPlaying = info
         if info == nil {
-            showsWings = false
+            mediaWings = false
         } else if info?.isPlaying == true {
-            showsWings = true
+            mediaWings = true
         }
         // Paused: keep what is shown; `pausedGraceElapsed()` hides the wings later.
     }
@@ -141,7 +164,34 @@ public final class IslandState {
     /// Called `WingsTiming.pausedGrace` after a paused update; ignored if playback resumed.
     public func pausedGraceElapsed() {
         if nowPlaying?.isPlaying != true {
-            showsWings = false
+            mediaWings = false
         }
+    }
+
+    public func setAgentSessions(_ sessions: [AgentSession]) {
+        var next = board
+        next.update(sessions)
+        // Assign only on change: every assignment redraws the island.
+        if next != board { board = next }
+    }
+
+    /// Applies a tab order, repaired if it is damaged. A collapsed island will open on it.
+    public func setTabOrder(_ order: [IslandTab]) {
+        tabOrder = TabOrder.repaired(TabOrder.encode(order))
+    }
+
+    /// A click on a tab.
+    public func selectTab(_ tab: IslandTab) {
+        guard tab != selectedTab else { return }
+        leaveSelectedTab()
+        selectedTab = tab
+    }
+
+    /// Once the Agents tab has been looked at, what finished is no longer news.
+    private func leaveSelectedTab() {
+        guard selectedTab == .agents else { return }
+        var next = board
+        next.markSeen()
+        if next != board { board = next }
     }
 }
