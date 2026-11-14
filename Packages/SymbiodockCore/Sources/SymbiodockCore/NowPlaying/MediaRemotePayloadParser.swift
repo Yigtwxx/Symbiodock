@@ -74,6 +74,7 @@ public enum MediaRemotePayloadParser {
             elapsed: payload.elapsedTime,
             elapsedAt: payload.timestamp.flatMap { try? Date($0, strategy: .iso8601) },
             isPlaying: payload.playing ?? false,
-            sourceName: SourceName.displayName(forBundleIdentifier: identifier))
+            sourceName: SourceName.displayName(forBundleIdentifier: identifier),
+            sourceBundleIdentifier: identifier.isEmpty ? nil : identifier)
     }
 }

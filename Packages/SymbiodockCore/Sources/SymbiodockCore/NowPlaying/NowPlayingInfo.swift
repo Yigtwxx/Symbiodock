@@ -17,6 +17,10 @@ public struct NowPlayingInfo: Equatable, Sendable {
     public var isPlaying: Bool
     /// "Music", "Spotify", "Safari", ...
     public var sourceName: String
+    /// The app the sound comes from; nil if the source did not say.
+    public var sourceBundleIdentifier: String?
+    /// The web site that plays, when the app is a browser and the site is a known one.
+    public var site: MediaSite?
 
     public init(
         title: String,
@@ -27,7 +31,9 @@ public struct NowPlayingInfo: Equatable, Sendable {
         elapsed: TimeInterval? = nil,
         elapsedAt: Date? = nil,
         isPlaying: Bool,
-        sourceName: String
+        sourceName: String,
+        sourceBundleIdentifier: String? = nil,
+        site: MediaSite? = nil
     ) {
         self.title = title
         self.artist = artist
@@ -38,6 +44,8 @@ public struct NowPlayingInfo: Equatable, Sendable {
         self.elapsedAt = elapsedAt
         self.isPlaying = isPlaying
         self.sourceName = sourceName
+        self.sourceBundleIdentifier = sourceBundleIdentifier
+        self.site = site
     }
 }
 

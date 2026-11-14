@@ -11,7 +11,7 @@ struct AppleMusicPayloadParserTests {
         #expect(AppleMusicPayloadParser.info(fromScriptOutput: output, at: now) == NowPlayingInfo(
             title: "One More Time", artist: "Daft Punk", album: "Discovery",
             duration: 320.5, elapsed: 42.25, elapsedAt: now,
-            isPlaying: true, sourceName: "Music"))
+            isPlaying: true, sourceName: "Music", sourceBundleIdentifier: "com.apple.Music"))
     }
 
     @Test func pausedTrackIsNotPlaying() {

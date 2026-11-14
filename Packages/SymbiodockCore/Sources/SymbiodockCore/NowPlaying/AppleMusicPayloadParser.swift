@@ -18,7 +18,8 @@ public enum AppleMusicPayloadParser {
             elapsed: number(lines[4]),
             elapsedAt: now,
             isPlaying: lines[5] == "playing",
-            sourceName: "Music")
+            sourceName: "Music",
+            sourceBundleIdentifier: "com.apple.Music")
     }
 
     /// AppleScript writes numbers with the user's decimal separator, and large ones as `1.002E+4`.

@@ -16,7 +16,7 @@ struct MediaRemotePayloadParserTests {
             title: "One More Time", artist: "Daft Punk", album: "Discovery",
             duration: 320, elapsed: 42.5,
             elapsedAt: Date(timeIntervalSince1970: 1_794_663_236),
-            isPlaying: true, sourceName: "Music"))
+            isPlaying: true, sourceName: "Music", sourceBundleIdentifier: "com.apple.Music"))
     }
 
     @Test func emptyPayloadMeansNothingIsPlaying() throws {
@@ -43,6 +43,15 @@ struct MediaRemotePayloadParserTests {
         #expect(info.artist == "")
         #expect(info.elapsedAt == nil)
         #expect(info.sourceName == "Safari")
+        // The browser the user knows, not its GPU helper; the site is not the parser's to tell.
+        #expect(info.sourceBundleIdentifier == "com.apple.Safari")
+        #expect(info.site == nil)
+    }
+
+    @Test func payloadWithoutAnIdentifierHasNoSourceApp() throws {
+        let info = try #require(
+            try MediaRemotePayloadParser.info(fromStreamLine: #"{"payload":{"title":"T"}}"#))
+        #expect(info.sourceBundleIdentifier == nil)
     }
 
     @Test func artworkIsDecodedFromBase64() throws {
