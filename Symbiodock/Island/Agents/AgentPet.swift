@@ -4,7 +4,7 @@ import SymbiodockCore
 /// A tool's pet: a small field of fine vertical lines in the tool's colour, in which the
 /// figure shows as the lines growing brighter and dimmer along their length, the way light
 /// falls on a form. It moves with its session: the lines stir a little while the session
-/// works, and the pet hops while the session needs input.
+/// works, and it stands still while the session needs input.
 struct AgentPet: View {
     let tool: AgentTool
     var state: AgentRowState = .finished
@@ -19,10 +19,6 @@ struct AgentPet: View {
     /// (24 pt) stirs by under a point, a step of under a point at this rate; larger pets
     /// only show while the island is open and can afford more.
     private var stirInterval: TimeInterval { size <= 30 ? 0.4 : 1.0 / 12.0 }
-    /// A hop lasts 0.3 s; two of them start every beat.
-    private static let hopFrameInterval = 1.0 / 20.0
-    private static let hopWindow = 2 * AgentPetMotion.hopLength + 0.05
-
     var body: some View {
         Group {
             if let frozenAt {
@@ -38,25 +34,13 @@ struct AgentPet: View {
         .accessibilityLabel(tool.displayName)
     }
 
-    private var isNeedsInput: Bool {
-        if case .needsInput = state { true } else { false }
-    }
-
-    /// When the pet has to be redrawn: always at the stir's pace while it works; only
-    /// during the hops while it needs input.
+    /// The pet is redrawn at the stir's pace while it works and never otherwise.
     private var schedule: FrameSchedule {
-        if isNeedsInput, moves {
-            return FrameSchedule(
-                interval: Self.hopFrameInterval,
-                pulse: .init(
-                    anchor: Date(timeIntervalSinceReferenceDate: 0), period: AgentPetMotion.hopPeriod,
-                    length: Self.hopWindow))
-        }
-        return FrameSchedule(interval: stirInterval, paused: !moves)
+        FrameSchedule(interval: stirInterval, paused: !moves)
     }
 
     private var moves: Bool {
-        !reduceMotion && (state == .working || isNeedsInput)
+        !reduceMotion && state == .working
     }
 
     /// A pet whose session is doing nothing steps back.
@@ -73,7 +57,6 @@ struct AgentPet: View {
         let lines = art.lines
         let grounds = art.grounds
         let stirs = moving && state == .working
-        let hop = moving && isNeedsInput ? AgentPetMotion.hop(at: time) : 0
         return Canvas { context, canvas in
             let side = min(canvas.width, canvas.height)
             let bar = side * AgentPetFigure.barWidth
@@ -99,7 +82,6 @@ struct AgentPet: View {
                 }
             }
         }
-        .offset(y: -size * hop)
     }
 }
 

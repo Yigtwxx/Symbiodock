@@ -133,11 +133,6 @@ public enum AgentPetMotion {
     /// How far the end of a line moves in or out while its session works: a fortieth of
     /// the figure's side, under a point on screen. Enough to see that it is alive, no more.
     public static let swayAmplitude = 0.025
-    /// How high the pet jumps while its session needs input.
-    public static let hopHeight = 0.08
-    /// The same beat as the status mark's knocks: two hops, then rest.
-    public static let hopPeriod: TimeInterval = 2.4
-    public static let hopLength: TimeInterval = 0.3
 
     /// How far one line is longer (positive) or shorter at `time`. Every line breathes at
     /// its own slow pace (a cycle takes two to four seconds), so the pet stirs gently
@@ -145,14 +140,5 @@ public enum AgentPetMotion {
     public static func sway(column: Int, at time: TimeInterval) -> Double {
         let pace = 2.4 + 0.9 * sin(Double(column) * 2.3)
         return swayAmplitude * sin(time * pace + Double(column) * 1.7)
-    }
-
-    /// How far above its place the pet is at `time`.
-    public static func hop(at time: TimeInterval) -> Double {
-        var beat = time.truncatingRemainder(dividingBy: hopPeriod)
-        if beat < 0 { beat += hopPeriod }
-        guard beat < 2 * hopLength else { return 0 }
-        let local = beat.truncatingRemainder(dividingBy: hopLength) / hopLength
-        return hopHeight * sin(.pi * local)
     }
 }

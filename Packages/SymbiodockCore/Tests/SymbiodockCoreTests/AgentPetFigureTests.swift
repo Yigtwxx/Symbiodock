@@ -142,20 +142,4 @@ struct AgentPetFigureTests {
             }
         }
     }
-
-    @Test func thePetHopsTwiceAndThenRests() {
-        let length = AgentPetMotion.hopLength
-        #expect(AgentPetMotion.hop(at: 0) == 0)
-        #expect(abs(AgentPetMotion.hop(at: length / 2) - AgentPetMotion.hopHeight) < 1e-9)
-        #expect(abs(AgentPetMotion.hop(at: length * 1.5) - AgentPetMotion.hopHeight) < 1e-9)
-        #expect(AgentPetMotion.hop(at: length * 2.5) == 0)
-        #expect(AgentPetMotion.hop(at: AgentPetMotion.hopPeriod - 0.01) == 0)
-        // The next beat hops again, and time before the reference date is no exception.
-        #expect(AgentPetMotion.hop(at: AgentPetMotion.hopPeriod + length / 2) > 0)
-        #expect(AgentPetMotion.hop(at: -AgentPetMotion.hopPeriod + length / 2) > 0)
-        for step in 0..<300 {
-            let value = AgentPetMotion.hop(at: Double(step) * 0.017)
-            #expect(value >= 0 && value <= AgentPetMotion.hopHeight + 1e-9)
-        }
-    }
 }

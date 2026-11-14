@@ -212,7 +212,7 @@ Animation is paced for the same reason. Redrawing a view more often than about e
 0.35 s keeps the full-screen panel's update cycle awake, which costs about 5 % of a core
 whatever is drawn. Slow motion (a pet stirring) is drawn a few times a second; motion that
 must be smooth and never rests (the turning arc, the rim's breath) runs in Core Animation;
-short motions with rests between (hops, knocks, the passing highlight) are drawn only
+short motions with rests between (knocks, the passing highlight) are drawn only
 while they last. `FramePacer` (core) decides when a frame is due and is tested never to
 give the same moment twice.
 
@@ -325,8 +325,7 @@ The pet moves with its session, and only a little:
 - Working: each line is a little longer or shorter, by at most 2.5 % of the figure's
   side (under a point), each at its own slow pace of two to four seconds a cycle. It
   stirs; it does not dance. This is all the motion a working pet has.
-- Needs input: it hops by 8 % of its side, twice, together with the status mark's knocks,
-  then rests.
+- Needs input: it stands still; the status mark's knock and the rim light say it.
 - Finished it stands still at full strength; running it is at 70 %, idle at 45 %.
 - With Reduce Motion on it never moves.
 
