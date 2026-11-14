@@ -69,8 +69,12 @@ struct MarkPulses: NSViewRepresentable {
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
         func configure(ring: NSColor, dot color: NSColor, dotSide: CGFloat) {
+            // Set at once: a layer would otherwise fade a colour in over a quarter second.
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             for layer in rings { layer.strokeColor = ring.cgColor }
             dot.backgroundColor = color.cgColor
+            CATransaction.commit()
             if self.dotSide != dotSide {
                 self.dotSide = dotSide
                 needsLayout = true

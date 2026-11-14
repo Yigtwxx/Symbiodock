@@ -41,8 +41,11 @@ struct RimPass<Content: View>: NSViewRepresentable {
         private var isVertical = false
         private var travel: TimeInterval = 1
         private var period: TimeInterval?
-        /// A single crossing has been started; it is never started again.
-        private var played = false
+        /// When the pass began, on the band's own clock. The animation has to be added again
+        /// whenever the island changes size, which it often does just as a session finishes;
+        /// starting it from this moment continues the pass instead of dropping it or
+        /// starting it over, and a single crossing that is over is not played again.
+        private var began: CFTimeInterval?
         private var animatedFor: Key?
         private var placed: Placement?
 
@@ -80,6 +83,7 @@ struct RimPass<Content: View>: NSViewRepresentable {
             self.isVertical = isVertical
             self.travel = travel
             self.period = period
+            began = nil
             needsLayout = true
         }
 
@@ -135,9 +139,12 @@ struct RimPass<Content: View>: NSViewRepresentable {
             guard window != nil, bounds.width > 0, bounds.height > 0 else { return }
             let key = Key(size: bounds.size, isVertical: isVertical, travel: travel, period: period)
             guard key != animatedFor else { return }
-            if period == nil, played { return }
             animatedFor = key
-            played = true
+            let now = band.convertTime(CACurrentMediaTime(), from: nil)
+            let start = began ?? now
+            began = start
+            // A single crossing that has already gone by is over.
+            if period == nil, now - start >= travel { return }
             let length = isVertical ? bounds.height : bounds.width
             let reach = length + (isVertical ? band.bounds.height : band.bounds.width)
             let keyPath = isVertical ? "transform.translation.y" : "transform.translation.x"
@@ -155,6 +162,7 @@ struct RimPass<Content: View>: NSViewRepresentable {
                 animation.values = [0, distance]
                 animation.duration = travel
             }
+            animation.beginTime = start
             band.add(animation, forKey: "pass")
         }
     }

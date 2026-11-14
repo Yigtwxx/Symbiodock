@@ -29,4 +29,16 @@ struct LevelBarsMotionTests {
         #expect(Set(LevelBarsMotion.speeds).count == LevelBarsMotion.barCount)
         #expect(LevelBarsMotion.restLevel < 0.35)
     }
+
+    @Test func theBarsMoveAsTheyAlwaysHave() {
+        // The look the owner checked by hand: these numbers are part of it.
+        #expect(LevelBarsMotion.speeds == [5.1, 6.7, 4.3, 7.9])
+        #expect(LevelBarsMotion.phases == [0, 1.7, 0.6, 2.9])
+        #expect(LevelBarsMotion.restLevel == 0.25)
+        // The lowest a moving bar gets, where the sine crosses zero, and its full height.
+        let speed = LevelBarsMotion.speeds[0]
+        #expect(abs(LevelBarsMotion.level(ofBar: 0, at: 0) - 0.35) < 1e-9)
+        #expect(abs(LevelBarsMotion.level(ofBar: 0, at: .pi / (2 * speed)) - 1) < 1e-9)
+        #expect(abs(LevelBarsMotion.period(ofBar: 0) - .pi / speed) < 1e-9)
+    }
 }
