@@ -42,7 +42,7 @@ struct IslandView: View {
         case .expanded:
             ExpandedContent(info: state.nowPlaying, topInset: notch.height, onCommand: onCommand)
                 .transition(.opacity)
-        case .collapsed:
+        case .collapsed, .stretching, .detached, .settling:
             if state.showsWings, let info = state.nowPlaying {
                 CollapsedContent(info: info, notchWidth: notch.width)
                     .transition(.opacity)

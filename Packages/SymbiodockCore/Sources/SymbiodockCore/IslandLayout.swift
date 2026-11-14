@@ -11,7 +11,7 @@ public enum IslandLayout {
         phase: IslandPhase, notch: CGRect, screenSize: CGSize, hasTrack: Bool
     ) -> CGRect {
         switch phase {
-        case .collapsed:
+        case .collapsed, .stretching, .detached, .settling:
             guard hasTrack else { return notch }
             return anchored(
                 width: notch.width + 2 * collapsedWingWidth, height: notch.height,
