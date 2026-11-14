@@ -46,7 +46,8 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 | İmzalama, site, ödeme | Uygulama bitince ele alınacak; o zamana kadar ad-hoc imza | Sahibi: "site kısmı en son" |
 | Görünüm | v1'de düz siyah; kişiselleştirme sonra | Sahibinin tercihi |
 | Tam ekran | Ada tam ekran uygulamaların üstünde de görünür kalır | Sahibinin tercihi |
-| Girişte başlatma | v1'de var, menüde aç/kapa (milestone 5) | Sahibinin tercihi |
+| Girişte başlatma | v1'de var, ada menüsünde aç/kapa (milestone 5) | Sahibinin tercihi |
+| Menü | Menü çubuğunda öğe yok; menü adaya sağ tıkla açılır (2026-11-14) | Sahibi menü çubuğunda ikon istemedi; ileride başka özellikler için oraya öğe gelebilir |
 | Geri bildirim | Kopma ve yapışma anında trackpad titreşimi, ses yok | Sahibinin tercihi |
 | Arayüz dili | Tamamen İngilizce; çeviri altyapısı kurulmaz | Dil desteği çok sonra gelecek |
 | v1 sonrası widget'lar | Henüz kararlaştırılmadı | Sahibi sonra söyleyecek; sorma, o açana kadar bekle |
@@ -61,7 +62,7 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 
 ## Durum
 
-- Milestone 0 ve 1 tamamlandı: agent uygulama, menü çubuğu öğesi, çentik adası, hover ile
+- Milestone 0 ve 1 tamamlandı: agent uygulama, ada sağ tık menüsü (Quit), çentik adası, hover ile
   büyüme/küçülme, ada dışındaki tıklamaların geçmesi.
 - Müzik verisi, sürükleme ve symbiote efekti yok.
 - Xcode 27.2 ve XcodeGen 2.45.4 kurulu, `xcode-select` ile seçili.
@@ -107,7 +108,7 @@ Durmadan devam edilecek durumlar:
 - [x] **Faz 0 — Ön koşullar.** `xcodebuild -version` ve `xcodegen --version` çalışıyor.
       Plan: milestone 0-1 planı, Görev 0.
 - [x] **Faz 1 — Milestone 0: iskelet.** Çekirdek paket (geometri, durum, yerleşim) testleriyle;
-      agent uygulama açılıyor; menü çubuğu öğesinden çıkılabiliyor.
+      agent uygulama açılıyor; menüsünden çıkılabiliyor.
       Plan: `docs/superpowers/plans/2026-11-14-m0-m1-notch-island.md`, Görev 1-3.
 - [x] **Faz 2 — Milestone 1: çentik adası.** Şeffaf panel çentikte; hover ile büyüyor ve
       küçülüyor; ada dışındaki tıklamalar alttaki uygulamaya geçiyor.
@@ -121,11 +122,11 @@ Durmadan devam edilecek durumlar:
       verilen saf bir birim olarak `SymbiodockCore`'a taşı ve test et; şu an
       `OverlayController` içinde testsiz duruyor ve sürükleme fazlarıyla çakışacak.
       Ada koparılıyor, kenara ve köşeye yapışıyor, çentiğe dönüyor, konum yeniden açılışta
-      korunuyor; menüde "Return to notch".
+      korunuyor; ada menüsünde "Return to notch".
 - [ ] **Faz 5 — Milestone 4: symbiote efekti.** Plan yok, yazılacak (spec 5.5 titreşim, 5.6).
       Uzama, incelen lifler, kopma ve geri çekilme; kopma ve yapışmada trackpad titreşimi.
-- [ ] **Faz 6 — Milestone 5: girişte başlatma.** Plan yok, yazılacak (spec 5.9). Menüde
-      "Launch at login" aç/kapa.
+- [ ] **Faz 6 — Milestone 5: girişte başlatma.** Plan yok, yazılacak (spec 5.9). Ada
+      menüsünde "Launch at login" aç/kapa.
 
 v1 bunlarla biter. Sonrası (widget'lar, kişiselleştirme, dil desteği, imzalama, site) için
 sahibi ayrıca yön verecek; kendiliğinden başlama.

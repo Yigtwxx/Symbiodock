@@ -18,6 +18,7 @@
 - `SymbiodockCore` must not import AppKit or SwiftUI.
 - All code, identifiers and comments in English. All user-facing text in English, as plain literals.
 - Sandbox off. Ad-hoc signing. Bundle identifier `com.yigtwxx.Symbiodock`.
+- Symbiodock has no menu bar item. Its menu (`IslandMenu`) opens on a secondary click on the island.
 - No third-party dependency other than `mediaremote-adapter`. It is vendored as source under `Vendor/mediaremote-adapter` with its `LICENSE`; it is never linked into the app, only bundled.
 - Logging uses `os.Logger`. Raw helper output and raw Apple Event replies are never written to logs.
 - Never talk to Music through Apple Events unless Music is already running (a `tell application "Music"` would launch it).
@@ -56,7 +57,7 @@ Symbiodock/
   Island/ArtworkView.swift, LevelBars.swift, CollapsedContent.swift, ExpandedContent.swift
   Island/IslandView.swift                    (modify)
   Window/OverlayController.swift             (modify) shared state, command callback
-  App/AppDelegate.swift, App/StatusItemController.swift (modify)
+  App/AppDelegate.swift, App/IslandMenu.swift (modify)
 project.yml                                  (modify) helper targets, usage description
 ```
 
@@ -620,7 +621,7 @@ git push origin main
 - Produces:
   - `IslandState.nowPlaying: NowPlayingInfo?` (read-only outside), `IslandState.setNowPlaying(_ info: NowPlayingInfo?)`, `IslandState.hasTrack: Bool`
   - `IslandLayout.frame(phase:notch:screenSize:hasTrack:)` and `IslandLayout.hitRect(phase:notch:screenSize:hasTrack:)` — the `hasTrack: Bool` parameter is new and has no default; `IslandLayout.collapsedWingWidth: CGFloat` (36)
-  - `OverlayController.init(state: IslandState)`, `OverlayController.refreshPointer()`
+  - `OverlayController.init(state: IslandState, contextMenu: NSMenu)`, `OverlayController.refreshPointer()`
   - `AppDelegate` owns one `IslandState` and passes it to `OverlayController`.
 
 - [ ] **Step 1: Update the tests**
@@ -763,15 +764,19 @@ and add `state.hasTrack` to the animation so the wings animate too — replace t
 
 In `Symbiodock/Window/OverlayController.swift`:
 
-- Replace `private let state = IslandState()` with:
+- Replace `private let state = IslandState()` and the existing `init(contextMenu:)` with:
 
 ```swift
     private let state: IslandState
+    private let contextMenu: NSMenu
 
-    init(state: IslandState) {
+    init(state: IslandState, contextMenu: NSMenu) {
         self.state = state
+        self.contextMenu = contextMenu
     }
 ```
+
+  (`private let contextMenu: NSMenu` already exists; keep exactly one declaration.)
 
 - In `pointerMoved(toGlobal:)`, change the hit rect computation to:
 
@@ -799,13 +804,14 @@ import SymbiodockCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let state = IslandState()
-    private var statusItemController: StatusItemController?
+    private var islandMenu: IslandMenu?
     private var overlayController: OverlayController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        statusItemController = StatusItemController()
+        let islandMenu = IslandMenu()
+        self.islandMenu = islandMenu
 
-        let overlayController = OverlayController(state: state)
+        let overlayController = OverlayController(state: state, contextMenu: islandMenu.menu)
         overlayController.start()
         self.overlayController = overlayController
     }
@@ -1216,14 +1222,15 @@ import SymbiodockCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let state = IslandState()
-    private var statusItemController: StatusItemController?
+    private var islandMenu: IslandMenu?
     private var overlayController: OverlayController?
     private var nowPlaying: NowPlayingCoordinator?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        statusItemController = StatusItemController()
+        let islandMenu = IslandMenu()
+        self.islandMenu = islandMenu
 
-        let overlayController = OverlayController(state: state)
+        let overlayController = OverlayController(state: state, contextMenu: islandMenu.menu)
         overlayController.start()
         self.overlayController = overlayController
 
@@ -1292,7 +1299,7 @@ git push origin main
 - Consumes: `IslandState.nowPlaying` / `hasTrack` / `phase`, `NowPlayingInfo`, `PlaybackCommand`, `PlaybackProgress.fraction(for:at:)`, `IslandLayout.frame(phase:notch:screenSize:hasTrack:)`, `NowPlayingCoordinator.send(_:)`.
 - Produces:
   - `IslandView(state: IslandState, notch: CGRect, onCommand: @escaping (PlaybackCommand) -> Void)`
-  - `OverlayController.init(state: IslandState, onCommand: @escaping (PlaybackCommand) -> Void)`
+  - `OverlayController.init(state: IslandState, contextMenu: NSMenu, onCommand: @escaping (PlaybackCommand) -> Void)`
   - `ArtworkView(data: Data?, size: CGFloat)`, `LevelBars(isPlaying: Bool)`, `CollapsedContent(info: NowPlayingInfo, notchWidth: CGFloat)`, `ExpandedContent(info: NowPlayingInfo?, topInset: CGFloat, onCommand: (PlaybackCommand) -> Void)`
 
 - [ ] **Step 1: Write the small views**
@@ -1534,39 +1541,45 @@ struct IslandView: View {
 
 In `Symbiodock/Window/OverlayController.swift`:
 
-- Replace the `state` property and the initializer with:
+- Replace the `state` and `contextMenu` properties and the initializer with:
 
 ```swift
     private let state: IslandState
+    private let contextMenu: NSMenu
     private let onCommand: (PlaybackCommand) -> Void
 
-    init(state: IslandState, onCommand: @escaping (PlaybackCommand) -> Void) {
+    init(
+        state: IslandState, contextMenu: NSMenu,
+        onCommand: @escaping (PlaybackCommand) -> Void
+    ) {
         self.state = state
+        self.contextMenu = contextMenu
         self.onCommand = onCommand
     }
 ```
 
-- Add this class at the bottom of the file:
+- In the `IslandHostingView` class at the bottom of the file, add this method:
 
 ```swift
-/// A click on a panel that never becomes key would otherwise only "activate" it;
-/// the island's buttons must react to the first click.
-private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    /// A click on a panel that never becomes key would otherwise only "activate" it;
+    /// the island's buttons must react to the first click.
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-}
 ```
 
-- In `rebuildPanel()`, replace the line that creates `hostingView` with:
+- In `rebuildPanel()`, replace the line that creates `hostingView` (keep the
+  `hostingView.contextMenu = contextMenu` line that follows it) with:
 
 ```swift
-        let hostingView = FirstMouseHostingView(
+        let hostingView = IslandHostingView(
             rootView: IslandView(state: state, notch: notch, onCommand: onCommand))
 ```
 
 In `Symbiodock/App/AppDelegate.swift`, replace the line that creates the overlay controller with:
 
 ```swift
-        let overlayController = OverlayController(state: state) { [weak self] command in
+        let overlayController = OverlayController(
+            state: state, contextMenu: islandMenu.menu
+        ) { [weak self] command in
             self?.nowPlaying?.send(command)
         }
 ```
@@ -1601,7 +1614,7 @@ git push origin main
 - Create: `Symbiodock/NowPlaying/AppleScriptRunner.swift`
 - Create: `Symbiodock/NowPlaying/AppleMusicProvider.swift`
 - Modify: `Symbiodock/NowPlaying/NowPlayingCoordinator.swift`
-- Modify: `Symbiodock/App/StatusItemController.swift`
+- Modify: `Symbiodock/App/IslandMenu.swift`
 - Modify: `Symbiodock/App/AppDelegate.swift`
 - Modify: `CLAUDE.md` (sections "Durum", "Yol haritası")
 - Modify: `README.md` (section "Status")
@@ -1612,7 +1625,7 @@ git push origin main
   - `AppleMusicPayloadParser.info(fromScriptOutput: String, at: Date) -> NowPlayingInfo?`
   - `struct AppleMusicProvider: NowPlayingProvider` with `init(onConsentChange: @escaping @MainActor @Sendable (_ denied: Bool) -> Void)`
   - `NowPlayingCoordinator.init(onUpdate:onMusicAccessChange:)` (the second parameter is `@escaping @MainActor @Sendable (_ denied: Bool) -> Void`)
-  - `StatusItemController.setMusicAccessNeeded(_ needed: Bool)`
+  - `IslandMenu.setMusicAccessNeeded(_ needed: Bool)`
   - Environment variable `SYMBIODOCK_PROVIDER=applemusic` makes the app use only `AppleMusicProvider` (for verification).
 
 - [ ] **Step 1: Write the failing parser tests**
@@ -1927,39 +1940,38 @@ Replace the initializer of `NowPlayingCoordinator` with:
     }
 ```
 
-- [ ] **Step 7: Add the menu entry**
+- [ ] **Step 7: Add the entry to the island menu**
 
-Replace the whole of `Symbiodock/App/StatusItemController.swift` with:
+Replace the whole of `Symbiodock/App/IslandMenu.swift` with:
 
 ```swift
 import AppKit
 
-/// The menu bar item. An agent app has no Dock icon, so this is the only way to quit.
+/// The island's context menu, shown on a secondary click.
+///
+/// Symbiodock is an agent app without a Dock icon or a menu bar item,
+/// so this menu is the only way to quit.
 @MainActor
-final class StatusItemController: NSObject {
-    private let statusItem: NSStatusItem
+final class IslandMenu: NSObject {
+    let menu = NSMenu()
     private let musicAccessItem: NSMenuItem
     private let musicAccessSeparator = NSMenuItem.separator()
 
     override init() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         musicAccessItem = NSMenuItem(
             title: "Music access needed", action: #selector(openAutomationSettings), keyEquivalent: "")
         super.init()
 
-        statusItem.button?.image = NSImage(
-            systemSymbolName: "drop.fill",
-            accessibilityDescription: "Symbiodock")
-
         musicAccessItem.target = self
-        let menu = NSMenu()
         menu.addItem(musicAccessItem)
         menu.addItem(musicAccessSeparator)
-        menu.addItem(NSMenuItem(
+
+        let quit = NSMenuItem(
             title: "Quit Symbiodock",
             action: #selector(NSApplication.terminate(_:)),
-            keyEquivalent: "q"))
-        statusItem.menu = menu
+            keyEquivalent: "")
+        quit.target = NSApplication.shared
+        menu.addItem(quit)
         setMusicAccessNeeded(false)
     }
 
@@ -1988,7 +2000,7 @@ In `Symbiodock/App/AppDelegate.swift`, replace the creation of `nowPlaying` with
                 self?.overlayController?.refreshPointer()
             },
             onMusicAccessChange: { [weak self] denied in
-                self?.statusItemController?.setMusicAccessNeeded(denied)
+                self?.islandMenu?.setMusicAccessNeeded(denied)
             })
 ```
 
@@ -2012,7 +2024,7 @@ In `CLAUDE.md` (Turkish file, keep it Turkish):
 - Replace the body of `## Durum` with:
 
 ```markdown
-- Faz 0-3 kodu tamam: çekirdek paket testleriyle; agent uygulama ve menü çubuğu öğesi;
+- Faz 0-3 kodu tamam: çekirdek paket testleriyle; agent uygulama ve ada sağ tık menüsü;
   çentik adası, hover, tıklama geçişi; Now Playing (MediaRemote yardımcı süreci + Apple Music
   yedeği), kapalı adada kapak ve seviye çubukları, açık adada parça bilgisi ve kontroller.
 - Sürükleme, symbiote efekti ve girişte başlatma yok. Faz 4 başlamadı.
@@ -2050,14 +2062,14 @@ With the app running normally:
 4. Click next and previous. The track changes and the island follows within about a second.
 5. Play something in a browser (for example a video). The island shows it.
 6. Quit Music and close the browser tab. The wings disappear and the open island says "Nothing playing".
-7. Quit Symbiodock from the menu. In Activity Monitor no `perl` process running `mediaremote-adapter.pl` is left.
+7. Right-click the island and choose "Quit Symbiodock". In Activity Monitor no `perl` process running `mediaremote-adapter.pl` is left.
 
 Apple Music fallback (asks for permission once):
 
 8. With Music playing, run:
    `pkill -x Symbiodock; open --env SYMBIODOCK_PROVIDER=applemusic build/Build/Products/Debug/Symbiodock.app`
    macOS asks whether Symbiodock may control Music. Allow it. The island shows the track; pause, next and previous work.
-9. In System Settings → Privacy & Security → Automation, turn Symbiodock's access to Music off, then run the command from item 8 again. The menu bar menu shows "Music access needed", and choosing it opens the Automation settings.
+9. In System Settings → Privacy & Security → Automation, turn Symbiodock's access to Music off, then run the command from item 8 again. The island's right-click menu shows "Music access needed", and choosing it opens the Automation settings.
 10. Turn the access back on and relaunch normally (`pkill -x Symbiodock; open build/Build/Products/Debug/Symbiodock.app`).
 
 If item 8 shows the track only after pausing and resuming, or never follows track changes, the `com.apple.Music.playerInfo` notification is not delivered: switch `AppleMusicWatcher.mode` to `.polling`, rebuild, and record the result in `CLAUDE.md` under "Doğrulanmamış varsayımlar".
@@ -2073,7 +2085,7 @@ If item 8 shows the track only after pausing and resuming, or never follows trac
 | 5.7 `NowPlayingService` selection rule and runtime fallback | 2, 5, 7 |
 | 5.3 `IslandState` mirrors `NowPlayingInfo?` | 3, 5 |
 | 5.8 `CollapsedContent`, `ExpandedContent`, idle message | 6 |
-| 5.9 "Music access needed" entry | 7 |
+| 5.9 "Music access needed" entry in the island menu | 7 |
 | 6 Helper exits → restart with backoff, at most 3 times, then switch | 5 |
 | 6 Artwork missing → placeholder glyph | 6 |
 | 6 Automation consent denied → menu entry opens the settings pane | 7 |

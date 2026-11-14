@@ -26,7 +26,8 @@ built behind a small interface.
 - Hover expand / collapse.
 - Now Playing with playback controls.
 - Drag, symbiote stretch-and-tear effect, snapping, return to the notch.
-- A menu bar status item with "Return to notch", "Launch at login" and "Quit".
+- A context menu on the island (secondary click) with "Return to notch",
+  "Launch at login" and "Quit". There is no menu bar item (section 5.9).
 - Trackpad haptic feedback when the island tears off and when it snaps.
 - Remembering the last dock position across launches.
 
@@ -66,7 +67,7 @@ installing Xcode is a prerequisite for milestone 0.
 
 ```
 AppDelegate
- ├─ StatusItemController        menu bar item: Return to notch, Quit
+ ├─ IslandMenu                  island context menu: Return to notch, Quit
  ├─ OverlayController           owns the panel, wires everything together
  │   ├─ OverlayPanel (NSPanel)  full-screen transparent window
  │   ├─ MouseTracker            pointer position → hover / click-through
@@ -295,9 +296,13 @@ protocol stays in place for later sources (for example a Spotify provider).
   play-pause / next buttons. When nothing is playing it shows a short idle
   message.
 
-### 5.9 StatusItemController
+### 5.9 IslandMenu
 
-A menu bar item with three permanent entries:
+Changed by the owner on 2026-11-14: Symbiodock shows nothing in the menu bar. The
+menu described here opens on a secondary click (right-click or Control-click) on the
+island instead. The menu bar may get an item again for later features; not in v1.
+
+A context menu with three permanent entries:
 
 - "Return to notch": sets the anchor to `.notch`.
 - "Launch at login": a checkmark toggle backed by `SMAppService.mainApp`. The
@@ -312,7 +317,7 @@ is missing (section 6).
 | Situation | Behaviour |
 |---|---|
 | Nothing is playing | Idle state; at the notch the island is invisible |
-| Automation consent denied | `AppleMusicProvider` reports unavailable; the status menu shows a "Music access needed" entry that opens the Automation settings pane |
+| Automation consent denied | `AppleMusicProvider` shows nothing; the island menu shows a "Music access needed" entry that opens the Automation settings pane |
 | MediaRemote helper exits | Restart with backoff, at most 3 times, then switch provider |
 | Artwork missing | Placeholder music glyph |
 | Display configuration changes | Recompute geometry, re-anchor to the saved anchor |
@@ -347,7 +352,7 @@ small pieces.
 
 | # | Milestone | Done when |
 |---|---|---|
-| 0 | Project skeleton | Xcode project builds; agent app launches; status item can quit it |
+| 0 | Project skeleton | Xcode project builds; agent app launches; it can be quit from its menu |
 | 1 | Notch island | Panel sits on the notch; hover expands and collapses with placeholder content; clicks outside the island pass through |
 | 2 | Now Playing | MediaRemote spike result recorded; real track data and working controls from at least Apple Music |
 | 3 | Drag and snap | Island can be dragged off, snaps to edges and corners, returns to the notch, position survives relaunch |

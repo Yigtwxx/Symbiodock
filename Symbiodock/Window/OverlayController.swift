@@ -10,6 +10,7 @@ final class OverlayController {
     private static let trackerMode: MouseTracker.Mode = .eventMonitors
 
     private let state = IslandState()
+    private let contextMenu: NSMenu
     private var panel: OverlayPanel?
     private var metrics: ScreenMetrics?
     private var notch: CGRect = .zero
@@ -17,6 +18,10 @@ final class OverlayController {
     private var tracker: MouseTracker?
     private var pointerInside = false
     private var hoverTask: Task<Void, Never>?
+
+    init(contextMenu: NSMenu) {
+        self.contextMenu = contextMenu
+    }
 
     func start() {
         // The tracker must exist before the first rebuild: if the pointer is already on
@@ -60,7 +65,8 @@ final class OverlayController {
         self.notch = notch
 
         let panel = OverlayPanel(screenFrame: metrics.frame)
-        let hostingView = NSHostingView(rootView: IslandView(state: state, notch: notch))
+        let hostingView = IslandHostingView(rootView: IslandView(state: state, notch: notch))
+        hostingView.contextMenu = contextMenu
         // Keep SwiftUI from resizing the panel to the content's ideal size.
         hostingView.sizingOptions = []
         panel.contentView = hostingView
@@ -108,5 +114,23 @@ final class OverlayController {
             // when the pointer really crossed the (now different) rect edge.
             self.pointerMoved(toGlobal: NSEvent.mouseLocation)
         }
+    }
+}
+
+/// Hosts the island and shows its context menu on a secondary click.
+private final class IslandHostingView<Content: View>: NSHostingView<Content> {
+    var contextMenu: NSMenu?
+
+    override func rightMouseDown(with event: NSEvent) {
+        guard let contextMenu else {
+            super.rightMouseDown(with: event)
+            return
+        }
+        NSMenu.popUpContextMenu(contextMenu, with: event, for: self)
+    }
+
+    /// Control-click asks for the menu through this hook.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        contextMenu
     }
 }
