@@ -1,0 +1,2373 @@
+# Agents Tab — App Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Show running AI coding agent sessions in the island: tabs in the expanded island, an Agents tab, a status mark and rim light on the collapsed island, and a click that brings a session's app forward.
+
+**Architecture:** The core package (plan `2026-11-14-agents-tab-core.md`, must be finished first) holds the model, the board, the tab logic and the parsers. This plan adds what touches the system: file and process reading under `Symbiodock/Agents/`, SwiftUI views under `Symbiodock/Island/`, and the wiring in `AppDelegate`. A coordinator polls the providers off the main thread and hands the list to `IslandState`.
+
+**Tech Stack:** Swift 6, SwiftUI, AppKit, `libproc` and `sysctl` through `Darwin`, XcodeGen.
+
+Spec: `docs/superpowers/specs/2026-11-14-agents-tab-design.md`.
+
+## Global Constraints
+
+- No third-party dependency, no new macOS permission prompt, no hook, no write outside the app's own `UserDefaults`. Nothing under `~/.claude`, `~/.codex` or any tool's directory is ever written, and no SQLite file is opened.
+- Never log or print session titles, project paths, question text or process arguments. Logs carry counts, tool names and state names only.
+- Interface text is English. Code, identifiers and comments are English.
+- Minimum macOS 14.0. Swift 6 strict concurrency.
+- Colours: coral `#FF6A5C` (needs input), mint `#63E6A9` (finished). Everything else white on black.
+- With Reduce Motion on, nothing travels, knocks, turns or breathes.
+- Verify after every task:
+  - `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -1` passes.
+  - `xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock -configuration Debug -derivedDataPath build build 2>&1 | tail -3` ends in `** BUILD SUCCEEDED **` with no new warning in the files the task touched.
+- New Swift files under `Symbiodock/` are picked up by `xcodegen generate`; `Symbiodock.xcodeproj` is never committed.
+- Commit after every task with a Conventional Commit (title ≤ 72 characters, imperative, body says why) and push to `main`.
+- If code in this plan does not compile, fix it keeping behaviour and interfaces, and correct the plan in the same commit.
+- Do not launch anything that shows a macOS permission dialog. Do not run `sudo`.
+- To run the app: `pkill -x Symbiodock; open build/Build/Products/Debug/Symbiodock.app`. Quit it again with `pkill -x Symbiodock` when a task is done.
+
+## File structure
+
+| File | Responsibility |
+|---|---|
+| `Symbiodock/Island/Agents/AgentPalette.swift` | The two accent colours |
+| `Symbiodock/Island/Agents/AgentStatusMark.swift` | The 14 pt mark and its looks |
+| `Symbiodock/Island/Agents/AgentToolIcon.swift` | A tool's glyph or monogram |
+| `Symbiodock/Island/Agents/AgentsContent.swift` | The Agents tab: rows, empty state |
+| `Symbiodock/Island/Agents/AgentFaces.swift` | Collapsed faces for the notch, the capsule and the strip |
+| `Symbiodock/Island/RimLight.swift` | The light along the collapsed island's rim |
+| `Symbiodock/Island/TabStrip.swift` | The tab buttons |
+| `Symbiodock/Island/ExpandedIsland.swift` | Header band plus the selected tab's content |
+| `Symbiodock/Window/TabOrderStore.swift` | Tab order in `UserDefaults` |
+| `Symbiodock/Agents/FileReading.swift` | Bounded head, tail and whole-file reads |
+| `Symbiodock/Agents/ProcessScanner.swift` | The user's processes |
+| `Symbiodock/Agents/ClaudeCodeProvider.swift` | Claude Code sessions |
+| `Symbiodock/Agents/CodexProvider.swift` | Codex threads |
+| `Symbiodock/Agents/HostApp.swift` | Finding and activating the app that hosts a session |
+| `Symbiodock/Agents/AgentSessionCoordinator.swift` | Polling loop |
+| `Symbiodock/Agents/AgentProviders.swift` | The list of providers |
+| `Symbiodock/App/DebugRender.swift` | Debug only: draws the agent views to PNG files |
+| `Symbiodock/Agents/DemoAgents.swift` | Debug only: a fixed set of sessions |
+
+Modified: `IslandView.swift`, `CollapsedContent.swift`, `FloatingCollapsedContent.swift`, `SideCollapsedContent.swift`, `OverlayController.swift`, `IslandMenu.swift`, `AppDelegate.swift`, `ThirdPartyNotices.txt`.
+
+---
+
+### Task 1: Status mark, tool icon and the render harness
+
+**Files:**
+- Create: `Symbiodock/Island/Agents/AgentPalette.swift`
+- Create: `Symbiodock/Island/Agents/AgentStatusMark.swift`
+- Create: `Symbiodock/Island/Agents/AgentToolIcon.swift`
+- Create: `Symbiodock/App/DebugRender.swift`
+- Modify: `Symbiodock/App/AppDelegate.swift`
+
+**Interfaces:**
+- Consumes: `AgentRowState`, `AgentTool` (core).
+- Produces: `AgentPalette.coral`, `AgentPalette.mint`; `AgentStatusMark(state:size:frozenAt:)`; `AgentToolIcon(tool:size:)`; `AgentTool.monogram`; `DebugRender.runIfRequested()`, `DebugRender.write(_:size:named:to:)`.
+
+- [ ] **Step 1: Write the palette**
+
+`Symbiodock/Island/Agents/AgentPalette.swift`:
+
+```swift
+import SwiftUI
+
+/// The two accents the agents bring to the black island.
+enum AgentPalette {
+    /// A session waits for the user. #FF6A5C
+    static let coral = Color(red: 1.0, green: 106.0 / 255.0, blue: 92.0 / 255.0)
+    /// A session has finished. #63E6A9
+    static let mint = Color(red: 99.0 / 255.0, green: 230.0 / 255.0, blue: 169.0 / 255.0)
+}
+```
+
+- [ ] **Step 2: Write the status mark**
+
+`Symbiodock/Island/Agents/AgentStatusMark.swift`:
+
+```swift
+import SwiftUI
+import SymbiodockCore
+
+/// One glyph for a session's state, used wherever a state is shown. Working turns, needs
+/// input knocks, finished draws a check; the rest stand still.
+struct AgentStatusMark: View {
+    let state: AgentRowState
+    var size: CGFloat = 14
+    /// Draws the mark at this moment and never moves; for previews and renders.
+    var frozenAt: TimeInterval?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// When the mark last became finished: one ring goes outward from then.
+    @State private var finishedAt: Date?
+
+    private static let stroke: CGFloat = 1.75
+    private static let turnPeriod: TimeInterval = 1.1
+    private static let knockPeriod: TimeInterval = 2.4
+    private static let knockLength: TimeInterval = 0.3
+    private static let rippleLength: TimeInterval = 0.9
+
+    var body: some View {
+        Group {
+            if let frozenAt {
+                mark(time: frozenAt, burst: nil, moving: true)
+            } else {
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !moves)) { context in
+                    mark(
+                        time: context.date.timeIntervalSinceReferenceDate,
+                        burst: finishedAt.map { context.date.timeIntervalSince($0) },
+                        moving: moves)
+                }
+            }
+        }
+        .frame(width: size, height: size)
+        .onChange(of: isFinished) { _, finished in
+            guard finished else {
+                finishedAt = nil
+                return
+            }
+            let stamp = Date()
+            finishedAt = stamp
+            Task {
+                try? await Task.sleep(for: .seconds(1))
+                if finishedAt == stamp { finishedAt = nil }
+            }
+        }
+        .accessibilityElement()
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var isFinished: Bool { state == .finished }
+
+    private var isNeedsInput: Bool {
+        if case .needsInput = state { true } else { false }
+    }
+
+    /// Whether anything is in motion right now.
+    private var moves: Bool {
+        !reduceMotion && (state == .working || isNeedsInput || finishedAt != nil)
+    }
+
+    private var color: Color {
+        switch state {
+        case .working: .white.opacity(0.9)
+        case .needsInput: AgentPalette.coral
+        case .finished: AgentPalette.mint
+        case .running: .white.opacity(0.5)
+        case .idle: .white.opacity(0.28)
+        }
+    }
+
+    private var hasDot: Bool {
+        isNeedsInput || state == .running
+    }
+
+    private func mark(time: TimeInterval, burst: TimeInterval?, moving: Bool) -> some View {
+        let turn = moving && state == .working
+            ? time.truncatingRemainder(dividingBy: Self.turnPeriod) / Self.turnPeriod * 360 : 0
+        let beat = time.truncatingRemainder(dividingBy: Self.knockPeriod)
+        let knocking = moving && isNeedsInput
+        return ZStack {
+            ripple(knocking ? Self.progress(beat, from: 0) : burst.flatMap { Self.progress($0, from: 0) })
+            ripple(knocking ? Self.progress(beat, from: Self.knockLength) : nil)
+            Circle()
+                .trim(from: 0, to: state == .working ? 0.75 : 1)
+                .stroke(color, style: StrokeStyle(lineWidth: Self.stroke, lineCap: .round))
+                .rotationEffect(.degrees(turn - 90))
+            Circle()
+                .fill(color)
+                .frame(width: size * 0.29, height: size * 0.29)
+                .scaleEffect(knocking ? Self.knockScale(beat) : 1)
+                .opacity(hasDot ? 1 : 0)
+            CheckShape()
+                .trim(from: 0, to: isFinished ? 1 : 0)
+                .stroke(
+                    color,
+                    style: StrokeStyle(lineWidth: Self.stroke, lineCap: .round, lineJoin: .round))
+                .padding(size * 0.29)
+        }
+        .padding(Self.stroke / 2)
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: state)
+    }
+
+    /// A ring that grows to twice the mark's size while it fades; nothing for nil.
+    private func ripple(_ progress: Double?) -> some View {
+        Circle()
+            .stroke(color.opacity(0.6 * (1 - (progress ?? 1))), lineWidth: 1)
+            .scaleEffect(1 + (progress ?? 0))
+    }
+
+    /// 0...1 through a ripple that started at `start` seconds into the beat; nil outside it.
+    private static func progress(_ beat: TimeInterval, from start: TimeInterval) -> Double? {
+        let value = (beat - start) / rippleLength
+        return value >= 0 && value < 1 ? value : nil
+    }
+
+    /// Two knocks at the start of every beat, then rest.
+    private static func knockScale(_ beat: TimeInterval) -> CGFloat {
+        guard beat < 2 * knockLength else { return 1 }
+        let local = beat.truncatingRemainder(dividingBy: knockLength) / knockLength
+        return 1 + 0.35 * sin(.pi * local)
+    }
+
+    private var accessibilityText: String {
+        switch state {
+        case .working: "Working"
+        case .needsInput: "Needs input"
+        case .finished: "Finished"
+        case .running: "Running"
+        case .idle: "Idle"
+        }
+    }
+}
+
+/// A check mark filling its rect.
+private struct CheckShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.55))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.38, y: rect.maxY * 0.92 + rect.minY * 0.08))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.12))
+        return path
+    }
+}
+```
+
+- [ ] **Step 3: Write the tool icon**
+
+`Symbiodock/Island/Agents/AgentToolIcon.swift`:
+
+```swift
+import AppKit
+import SwiftUI
+import SymbiodockCore
+
+/// A tool's glyph: a bundled monochrome mark when there is one, otherwise two letters.
+struct AgentToolIcon: View {
+    let tool: AgentTool
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let image = AgentIconCache.image(for: tool) {
+                Image(nsImage: image)
+                    .renderingMode(.template)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .foregroundStyle(.white.opacity(0.92))
+            } else {
+                Text(tool.monogram)
+                    .font(.system(size: size * 0.5, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.92))
+                    .frame(width: size, height: size)
+                    .background(
+                        .white.opacity(0.16),
+                        in: RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityLabel(tool.displayName)
+    }
+}
+
+extension AgentTool {
+    /// Two letters that stand for the tool where no mark is bundled.
+    var monogram: String {
+        switch self {
+        case .claudeCode: "Cc"
+        case .codex: "Cx"
+        case .geminiCLI: "Ge"
+        case .cursorAgent: "Cu"
+        case .openCode: "Oc"
+        case .aider: "Ai"
+        case .copilotCLI: "Co"
+        }
+    }
+}
+
+/// Marks already loaded; a tool without a bundled mark is remembered as nil.
+@MainActor
+private enum AgentIconCache {
+    private static var images: [AgentTool: NSImage?] = [:]
+
+    static func image(for tool: AgentTool) -> NSImage? {
+        if let cached = images[tool] { return cached }
+        let image = Bundle.main.url(forResource: "agent-\(tool.rawValue)", withExtension: "svg")
+            .flatMap { NSImage(contentsOf: $0) }
+        image?.isTemplate = true
+        images[tool] = image
+        return image
+    }
+}
+```
+
+No SVG is bundled yet, so every tool shows its monogram until Task 7.
+
+- [ ] **Step 4: Write the render harness**
+
+`Symbiodock/App/DebugRender.swift`:
+
+```swift
+#if DEBUG
+import AppKit
+import SwiftUI
+import SymbiodockCore
+
+/// Draws the agent views to PNG files and quits, so their look can be checked without a
+/// running agent. Debug builds only:
+/// `SYMBIODOCK_RENDER_DIR=build/render build/Build/Products/Debug/Symbiodock.app/Contents/MacOS/Symbiodock`
+@MainActor
+enum DebugRender {
+    static func runIfRequested() {
+        guard let path = ProcessInfo.processInfo.environment["SYMBIODOCK_RENDER_DIR"] else { return }
+        let directory = URL(fileURLWithPath: path, isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        write(StatusMarkGallery(), size: CGSize(width: 560, height: 150), named: "status-marks", to: directory)
+        exit(0)
+    }
+
+    /// Hosts the view in an off-screen window and saves what it draws.
+    static func write(_ view: some View, size: CGSize, named name: String, to directory: URL) {
+        let host = NSHostingView(
+            rootView: view
+                .frame(width: size.width, height: size.height)
+                .background(Color(white: 0.22)))
+        host.frame = CGRect(origin: .zero, size: size)
+        let window = NSWindow(
+            contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        // SwiftUI lays out and draws on the next turns of the run loop.
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        guard let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return }
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        guard let png = bitmap.representation(using: .png, properties: [:]) else { return }
+        try? png.write(to: directory.appendingPathComponent("\(name).png"))
+    }
+}
+
+/// Every look of the status mark, large and at its real size, with the tool glyphs.
+private struct StatusMarkGallery: View {
+    private static let states: [(String, AgentRowState, TimeInterval)] = [
+        ("working", .working, 0.2),
+        ("knock", .needsInput(prompt: nil), 0.15),
+        ("ripple", .needsInput(prompt: nil), 0.7),
+        ("finished", .finished, 0),
+        ("running", .running, 0),
+        ("idle", .idle, 0),
+    ]
+
+    var body: some View {
+        VStack(spacing: 14) {
+            HStack(spacing: 22) {
+                ForEach(Self.states, id: \.0) { name, state, time in
+                    VStack(spacing: 8) {
+                        AgentStatusMark(state: state, size: 42, frozenAt: time)
+                            .frame(width: 60, height: 60)
+                        AgentStatusMark(state: state, frozenAt: time)
+                        Text(name).font(.system(size: 9)).foregroundStyle(.white.opacity(0.6))
+                    }
+                }
+            }
+            HStack(spacing: 10) {
+                ForEach(AgentTool.allCases, id: \.self) { AgentToolIcon(tool: $0, size: 16) }
+            }
+        }
+        .padding(12)
+        .background(.black, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+#endif
+```
+
+In `AppDelegate.applicationDidFinishLaunching`, as the very first lines:
+
+```swift
+        #if DEBUG
+        DebugRender.runIfRequested()
+        #endif
+```
+
+- [ ] **Step 5: Build, render and look**
+
+```bash
+xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock -configuration Debug -derivedDataPath build build 2>&1 | tail -3
+SYMBIODOCK_RENDER_DIR=build/render build/Build/Products/Debug/Symbiodock.app/Contents/MacOS/Symbiodock; ls -l build/render
+```
+
+Expected: `** BUILD SUCCEEDED **`, the process exits by itself, `build/render/status-marks.png` exists.
+
+Open the PNG with the Read tool and check, one by one: the working mark is an open arc; the needs-input mark is a coral ring with a centre dot, and its two frames differ (a bigger dot in `knock`, an outer ring in `ripple`); finished is a mint ring with a check mark inside it, not touching the ring; running is a dim ring with a dot; idle is a dimmer ring; seven monogram tiles sit below. If a shape is off (the check mark crooked, clipped, or outside the ring), fix the numbers and render again. If the picture is empty, the capture ran before SwiftUI drew: raise the run-loop wait, or call `window.displayIfNeeded()` before capturing.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add Symbiodock docs/superpowers/plans
+git commit -m "feat: draw the agent status mark and tool icon"
+git push origin main
+```
+
+---
+
+### Task 2: Tabs in the expanded island and the Agents tab
+
+**Files:**
+- Create: `Symbiodock/Window/TabOrderStore.swift`
+- Create: `Symbiodock/Island/TabStrip.swift`
+- Create: `Symbiodock/Island/ExpandedIsland.swift`
+- Create: `Symbiodock/Island/Agents/AgentsContent.swift`
+- Create: `Symbiodock/Agents/DemoAgents.swift`
+- Modify: `Symbiodock/Island/IslandView.swift`
+- Modify: `Symbiodock/Window/OverlayController.swift`
+- Modify: `Symbiodock/App/IslandMenu.swift`
+- Modify: `Symbiodock/App/AppDelegate.swift`
+- Modify: `Symbiodock/App/DebugRender.swift`
+
+**Interfaces:**
+- Consumes: core `IslandState` (`board`, `tabOrder`, `selectedTab`, `selectTab(_:)`, `setTabOrder(_:)`, `setAgentSessions(_:)`), `TabOrder`, `AgentRow`, `AgentLabels`; `AgentStatusMark`, `AgentToolIcon`, `AgentPalette` (Task 1).
+- Produces:
+  - `TabOrderStore.load() -> [IslandTab]`, `TabOrderStore.save(_:)`.
+  - `TabStrip(order:selected:attention:onSelect:)`, `IslandTab.symbol`, `IslandTab.title`.
+  - `ExpandedHeaderMetrics(height:leading:gap:trailing:)`, `ExpandedIsland(state:metrics:onCommand:onOpenSession:)`, `ExpandedIsland.dockedBandHeight` (26).
+  - `AgentsContent(rows:topInset:onOpen:)`.
+  - `OverlayController.init(state:contextMenu:onCommand:onOpenSession:)`.
+  - `IslandMenu.firstTab: () -> IslandTab`, `IslandMenu.onChooseFirstTab: ((IslandTab) -> Void)?`.
+  - `DemoAgents.isRequested`, `DemoAgents.apply(to: IslandState)`.
+
+- [ ] **Step 1: Store the tab order**
+
+`Symbiodock/Window/TabOrderStore.swift`:
+
+```swift
+import Foundation
+import SymbiodockCore
+
+/// Remembers the order of the tabs across launches.
+enum TabOrderStore {
+    private static let key = "tabOrder"
+
+    /// Anything missing or unreadable gives the default order.
+    static func load() -> [IslandTab] {
+        TabOrder.repaired(UserDefaults.standard.stringArray(forKey: key))
+    }
+
+    static func save(_ order: [IslandTab]) {
+        UserDefaults.standard.set(TabOrder.encode(order), forKey: key)
+    }
+}
+```
+
+- [ ] **Step 2: Write the tab strip**
+
+`Symbiodock/Island/TabStrip.swift`:
+
+```swift
+import SwiftUI
+import SymbiodockCore
+
+/// The tab buttons of the expanded island, in the user's order.
+struct TabStrip: View {
+    let order: [IslandTab]
+    let selected: IslandTab
+    let attention: AgentAttention
+    let onSelect: (IslandTab) -> Void
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(order, id: \.self) { tab in
+                Button {
+                    onSelect(tab)
+                } label: {
+                    glyph(tab)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(tab.title)
+                .accessibilityAddTraits(tab == selected ? .isSelected : [])
+            }
+        }
+    }
+
+    private func glyph(_ tab: IslandTab) -> some View {
+        VStack(spacing: 2) {
+            Image(systemName: tab.symbol)
+                .font(.system(size: 11, weight: .semibold))
+                .overlay(alignment: .topTrailing) {
+                    // The agents want attention while another tab is looked at.
+                    if tab == .agents, selected != .agents, attention != .none {
+                        Circle()
+                            .fill(attention == .needsInput ? AgentPalette.coral : AgentPalette.mint)
+                            .frame(width: 5, height: 5)
+                            .offset(x: 4, y: -3)
+                    }
+                }
+            Circle()
+                .fill(.white)
+                .frame(width: 3, height: 3)
+                .opacity(tab == selected ? 1 : 0)
+        }
+        .foregroundStyle(.white.opacity(tab == selected ? 1 : 0.4))
+        .frame(width: 28, height: 22)
+        .contentShape(Rectangle())
+    }
+}
+
+extension IslandTab {
+    var symbol: String {
+        switch self {
+        case .agents: "sparkles"
+        case .media: "music.note"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .agents: "Agents"
+        case .media: "Media"
+        }
+    }
+}
+```
+
+- [ ] **Step 3: Write the Agents tab**
+
+`Symbiodock/Island/Agents/AgentsContent.swift`:
+
+```swift
+import SwiftUI
+import SymbiodockCore
+
+/// The Agents tab: one row per session, or an idle message.
+struct AgentsContent: View {
+    let rows: [AgentRow]
+    /// Height of the header band; nothing can be shown behind it.
+    let topInset: CGFloat
+    let onOpen: (AgentSession) -> Void
+
+    var body: some View {
+        Group {
+            if rows.isEmpty {
+                idle
+            } else {
+                list
+            }
+        }
+        .padding(.top, topInset)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var idle: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(.white.opacity(0.35))
+            Text("No agents running")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.55))
+        }
+    }
+
+    private var list: some View {
+        // The labels count minutes; they are redrawn on their own now and then.
+        TimelineView(.periodic(from: .now, by: 20)) { context in
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 2) {
+                    ForEach(rows) { row in
+                        AgentRowView(row: row, now: context.date, onOpen: onOpen)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.bottom, 8)
+            }
+        }
+    }
+}
+
+private struct AgentRowView: View {
+    let row: AgentRow
+    let now: Date
+    let onOpen: (AgentSession) -> Void
+
+    var body: some View {
+        if row.session.hostAppPID != nil {
+            Button {
+                onOpen(row.session)
+            } label: {
+                content
+            }
+            .buttonStyle(RowButtonStyle())
+            .accessibilityHint("Brings its app to the front")
+        } else {
+            content
+        }
+    }
+
+    private var prompt: String? {
+        if case .needsInput(let prompt) = row.state { prompt } else { nil }
+    }
+
+    private var needsInput: Bool {
+        if case .needsInput = row.state { true } else { false }
+    }
+
+    private var labelColor: Color {
+        switch row.state {
+        case .needsInput: AgentPalette.coral
+        case .finished: AgentPalette.mint
+        case .working, .running, .idle: .white.opacity(0.6)
+        }
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 8) {
+                AgentToolIcon(tool: row.session.tool, size: 16)
+                Text(row.session.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white.opacity(row.state == .idle ? 0.6 : 1))
+                    .lineLimit(1)
+                    .layoutPriority(1)
+                if let project = row.session.projectName, project != row.session.title {
+                    Text(project)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.5))
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                Text(AgentLabels.status(row.state, since: row.session.since, now: now))
+                    .font(.system(size: 11, weight: .medium).monospacedDigit())
+                    .foregroundStyle(labelColor)
+                    .lineLimit(1)
+                    .fixedSize()
+                AgentStatusMark(state: row.state)
+            }
+            if let prompt {
+                Text(prompt)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.leading, 24)
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(height: prompt == nil ? 30 : 44)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            if needsInput {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(AgentPalette.coral.opacity(0.12))
+            }
+        }
+        .overlay(alignment: .leading) {
+            if needsInput {
+                Capsule().fill(AgentPalette.coral).frame(width: 2).padding(.vertical, 6)
+            }
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A row dims while it is pressed, so a click is felt.
+private struct RowButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.55 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+```
+
+- [ ] **Step 4: Write the expanded island**
+
+`Symbiodock/Island/ExpandedIsland.swift`:
+
+```swift
+import SwiftUI
+import SymbiodockCore
+
+/// Where the header's parts go. At the notch the camera housing sits in the middle of the
+/// band, so the tab strip is left of it and the summary right of it.
+struct ExpandedHeaderMetrics: Equatable {
+    var height: CGFloat
+    var leading: CGFloat
+    /// Width hidden by the camera housing; 0 away from the notch.
+    var gap: CGFloat
+    var trailing: CGFloat
+}
+
+/// The open island: a header band with the tabs, and the selected tab below it.
+struct ExpandedIsland: View {
+    /// Height of the header band where there is no notch to give it one.
+    static let dockedBandHeight: CGFloat = 26
+
+    let state: IslandState
+    let metrics: ExpandedHeaderMetrics
+    let onCommand: (PlaybackCommand) -> Void
+    let onOpenSession: (AgentSession) -> Void
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            Group {
+                switch state.selectedTab {
+                case .media:
+                    ExpandedContent(
+                        info: state.nowPlaying, topInset: metrics.height, onCommand: onCommand)
+                case .agents:
+                    AgentsContent(
+                        rows: state.board.rows, topInset: metrics.height, onOpen: onOpenSession)
+                }
+            }
+            .transition(.opacity)
+            header
+        }
+        .animation(.easeOut(duration: 0.15), value: state.selectedTab)
+    }
+
+    private var header: some View {
+        HStack(spacing: 0) {
+            TabStrip(
+                order: state.tabOrder, selected: state.selectedTab,
+                attention: state.board.attention
+            ) { tab in
+                state.selectTab(tab)
+            }
+            .padding(.leading, 12)
+            .frame(width: metrics.leading, alignment: .leading)
+
+            Color.clear.frame(width: metrics.gap)
+
+            summary
+                .padding(.trailing, 14)
+                .frame(width: metrics.trailing, alignment: .trailing)
+        }
+        .frame(height: metrics.height)
+    }
+
+    @ViewBuilder
+    private var summary: some View {
+        if state.selectedTab == .agents,
+           let text = AgentLabels.summary(
+               needsInput: state.board.needsInputCount, working: state.board.workingCount) {
+            Text(text)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.5))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+    }
+}
+```
+
+- [ ] **Step 5: Use it in `IslandView`**
+
+In `Symbiodock/Island/IslandView.swift`:
+
+1. Add a stored property after `onCommand`:
+
+```swift
+    let onOpenSession: (AgentSession) -> Void
+```
+
+2. In `resting`, change `.overlay { content(atNotch: atNotch) }` to `.overlay { content(atNotch: atNotch, frame: frame) }`.
+
+3. Change the signature `private func content(atNotch: Bool) -> some View` to `private func content(atNotch: Bool, frame: CGRect) -> some View`, and replace its `.expanded` case with:
+
+```swift
+        case .expanded:
+            ExpandedIsland(
+                state: state, metrics: headerMetrics(atNotch: atNotch, frame: frame),
+                onCommand: onCommand, onOpenSession: onOpenSession)
+                .transition(.opacity)
+```
+
+4. Add below `content`:
+
+```swift
+    /// At the notch the header shares its band with the camera housing; elsewhere it has
+    /// a band of its own, split down the middle.
+    private func headerMetrics(atNotch: Bool, frame: CGRect) -> ExpandedHeaderMetrics {
+        guard atNotch else {
+            return ExpandedHeaderMetrics(
+                height: ExpandedIsland.dockedBandHeight,
+                leading: frame.width / 2, gap: 0, trailing: frame.width / 2)
+        }
+        let notch = geometry.notch
+        return ExpandedHeaderMetrics(
+            height: notch.height,
+            leading: max(notch.minX - frame.minX, 0),
+            gap: notch.width,
+            trailing: max(frame.maxX - notch.maxX, 0))
+    }
+```
+
+- [ ] **Step 6: Pass the new callback through `OverlayController`**
+
+In `Symbiodock/Window/OverlayController.swift`:
+
+1. Add `private let onOpenSession: (AgentSession) -> Void` next to `onCommand`.
+2. Change the initialiser to:
+
+```swift
+    init(
+        state: IslandState, contextMenu: NSMenu,
+        onCommand: @escaping (PlaybackCommand) -> Void,
+        onOpenSession: @escaping (AgentSession) -> Void
+    ) {
+        self.state = state
+        self.contextMenu = contextMenu
+        self.onCommand = onCommand
+        self.onOpenSession = onOpenSession
+        session.onCatch = {
+            Self.dragLog.notice("strands caught a surface")
+            Self.haptic(.alignment)
+        }
+    }
+```
+
+3. In `rebuildPanel()`, build the view with the new argument:
+
+```swift
+        let hostingView = IslandHostingView(rootView: IslandView(
+            state: state, geometry: geometry, session: session, onCommand: onCommand,
+            onOpenSession: onOpenSession))
+```
+
+- [ ] **Step 7: Add `First tab` to the menu**
+
+In `Symbiodock/App/IslandMenu.swift`:
+
+1. Add `import SymbiodockCore` below `import AppKit`.
+2. Add properties next to `returnToNotchItem`:
+
+```swift
+    private let firstTabItem = NSMenuItem(title: "First tab", action: nil, keyEquivalent: "")
+    private var tabItems: [(tab: IslandTab, item: NSMenuItem)] = []
+
+    /// Set by the app: the tab that is first now.
+    var firstTab: () -> IslandTab = { TabOrder.default[0] }
+    /// Set by the app: the user chose a tab to be first.
+    var onChooseFirstTab: ((IslandTab) -> Void)?
+```
+
+3. In `init`, after `menu.addItem(returnToNotchItem)`:
+
+```swift
+        let tabMenu = NSMenu()
+        for tab in TabOrder.default {
+            let item = NSMenuItem(
+                title: tab.title, action: #selector(chooseFirstTab(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = tab.rawValue
+            tabMenu.addItem(item)
+            tabItems.append((tab, item))
+        }
+        firstTabItem.submenu = tabMenu
+        menu.addItem(firstTabItem)
+```
+
+4. In `menuNeedsUpdate(_:)`, add:
+
+```swift
+        let first = firstTab()
+        for (tab, item) in tabItems { item.state = tab == first ? .on : .off }
+```
+
+5. Add the action:
+
+```swift
+    @objc private func chooseFirstTab(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let tab = IslandTab(rawValue: raw)
+        else { return }
+        onChooseFirstTab?(tab)
+    }
+```
+
+`IslandTab.title` comes from `TabStrip.swift`.
+
+- [ ] **Step 8: Add the demo sessions**
+
+`Symbiodock/Agents/DemoAgents.swift`:
+
+```swift
+#if DEBUG
+import Foundation
+import SymbiodockCore
+
+/// A fixed set of sessions for looking at the Agents tab without running an agent:
+/// `open --env SYMBIODOCK_DEMO_AGENTS=1 build/Build/Products/Debug/Symbiodock.app`.
+/// The value picks the set: `1` all states, `working`, `finished`, `quiet`.
+@MainActor
+enum DemoAgents {
+    static var requested: String? {
+        ProcessInfo.processInfo.environment["SYMBIODOCK_DEMO_AGENTS"]
+    }
+
+    static func apply(_ set: String, to state: IslandState, now: Date = Date()) {
+        func session(
+            _ id: String, _ tool: AgentTool, _ title: String, _ project: String,
+            _ activity: AgentActivity, minutes: Double
+        ) -> AgentSession {
+            AgentSession(
+                id: id, tool: tool, title: title, projectPath: "/Users/demo/\(project)",
+                activity: activity, since: now.addingTimeInterval(-minutes * 60), pid: nil,
+                hostAppPID: ProcessInfo.processInfo.processIdentifier)
+        }
+        let ask = session(
+            "a", .claudeCode, "fix-login-flow", "storefront",
+            .needsInput(prompt: "Which of the two migrations should run first?"), minutes: 1)
+        let work = session("b", .codex, "Tune the monitor", "dotfiles", .working, minutes: 2)
+        let done = session("c", .claudeCode, "api-refactor", "backend", .idle, minutes: 0.5)
+        let open = session("d", .geminiCLI, "notes", "notes", .running, minutes: 40)
+        let idle = session("e", .aider, "parser", "parser", .idle, minutes: 12)
+
+        switch set {
+        case "working":
+            state.setAgentSessions([work, idle])
+        case "finished":
+            state.setAgentSessions([session("c", .claudeCode, "api-refactor", "backend", .working, minutes: 3)])
+            state.setAgentSessions([done])
+        case "quiet":
+            state.setAgentSessions([open, idle])
+        default:
+            // `c` is seen working first, so that it shows as finished.
+            state.setAgentSessions([
+                ask, work, session("c", .claudeCode, "api-refactor", "backend", .working, minutes: 3),
+                open, idle,
+            ])
+            state.setAgentSessions([ask, work, done, open, idle])
+        }
+    }
+}
+#endif
+```
+
+- [ ] **Step 9: Wire it in `AppDelegate`**
+
+In `Symbiodock/App/AppDelegate.swift`, replace the creation of the overlay controller and what follows up to (not including) `let nowPlaying = …` with:
+
+```swift
+        state.setTabOrder(TabOrderStore.load())
+
+        let overlayController = OverlayController(
+            state: state, contextMenu: islandMenu.menu,
+            onCommand: { [weak self] command in
+                self?.nowPlaying?.send(command)
+            },
+            onOpenSession: { _ in })
+        overlayController.start()
+        self.overlayController = overlayController
+        islandMenu.onReturnToNotch = { [weak overlayController] in overlayController?.returnToNotch() }
+        islandMenu.canReturnToNotch = { [weak self] in self.map { $0.state.anchor != .notch } ?? false }
+        islandMenu.firstTab = { [weak self] in self?.state.tabOrder.first ?? TabOrder.default[0] }
+        islandMenu.onChooseFirstTab = { [weak self] tab in
+            guard let self else { return }
+            let order = TabOrder.moving(tab, toFrontOf: self.state.tabOrder)
+            self.state.setTabOrder(order)
+            TabOrderStore.save(order)
+            // The collapsed face, and with it the hit rect, may have changed.
+            self.overlayController?.refreshPointer()
+        }
+
+        #if DEBUG
+        if let demo = DemoAgents.requested {
+            DemoAgents.apply(demo, to: state)
+            overlayController.refreshPointer()
+        }
+        #endif
+```
+
+- [ ] **Step 10: Render the Agents tab**
+
+In `Symbiodock/App/DebugRender.swift`, in `runIfRequested()` before `exit(0)`:
+
+```swift
+        for (name, tab) in [("expanded-agents", IslandTab.agents), ("expanded-media", .media)] {
+            let state = IslandState()
+            DemoAgents.apply("1", to: state)
+            state.setHovering(true)
+            state.selectTab(tab)
+            write(
+                ExpandedPreview(state: state), size: CGSize(width: 520, height: 180),
+                named: name, to: directory)
+        }
+        let empty = IslandState()
+        empty.setHovering(true)
+        empty.selectTab(.agents)
+        write(
+            ExpandedPreview(state: empty), size: CGSize(width: 520, height: 180),
+            named: "expanded-agents-empty", to: directory)
+```
+
+and at the end of the file, inside the `#if DEBUG`:
+
+```swift
+/// The open island as it is at the notch: 480 × 134, with a 200 × 32 camera housing.
+private struct ExpandedPreview: View {
+    let state: IslandState
+
+    var body: some View {
+        let shape = UnevenRoundedRectangle(
+            bottomLeadingRadius: 24, bottomTrailingRadius: 24, style: .continuous)
+        ExpandedIsland(
+            state: state,
+            metrics: ExpandedHeaderMetrics(height: 32, leading: 140, gap: 200, trailing: 140),
+            onCommand: { _ in }, onOpenSession: { _ in })
+            .frame(width: 480, height: 134)
+            .background(.black, in: shape)
+            .clipShape(shape)
+    }
+}
+```
+
+Note: selecting `.media` after the Agents tab clears the finished mark, which is the designed behaviour; the media render therefore shows no pip for it but still shows the coral pip for the session that needs input.
+
+- [ ] **Step 11: Build, render and look**
+
+```bash
+xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock -configuration Debug -derivedDataPath build build 2>&1 | tail -3
+SYMBIODOCK_RENDER_DIR=build/render build/Build/Products/Debug/Symbiodock.app/Contents/MacOS/Symbiodock; ls build/render
+```
+
+Open `expanded-agents.png`, `expanded-media.png` and `expanded-agents-empty.png` with the Read tool and check:
+
+- Two tab glyphs at the top left; the selected one is bright with a dot under it.
+- `expanded-agents`: rows are ordered needs input, working, done, running, idle. The first row has the coral bar and tint and its question on a second line. Labels read `Needs input`, `Working 2m`, `Done <1m`, `Running`, `Idle 12m`. Nothing overlaps or is cut off horizontally. `1 needs input · 1 working` is at the top right.
+- `expanded-media`: `Nothing playing`, and a coral pip on the Agents glyph.
+- `expanded-agents-empty`: the sparkles glyph and `No agents running`.
+
+Rows below the island's lower edge are expected (the list scrolls). If a `ScrollView` draws nothing in the render, check the live app instead (next step) before changing anything.
+
+- [ ] **Step 12: Check it in the running app**
+
+```bash
+pkill -x Symbiodock; open --env SYMBIODOCK_DEMO_AGENTS=1 build/Build/Products/Debug/Symbiodock.app; sleep 2; swift scripts/list-windows.swift
+```
+
+Expected: one window line for Symbiodock. Then `pkill -x Symbiodock`.
+
+- [ ] **Step 13: Commit**
+
+```bash
+git add Symbiodock docs/superpowers/plans
+git commit -m "feat: add tabs and the Agents tab to the open island"
+git push origin main
+```
+
+---
+
+### Task 3: Collapsed faces and the rim light
+
+**Files:**
+- Create: `Symbiodock/Island/Agents/AgentFaces.swift`
+- Create: `Symbiodock/Island/RimLight.swift`
+- Modify: `Symbiodock/Island/IslandView.swift`
+- Modify: `Symbiodock/Island/CollapsedContent.swift`
+- Modify: `Symbiodock/Island/FloatingCollapsedContent.swift`
+- Modify: `Symbiodock/Island/SideCollapsedContent.swift`
+- Modify: `Symbiodock/App/DebugRender.swift`
+
+**Interfaces:**
+- Consumes: `IslandState.face`, `IslandState.board` (`lead`, `attention`), `IslandLayout.dockedEdges(anchor:)`, `IslandCornerRadii`; `AgentStatusMark`, `AgentToolIcon`, `AgentPalette`.
+- Produces: `AgentNotchFace(row:notchWidth:)`, `AgentFloatingFace(row:)`, `AgentSideFace(row:)` (the last two take `AgentRow?`; nil shows the idle text); `RimLight(attention:radii:dockedEdges:isVertical:frozenAt:)`; an `attention: AgentRowState?` parameter on `CollapsedContent`, `FloatingCollapsedContent` and `SideCollapsedContent`; `RotatedLine` becomes internal.
+
+- [ ] **Step 1: Let the media faces carry the status mark**
+
+`Symbiodock/Island/CollapsedContent.swift` becomes:
+
+```swift
+import SwiftUI
+import SymbiodockCore
+
+/// Artwork in the left wing, level bars in the right wing, nothing over the notch itself.
+/// While an agent wants attention, its status mark takes the place of the level bars.
+struct CollapsedContent: View {
+    let info: NowPlayingInfo
+    let notchWidth: CGFloat
+    var attention: AgentRowState?
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ArtworkView(data: info.artworkData, size: 20)
+                .frame(maxWidth: .infinity)
+            Color.clear
+                .frame(width: notchWidth)
+            Group {
+                if let attention {
+                    AgentStatusMark(state: attention)
+                } else {
+                    LevelBars(isPlaying: info.isPlaying)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+}
+```
+
+In `FloatingCollapsedContent.swift` add `var attention: AgentRowState?` after `let info`, and replace the two lines
+
+```swift
+                LevelBars(isPlaying: info.isPlaying)
+                    .opacity(info.isPlaying ? 1 : 0.4)
+```
+
+with
+
+```swift
+                if let attention {
+                    AgentStatusMark(state: attention)
+                } else {
+                    LevelBars(isPlaying: info.isPlaying)
+                        .opacity(info.isPlaying ? 1 : 0.4)
+                }
+```
+
+In `SideCollapsedContent.swift` do the same (add the property, replace the same two lines), and change `private struct RotatedLine` to `struct RotatedLine` so the agent strip can use it. Read the file first; keep everything else as it is.
+
+- [ ] **Step 2: Write the agent faces**
+
+`Symbiodock/Island/Agents/AgentFaces.swift`:
+
+```swift
+import SwiftUI
+import SymbiodockCore
+
+/// The collapsed island speaking for the agents at the notch: the lead session's tool in
+/// the left wing, its state in the right wing.
+struct AgentNotchFace: View {
+    let row: AgentRow
+    let notchWidth: CGFloat
+
+    var body: some View {
+        HStack(spacing: 0) {
+            AgentToolIcon(tool: row.session.tool, size: 16)
+                .frame(maxWidth: .infinity)
+            Color.clear
+                .frame(width: notchWidth)
+            AgentStatusMark(state: row.state)
+                .frame(maxWidth: .infinity)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The same in the capsule of an island docked at an edge or corner. Without a session to
+/// speak for it says what the tab is, because a docked island never hides.
+struct AgentFloatingFace: View {
+    let row: AgentRow?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let row {
+                AgentToolIcon(tool: row.session.tool, size: 18)
+                Text(row.session.title)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                AgentStatusMark(state: row.state)
+            } else {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.4))
+                Text("No agents running")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.5))
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, row == nil ? 14 : 10)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The same in the vertical strip of an island docked on the left or right edge.
+struct AgentSideFace: View {
+    let row: AgentRow?
+
+    var body: some View {
+        VStack(spacing: 8) {
+            if let row {
+                AgentToolIcon(tool: row.session.tool, size: 18)
+                RotatedLine(text: row.session.title)
+                    .foregroundStyle(.white)
+                AgentStatusMark(state: row.state)
+            } else {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .frame(height: 18)
+                RotatedLine(text: "No agents running")
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+        }
+        .padding(.vertical, 10)
+        .accessibilityElement(children: .combine)
+    }
+}
+```
+
+Before writing `AgentSideFace`, read `SideCollapsedContent.swift` and give the strip the same paddings and spacing that file uses for its own `VStack`, so both faces sit alike.
+
+- [ ] **Step 3: Write the rim light**
+
+`Symbiodock/Island/RimLight.swift`:
+
+```swift
+import SwiftUI
+import SymbiodockCore
+
+/// A light along the collapsed island's rim while an agent wants attention. It is drawn
+/// inside the island's outline, so the island's frame and hit area stay what they are,
+/// and it leaves out the edges that lie against the screen.
+struct RimLight: View {
+    let attention: AgentAttention
+    let radii: IslandCornerRadii
+    let dockedEdges: Set<ScreenEdge>
+    /// The island is a vertical strip: the highlight travels down instead of across.
+    let isVertical: Bool
+    /// Draws the light this many seconds after it appeared and never moves; for renders.
+    var frozenAt: TimeInterval?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared = Date()
+    /// The finished light has made its one pass and is now still.
+    @State private var settled = false
+
+    private static let breathPeriod: TimeInterval = 1.8
+    private static let passPeriod: TimeInterval = 3.6
+    private static let passLength: TimeInterval = 0.9
+
+    var body: some View {
+        Group {
+            if attention == .none {
+                EmptyView()
+            } else if let frozenAt {
+                light(elapsed: frozenAt, moving: true)
+            } else {
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !moves)) { context in
+                    light(elapsed: context.date.timeIntervalSince(appeared), moving: moves)
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .onAppear { restart() }
+        .onChange(of: attention) { restart() }
+    }
+
+    private var moves: Bool {
+        !reduceMotion && (attention == .needsInput || (attention == .finished && !settled))
+    }
+
+    private func restart() {
+        let stamp = Date()
+        appeared = stamp
+        settled = false
+        guard attention == .finished else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(Self.passLength + 0.1))
+            if appeared == stamp { settled = true }
+        }
+    }
+
+    private var outline: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: radii.topLeading, bottomLeadingRadius: radii.bottomLeading,
+            bottomTrailingRadius: radii.bottomTrailing, topTrailingRadius: radii.topTrailing,
+            style: .continuous)
+    }
+
+    private func light(elapsed: TimeInterval, moving: Bool) -> some View {
+        let color = attention == .needsInput ? AgentPalette.coral : AgentPalette.mint
+        let level: Double
+        let pass: Double?
+        switch attention {
+        case .needsInput:
+            // Breathes between 35 % and 90 %.
+            level = moving ? 0.625 + 0.275 * sin(2 * .pi * elapsed / Self.breathPeriod) : 0.8
+            let beat = elapsed.truncatingRemainder(dividingBy: Self.passPeriod)
+            pass = moving && beat < Self.passLength ? beat / Self.passLength : nil
+        case .finished, .none:
+            level = 0.5
+            pass = moving && elapsed < Self.passLength ? elapsed / Self.passLength : nil
+        }
+        return ZStack {
+            outline.strokeBorder(color.opacity(level * 0.7), lineWidth: 3).blur(radius: 3)
+            outline.strokeBorder(color.opacity(level), lineWidth: 1.5)
+            if let pass {
+                outline.strokeBorder(.white.opacity(0.85), lineWidth: 1.5)
+                    .mask { band(at: pass) }
+            }
+        }
+        .mask { Rectangle().padding(edgeInsets) }
+    }
+
+    /// Hides the stroke on the edges that touch the screen: a notch has no line there.
+    private var edgeInsets: EdgeInsets {
+        EdgeInsets(
+            top: dockedEdges.contains(.top) ? 3 : 0,
+            leading: dockedEdges.contains(.left) ? 3 : 0,
+            bottom: dockedEdges.contains(.bottom) ? 3 : 0,
+            trailing: dockedEdges.contains(.right) ? 3 : 0)
+    }
+
+    /// A soft band crossing the island along its long axis; `position` runs 0...1.
+    private func band(at position: Double) -> some View {
+        GeometryReader { proxy in
+            let length = isVertical ? proxy.size.height : proxy.size.width
+            let width = max(length * 0.35, 24)
+            let offset = -width + position * (length + width)
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [.clear, .white, .clear],
+                        startPoint: isVertical ? .top : .leading,
+                        endPoint: isVertical ? .bottom : .trailing))
+                .frame(
+                    width: isVertical ? proxy.size.width : width,
+                    height: isVertical ? width : proxy.size.height)
+                .offset(x: isVertical ? 0 : offset, y: isVertical ? offset : 0)
+        }
+    }
+}
+```
+
+- [ ] **Step 4: Show the faces and the light in `IslandView`**
+
+In `Symbiodock/Island/IslandView.swift`:
+
+1. In `resting`, after `.overlay { content(atNotch: atNotch, frame: frame) }` add:
+
+```swift
+            .overlay {
+                if state.phase == .collapsed {
+                    RimLight(
+                        attention: state.board.attention, radii: radii,
+                        dockedEdges: IslandLayout.dockedEdges(anchor: state.anchor),
+                        isVertical: IslandLayout.isSideDocked(state.anchor))
+                }
+            }
+```
+
+2. Add `.animation(Self.spring, value: state.face)` next to the other `.animation` modifiers.
+
+3. Replace the `case .collapsed, .stretching, .detached, .settling:` branch of `content` with:
+
+```swift
+        case .collapsed, .stretching, .detached, .settling:
+            collapsedFace(atNotch: atNotch)
+                .transition(.opacity)
+```
+
+4. Add:
+
+```swift
+    /// The collapsed island shows one face: the first tab's if it has one, else the other's.
+    @ViewBuilder
+    private func collapsedFace(atNotch: Bool) -> some View {
+        let lead = state.board.lead
+        // On the media face an agent that wants attention still gets its mark.
+        let attention = state.board.attention == .none ? nil : lead?.state
+        // A docked island never hides: with no face it shows the paused track if there is
+        // one, otherwise the first tab's idle text.
+        let agentsSpeak = state.face == .agents
+            || (state.face == .none && state.nowPlaying == nil && state.tabOrder.first == .agents)
+
+        if atNotch {
+            switch state.face {
+            case .agents:
+                if let lead {
+                    AgentNotchFace(row: lead, notchWidth: geometry.notch.width)
+                }
+            case .media:
+                if let info = state.nowPlaying {
+                    CollapsedContent(
+                        info: info, notchWidth: geometry.notch.width, attention: attention)
+                }
+            case .none:
+                EmptyView()
+            }
+        } else if IslandLayout.isSideDocked(state.anchor) {
+            if agentsSpeak {
+                AgentSideFace(row: lead)
+            } else {
+                SideCollapsedContent(info: state.nowPlaying, attention: attention)
+            }
+        } else {
+            if agentsSpeak {
+                AgentFloatingFace(row: lead)
+            } else {
+                FloatingCollapsedContent(info: state.nowPlaying, attention: attention)
+            }
+        }
+    }
+```
+
+- [ ] **Step 5: Render the faces**
+
+In `DebugRender.runIfRequested()` before `exit(0)`:
+
+```swift
+        write(CollapsedGallery(), size: CGSize(width: 620, height: 330), named: "collapsed-faces", to: directory)
+```
+
+and at the end of the file, inside the `#if DEBUG`:
+
+```swift
+/// The collapsed faces with their rim light: at the notch, as a capsule, as a strip.
+private struct CollapsedGallery: View {
+    private let now = Date()
+
+    private func row(_ state: AgentRowState, _ tool: AgentTool = .claudeCode) -> AgentRow {
+        AgentRow(
+            session: AgentSession(
+                id: "x", tool: tool, title: "fix-login-flow", projectPath: nil,
+                activity: .working, since: now, pid: nil),
+            state: state)
+    }
+
+    private func notch(_ state: AgentRowState, _ attention: AgentAttention, at time: TimeInterval) -> some View {
+        let radii = IslandLayout.cornerRadii(anchor: .notch, radius: IslandLayout.collapsedCornerRadius)
+        let shape = UnevenRoundedRectangle(
+            bottomLeadingRadius: radii.bottomLeading, bottomTrailingRadius: radii.bottomTrailing,
+            style: .continuous)
+        return shape.fill(.black)
+            .overlay { AgentNotchFace(row: row(state), notchWidth: 200) }
+            .overlay {
+                RimLight(
+                    attention: attention, radii: radii, dockedEdges: [.top], isVertical: false,
+                    frozenAt: time)
+            }
+            .frame(width: 272, height: 32)
+            .clipShape(shape)
+    }
+
+    private func capsule(_ state: AgentRowState, _ attention: AgentAttention, at time: TimeInterval) -> some View {
+        let anchor = IslandAnchor.edge(.bottom, fraction: 0.5)
+        let radii = IslandLayout.cornerRadii(anchor: anchor, radius: IslandLayout.collapsedCornerRadius)
+        let shape = UnevenRoundedRectangle(
+            topLeadingRadius: radii.topLeading, topTrailingRadius: radii.topTrailing,
+            style: .continuous)
+        return shape.fill(.black)
+            .overlay { AgentFloatingFace(row: row(state, .codex)) }
+            .overlay {
+                RimLight(
+                    attention: attention, radii: radii,
+                    dockedEdges: IslandLayout.dockedEdges(anchor: anchor), isVertical: false,
+                    frozenAt: time)
+            }
+            .frame(width: 200, height: 36)
+            .clipShape(shape)
+    }
+
+    private func strip(_ state: AgentRowState, _ attention: AgentAttention, at time: TimeInterval) -> some View {
+        let anchor = IslandAnchor.edge(.right, fraction: 0.5)
+        let radii = IslandLayout.cornerRadii(anchor: anchor, radius: IslandLayout.collapsedCornerRadius)
+        let shape = UnevenRoundedRectangle(
+            topLeadingRadius: radii.topLeading, bottomLeadingRadius: radii.bottomLeading,
+            style: .continuous)
+        return shape.fill(.black)
+            .overlay { AgentSideFace(row: row(state)) }
+            .overlay {
+                RimLight(
+                    attention: attention, radii: radii,
+                    dockedEdges: IslandLayout.dockedEdges(anchor: anchor), isVertical: true,
+                    frozenAt: time)
+            }
+            .frame(width: 36, height: 170)
+            .clipShape(shape)
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 24) {
+            VStack(alignment: .leading, spacing: 14) {
+                notch(.working, .none, at: 0)
+                notch(.needsInput(prompt: nil), .needsInput, at: 0.45)
+                notch(.needsInput(prompt: nil), .needsInput, at: 1.4)
+                notch(.finished, .finished, at: 0.45)
+                notch(.finished, .finished, at: 2)
+                capsule(.needsInput(prompt: nil), .needsInput, at: 0.45)
+                capsule(.finished, .finished, at: 2)
+                AgentFloatingFace(row: nil)
+                    .frame(width: 200, height: 36)
+                    .background(.black, in: Capsule())
+            }
+            strip(.needsInput(prompt: nil), .needsInput, at: 0.45)
+            strip(.finished, .finished, at: 2)
+            strip(.working, .none, at: 0)
+        }
+        .padding(16)
+    }
+}
+```
+
+- [ ] **Step 6: Build, render and look**
+
+```bash
+xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock -configuration Debug -derivedDataPath build build 2>&1 | tail -3
+SYMBIODOCK_RENDER_DIR=build/render build/Build/Products/Debug/Symbiodock.app/Contents/MacOS/Symbiodock
+```
+
+Open `build/render/collapsed-faces.png` with the Read tool and check:
+
+- At the notch, the tool glyph is centred in the left wing and the status mark in the right wing; nothing is drawn in the 200 pt middle.
+- The rim light follows the island's outline on the free edges only: no line along the top of the notch island, none on the bottom edge of the capsule, none on the right edge of the strip.
+- Needs input: a coral line; in the frame at 0.45 s a brighter stretch is visible part of the way across (down, on the strip); at 1.4 s there is none.
+- Finished: a mint line; a brighter stretch at 0.45 s, a plain line at 2 s.
+- The working face has no rim light.
+- Text in the strip runs along it and is not cut at the ends.
+
+A blur that does not show in an off-screen capture is acceptable; a missing line is not. Fix and render again until every point holds.
+
+- [ ] **Step 7: Check the running app in every demo set**
+
+```bash
+for set in 1 working finished quiet; do
+  pkill -x Symbiodock; while pgrep -x Symbiodock >/dev/null; do sleep 0.1; done
+  open --env SYMBIODOCK_DEMO_AGENTS=$set build/Build/Products/Debug/Symbiodock.app; sleep 2
+  echo "$set: $(swift scripts/list-windows.swift)"
+done
+pkill -x Symbiodock
+```
+
+Expected: one window line per set, no crash (`pgrep` finds the app before it is killed). If `screencapture -x build/render/live.png` works without a permission dialog on this Mac, take one per set and look at the top of the screen; if it asks for permission, skip it and say so in the report.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add Symbiodock docs/superpowers/plans
+git commit -m "feat: show agents on the collapsed island with a rim light"
+git push origin main
+```
+
+---
+
+### Task 4: Reading files and processes, the coordinator, Claude Code
+
+**Files:**
+- Create: `Symbiodock/Agents/FileReading.swift`
+- Create: `Symbiodock/Agents/ProcessScanner.swift`
+- Create: `Symbiodock/Agents/ClaudeCodeProvider.swift`
+- Create: `Symbiodock/Agents/AgentProviders.swift`
+- Create: `Symbiodock/Agents/AgentSessionCoordinator.swift`
+- Modify: `Symbiodock/App/AppDelegate.swift`
+
+**Interfaces:**
+- Consumes: core `ClaudeSessionParser`, `ClaudeTranscriptPromptReader`, `ProcessSnapshot`, `AgentProcessMatcher`, `AgentScanContext`, `AgentSessionProvider`.
+- Produces:
+  - `FileReading.whole(_ url: URL, maxBytes: Int) -> Data?`, `.head(of:maxBytes:) -> Data?`, `.tail(of:maxBytes:) -> Data?`, `.stamp(of:) -> FileStamp?` with `FileStamp { size: Int; modified: Date }` (`Equatable`, `Sendable`).
+  - `ProcessScanner.snapshot() -> [ProcessSnapshot]`.
+  - `ClaudeCodeProvider(home: URL)` — `home` is `~/.claude`.
+  - `AgentProviders.all() -> [any AgentSessionProvider]`.
+  - `AgentSessionCoordinator(providers:isWatching:onUpdate:)`, `.start()`, `.stop()`.
+
+- [ ] **Step 1: Bounded file reads**
+
+`Symbiodock/Agents/FileReading.swift`:
+
+```swift
+import Foundation
+
+/// A file's size and modification time: enough to tell whether it has to be read again.
+struct FileStamp: Equatable, Sendable {
+    let size: Int
+    let modified: Date
+}
+
+/// Reads of other tools' files. Every read is bounded and read-only; a failure is nil.
+enum FileReading {
+    static func stamp(of url: URL) -> FileStamp? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              attributes[.type] as? FileAttributeType == .typeRegular,
+              let size = (attributes[.size] as? NSNumber)?.intValue,
+              let modified = attributes[.modificationDate] as? Date
+        else { return nil }
+        return FileStamp(size: size, modified: modified)
+    }
+
+    /// The whole file, or nil if it is larger than `maxBytes`.
+    static func whole(_ url: URL, maxBytes: Int) -> Data? {
+        guard let stamp = stamp(of: url), stamp.size <= maxBytes else { return nil }
+        return head(of: url, maxBytes: maxBytes)
+    }
+
+    /// At most the first `maxBytes` bytes.
+    static func head(of url: URL, maxBytes: Int) -> Data? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        return try? handle.read(upToCount: maxBytes)
+    }
+
+    /// At most the last `maxBytes` bytes.
+    static func tail(of url: URL, maxBytes: Int) -> Data? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        guard let end = try? handle.seekToEnd() else { return nil }
+        let start = end > UInt64(maxBytes) ? end - UInt64(maxBytes) : 0
+        guard (try? handle.seek(toOffset: start)) != nil else { return nil }
+        return try? handle.read(upToCount: maxBytes)
+    }
+}
+```
+
+- [ ] **Step 2: The process scanner**
+
+`Symbiodock/Agents/ProcessScanner.swift`:
+
+```swift
+import Darwin
+import Foundation
+import SymbiodockCore
+
+/// Lists the running processes. Read-only, and nothing here asks for a permission.
+/// Every process is listed with its parent, because the way from a tool up to its terminal
+/// app passes through `login`, which belongs to root; the details (path, arguments,
+/// folder) are read only for the current user's own processes.
+enum ProcessScanner {
+    private static let pathBufferSize = 4096
+    /// No command line of an agent tool needs more than its first arguments.
+    private static let maximumArguments = 16
+
+    static func snapshot() -> [ProcessSnapshot] {
+        let uid = getuid()
+        var processes: [ProcessSnapshot] = []
+        for entry in processTable() {
+            let pid = entry.kp_proc.p_pid
+            guard pid > 0 else { continue }
+            let isOwn = entry.kp_eproc.e_ucred.cr_uid == uid
+            let device = entry.kp_eproc.e_tdev
+            let started = entry.kp_proc.p_un.__p_starttime
+            processes.append(
+                ProcessSnapshot(
+                    pid: pid,
+                    parentPID: entry.kp_eproc.e_ppid,
+                    executablePath: isOwn ? executablePath(of: pid) ?? "" : "",
+                    startTime: Date(
+                        timeIntervalSince1970: TimeInterval(started.tv_sec)
+                            + TimeInterval(started.tv_usec) / 1_000_000),
+                    // -1 is NODEV: no controlling terminal.
+                    terminal: isOwn && device != -1 && device != 0 ? device : nil))
+        }
+
+        // The expensive parts only where they can matter.
+        for index in processes.indices where !processes[index].executablePath.isEmpty {
+            if processes[index].terminal != nil,
+               AgentProcessMatcher.isInterpreter(processes[index].executablePath) {
+                processes[index].arguments = arguments(of: processes[index].pid)
+            }
+            if AgentProcessMatcher.tool(for: processes[index]) != nil {
+                processes[index].workingDirectory = workingDirectory(of: processes[index].pid)
+            }
+        }
+        return processes
+    }
+
+    /// The kernel's process table, as `ps` reads it.
+    private static func processTable() -> [kinfo_proc] {
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL]
+        var size = 0
+        guard sysctl(&mib, UInt32(mib.count), nil, &size, nil, 0) == 0, size > 0 else { return [] }
+        let stride = MemoryLayout<kinfo_proc>.stride
+        // Room for processes that start between the two calls.
+        var table = [kinfo_proc](repeating: kinfo_proc(), count: size / stride + 32)
+        var used = table.count * stride
+        guard sysctl(&mib, UInt32(mib.count), &table, &used, nil, 0) == 0 else { return [] }
+        return Array(table.prefix(used / stride))
+    }
+
+    private static func executablePath(of pid: pid_t) -> String? {
+        var buffer = [UInt8](repeating: 0, count: pathBufferSize)
+        let length = Int(proc_pidpath(pid, &buffer, UInt32(buffer.count)))
+        guard length > 0 else { return nil }
+        return String(decoding: buffer.prefix(length), as: UTF8.self)
+    }
+
+    private static func workingDirectory(of pid: pid_t) -> String? {
+        var info = proc_vnodepathinfo()
+        let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &info, size) == size else { return nil }
+        let path = withUnsafeBytes(of: &info.pvi_cdir.vip_path) { raw in
+            String(decoding: raw.prefix(while: { $0 != 0 }), as: UTF8.self)
+        }
+        return path.isEmpty ? nil : path
+    }
+
+    /// `argv` of a process, from `KERN_PROCARGS2`: argc, the executable path, padding,
+    /// then the arguments, each ending in a zero byte.
+    private static func arguments(of pid: pid_t) -> [String] {
+        var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
+        var size = 0
+        guard sysctl(&mib, UInt32(mib.count), nil, &size, nil, 0) == 0,
+              size > MemoryLayout<Int32>.size
+        else { return [] }
+        var buffer = [UInt8](repeating: 0, count: size)
+        guard sysctl(&mib, UInt32(mib.count), &buffer, &size, nil, 0) == 0,
+              size > MemoryLayout<Int32>.size
+        else { return [] }
+
+        let count = Int(buffer.withUnsafeBytes { $0.loadUnaligned(as: Int32.self) })
+        var index = MemoryLayout<Int32>.size
+        while index < size, buffer[index] != 0 { index += 1 }
+        while index < size, buffer[index] == 0 { index += 1 }
+
+        var arguments: [String] = []
+        while index < size, arguments.count < min(count, maximumArguments) {
+            let start = index
+            while index < size, buffer[index] != 0 { index += 1 }
+            arguments.append(String(decoding: buffer[start..<index], as: UTF8.self))
+            index += 1
+        }
+        return arguments
+    }
+}
+```
+
+- [ ] **Step 3: The Claude Code provider**
+
+`Symbiodock/Agents/ClaudeCodeProvider.swift`:
+
+```swift
+import Darwin
+import Foundation
+import SymbiodockCore
+
+/// Claude Code keeps one small JSON file per running session in `~/.claude/sessions`,
+/// with its name, folder and whether it is busy, idle or waiting for the user.
+struct ClaudeCodeProvider: AgentSessionProvider {
+    let tool = AgentTool.claudeCode
+    /// `~/.claude`
+    let home: URL
+
+    func sessions(in context: AgentScanContext) async -> [AgentSession] {
+        let directory = home.appendingPathComponent("sessions", isDirectory: true)
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: nil)
+        else { return [] }
+
+        return files.compactMap { url in
+            guard url.pathExtension == "json",
+                  let stamp = FileReading.stamp(of: url),
+                  let data = FileReading.whole(url, maxBytes: ClaudeSessionParser.maximumFileSize),
+                  let record = ClaudeSessionParser.record(from: data),
+                  Self.isAlive(record.pid)
+            else { return nil }
+            return ClaudeSessionParser.session(
+                from: record,
+                prompt: record.status == "waiting" ? question(of: record) : nil,
+                fallbackSince: stamp.modified)
+        }
+    }
+
+    /// The question the session is waiting on, if its transcript shows one.
+    private func question(of record: ClaudeSessionRecord) -> String? {
+        guard let cwd = record.cwd, let sessionID = record.sessionID,
+              let path = ClaudeSessionParser.transcriptRelativePath(cwd: cwd, sessionID: sessionID),
+              let tail = FileReading.tail(
+                  of: home.appendingPathComponent(path),
+                  maxBytes: ClaudeTranscriptPromptReader.tailSize)
+        else { return nil }
+        return ClaudeTranscriptPromptReader.pendingQuestion(inTail: tail)
+    }
+
+    /// A session file can outlive a process that was killed.
+    private static func isAlive(_ pid: Int32) -> Bool {
+        kill(pid, 0) == 0 || errno == EPERM
+    }
+}
+```
+
+- [ ] **Step 4: The provider list**
+
+`Symbiodock/Agents/AgentProviders.swift`:
+
+```swift
+import Foundation
+import SymbiodockCore
+
+/// Every tool whose sessions the island shows.
+enum AgentProviders {
+    static func all() -> [any AgentSessionProvider] {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        return [
+            ClaudeCodeProvider(home: home.appendingPathComponent(".claude", isDirectory: true)),
+        ]
+    }
+}
+```
+
+- [ ] **Step 5: The coordinator**
+
+`Symbiodock/Agents/AgentSessionCoordinator.swift`:
+
+```swift
+import Foundation
+import SymbiodockCore
+import os
+
+/// Asks the providers for their sessions again and again, off the main thread, and hands
+/// the merged list to the app.
+@MainActor
+final class AgentSessionCoordinator {
+    /// Counts and tool names only; never a title, a path or a question.
+    private static let log = Logger(subsystem: "com.yigtwxx.Symbiodock", category: "agents")
+    /// Seconds between scans while nobody looks at the Agents tab.
+    private static let restingInterval = 3
+
+    private let providers: [any AgentSessionProvider]
+    private let isWatching: @MainActor () -> Bool
+    private let onUpdate: @MainActor ([AgentSession]) -> Void
+    private var task: Task<Void, Never>?
+
+    /// - Parameter isWatching: whether the Agents tab is on screen; then the scan runs every second.
+    init(
+        providers: [any AgentSessionProvider],
+        isWatching: @escaping @MainActor () -> Bool,
+        onUpdate: @escaping @MainActor ([AgentSession]) -> Void
+    ) {
+        self.providers = providers
+        self.isWatching = isWatching
+        self.onUpdate = onUpdate
+    }
+
+    func start() {
+        guard task == nil else { return }
+        let providers = providers
+        task = Task { [weak self] in
+            var lastCount = -1
+            while !Task.isCancelled {
+                // One scan at a time: the next starts only after this one has ended.
+                let sessions = await Self.scan(providers)
+                guard !Task.isCancelled, let self else { return }
+                self.onUpdate(sessions)
+                if sessions.count != lastCount {
+                    lastCount = sessions.count
+                    let tools = Set(sessions.map(\.tool.rawValue)).sorted().joined(separator: ",")
+                    Self.log.notice("sessions: \(sessions.count, privacy: .public) [\(tools, privacy: .public)]")
+                }
+                // Wake early as soon as the Agents tab is being looked at.
+                for _ in 0..<Self.restingInterval {
+                    try? await Task.sleep(for: .seconds(1))
+                    if Task.isCancelled || self.isWatching() { break }
+                }
+            }
+        }
+    }
+
+    func stop() {
+        task?.cancel()
+        task = nil
+    }
+
+    /// Runs off the main actor: it reads files and the process list.
+    nonisolated private static func scan(
+        _ providers: [any AgentSessionProvider]
+    ) async -> [AgentSession] {
+        let context = AgentScanContext(now: Date(), processes: ProcessScanner.snapshot())
+        var sessions: [AgentSession] = []
+        for provider in providers {
+            sessions += await provider.sessions(in: context)
+        }
+        return sessions
+    }
+}
+```
+
+- [ ] **Step 6: Start it from `AppDelegate`**
+
+In `Symbiodock/App/AppDelegate.swift`:
+
+1. Add the property `private var agents: AgentSessionCoordinator?`.
+
+2. Replace the `#if DEBUG … DemoAgents … #endif` block from Task 2 with:
+
+```swift
+        #if DEBUG
+        if let demo = DemoAgents.requested {
+            DemoAgents.apply(demo, to: state)
+            overlayController.refreshPointer()
+        } else {
+            startAgents()
+        }
+        #else
+        startAgents()
+        #endif
+```
+
+and add the method:
+
+```swift
+    /// Starts looking for agent sessions.
+    private func startAgents() {
+        let agents = AgentSessionCoordinator(
+            providers: AgentProviders.all(),
+            isWatching: { [weak self] in
+                self.map { $0.state.phase == .expanded && $0.state.selectedTab == .agents } ?? false
+            },
+            onUpdate: { [weak self] sessions in
+                guard let self else { return }
+                let hadWings = self.state.showsWings
+                self.state.setAgentSessions(sessions)
+                // The collapsed hit rect depends on whether the wings are shown.
+                if self.state.showsWings != hadWings { self.overlayController?.refreshPointer() }
+            })
+        agents.start()
+        self.agents = agents
+    }
+```
+
+3. In `applicationWillTerminate`, add `agents?.stop()`.
+
+- [ ] **Step 7: Build and check against the live session**
+
+This task is being carried out by a Claude Code session, so at least one real session exists while you test.
+
+```bash
+xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock -configuration Debug -derivedDataPath build build 2>&1 | tail -3
+pkill -x Symbiodock; while pgrep -x Symbiodock >/dev/null; do sleep 0.1; done
+(log stream --style compact --predicate 'subsystem == "com.yigtwxx.Symbiodock" && category == "agents"' > build/agents.log 2>&1 &) ; sleep 1
+open build/Build/Products/Debug/Symbiodock.app; sleep 8
+pkill -f 'log stream --style compact --predicate .subsystem == "com.yigtwxx.Symbiodock"'
+cat build/agents.log; ls ~/.claude/sessions/*.json | wc -l
+ps -o %cpu= -p "$(pgrep -x Symbiodock)"; sleep 20; ps -o %cpu= -p "$(pgrep -x Symbiodock)"
+pkill -x Symbiodock
+```
+
+Expected: a line `sessions: N [claudeCode]` where N is the number of `.json` files whose process is alive (at least 1). The CPU figures are small; the second one, taken at rest, is under about 2 %. If N is 0 although a session file exists, find out why with evidence (is the pid alive, does the file parse) before changing code; do not print the file's contents into your report.
+
+The app must not have shown any permission dialog. If one appeared, stop and report it.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add Symbiodock docs/superpowers/plans
+git commit -m "feat: list Claude Code sessions in the Agents tab"
+git push origin main
+```
+
+---
+
+### Task 5: Codex
+
+**Files:**
+- Create: `Symbiodock/Agents/CodexProvider.swift`
+- Modify: `Symbiodock/Agents/AgentProviders.swift`
+
+**Interfaces:**
+- Consumes: core `CodexRolloutParser`, `CodexSessionIndex`, `CodexThreadMeta`, `CodexTurnState`, `AgentProcessMatcher`; `FileReading`, `FileStamp` (Task 4).
+- Produces: `CodexProvider(home: URL)` — `home` is `~/.codex`.
+
+- [ ] **Step 1: Write the provider**
+
+`Symbiodock/Agents/CodexProvider.swift`:
+
+```swift
+import Foundation
+import SymbiodockCore
+
+/// Codex writes every thread to a rollout file. The file's first line says which thread
+/// it is and its last turn event says whether a turn is running. Only these files and the
+/// index of thread names are read; Codex's databases are left alone.
+actor CodexProvider: AgentSessionProvider {
+    nonisolated let tool = AgentTool.codex
+    /// `~/.codex`
+    private let home: URL
+    /// How many day folders back a thread can still be alive in.
+    private static let dayFolders = 3
+
+    private struct Entry {
+        let stamp: FileStamp
+        let meta: CodexThreadMeta?
+        let state: CodexTurnState?
+    }
+
+    /// What was read from each rollout, until the file changes.
+    private var cache: [String: Entry] = [:]
+    private var titles: [String: String] = [:]
+    private var titlesStamp: FileStamp?
+
+    init(home: URL) {
+        self.home = home
+    }
+
+    func sessions(in context: AgentScanContext) async -> [AgentSession] {
+        let codex = context.processes.filter { AgentProcessMatcher.tool(for: $0) == .codex }
+        // A thread is live only while Codex itself runs.
+        guard !codex.isEmpty else {
+            cache.removeAll()
+            return []
+        }
+
+        var sessions: [AgentSession] = []
+        var live: [String: Entry] = [:]
+        for url in recentRollouts() {
+            guard let stamp = FileReading.stamp(of: url),
+                  context.now.timeIntervalSince(stamp.modified) <= CodexRolloutParser.workingListing
+            else { continue }
+            let entry = entry(for: url, stamp: stamp)
+            live[url.path] = entry
+            guard let meta = entry.meta, !meta.isSubagent, let state = entry.state,
+                  CodexRolloutParser.isListed(state, modified: stamp.modified, now: context.now)
+            else { continue }
+            sessions.append(
+                CodexRolloutParser.session(
+                    meta: meta, state: state, title: title(of: meta.id),
+                    pid: Self.process(for: meta, among: codex)))
+        }
+        cache = live
+        return sessions
+    }
+
+    /// Parses a rollout again only if it changed; the first line never changes.
+    private func entry(for url: URL, stamp: FileStamp) -> Entry {
+        let known = cache[url.path]
+        if let known, known.stamp == stamp { return known }
+        let meta = known?.meta
+            ?? FileReading.head(of: url, maxBytes: CodexRolloutParser.headSize)
+                .flatMap(CodexRolloutParser.meta(fromHead:))
+        let state = FileReading.tail(of: url, maxBytes: CodexRolloutParser.tailSize)
+            .flatMap(CodexRolloutParser.turnState(inTail:))
+        return Entry(stamp: stamp, meta: meta, state: state)
+    }
+
+    /// The rollout files in the newest day folders, `sessions/YYYY/MM/DD/`.
+    private func recentRollouts() -> [URL] {
+        let root = home.appendingPathComponent("sessions", isDirectory: true)
+        var days: [URL] = []
+        for year in Self.folders(in: root) {
+            for month in Self.folders(in: year) {
+                for day in Self.folders(in: month) {
+                    days.append(day)
+                    if days.count == Self.dayFolders { break }
+                }
+                if days.count == Self.dayFolders { break }
+            }
+            if days.count == Self.dayFolders { break }
+        }
+        return days.flatMap { day in
+            ((try? FileManager.default.contentsOfDirectory(at: day, includingPropertiesForKeys: nil)) ?? [])
+                .filter { $0.pathExtension == "jsonl" && $0.lastPathComponent.hasPrefix("rollout-") }
+        }
+    }
+
+    /// Sub-folders, newest name first. The names are zero-padded numbers.
+    private static func folders(in url: URL) -> [URL] {
+        ((try? FileManager.default.contentsOfDirectory(
+            at: url, includingPropertiesForKeys: [.isDirectoryKey])) ?? [])
+            .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
+            .sorted { $0.lastPathComponent > $1.lastPathComponent }
+    }
+
+    private func title(of id: String) -> String? {
+        let url = home.appendingPathComponent("session_index.jsonl")
+        if let stamp = FileReading.stamp(of: url), stamp != titlesStamp {
+            titlesStamp = stamp
+            titles = FileReading.tail(of: url, maxBytes: CodexRolloutParser.tailSize)
+                .map(CodexSessionIndex.titles(from:)) ?? [:]
+        }
+        return titles[id]
+    }
+
+    /// The Codex process a thread belongs to: the only one running in the thread's folder,
+    /// or, for a desktop thread, the desktop app's own Codex process.
+    private static func process(
+        for meta: CodexThreadMeta, among codex: [ProcessSnapshot]
+    ) -> Int32? {
+        let inFolder = codex.filter { $0.workingDirectory != nil && $0.workingDirectory == meta.cwd }
+        if inFolder.count == 1 { return inFolder[0].pid }
+        if meta.originator == "Codex Desktop" {
+            return codex.first { $0.terminal == nil }?.pid
+        }
+        return nil
+    }
+}
+```
+
+- [ ] **Step 2: Add it to the list**
+
+In `Symbiodock/Agents/AgentProviders.swift`, the returned array becomes:
+
+```swift
+        return [
+            ClaudeCodeProvider(home: home.appendingPathComponent(".claude", isDirectory: true)),
+            CodexProvider(home: home.appendingPathComponent(".codex", isDirectory: true)),
+        ]
+```
+
+- [ ] **Step 3: Build and check against real Codex data**
+
+```bash
+xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock -configuration Debug -derivedDataPath build build 2>&1 | tail -3
+pgrep -fl 'MacOS/codex$' | wc -l
+find ~/.codex/sessions -name 'rollout-*.jsonl' -mmin -30 | wc -l
+pkill -x Symbiodock; while pgrep -x Symbiodock >/dev/null; do sleep 0.1; done
+(log stream --style compact --predicate 'subsystem == "com.yigtwxx.Symbiodock" && category == "agents"' > build/agents.log 2>&1 &) ; sleep 1
+open build/Build/Products/Debug/Symbiodock.app; sleep 8
+pkill -f 'log stream --style compact --predicate .subsystem == "com.yigtwxx.Symbiodock"'
+cat build/agents.log
+ps -o %cpu= -p "$(pgrep -x Symbiodock)"; pkill -x Symbiodock
+```
+
+Expected: if a Codex process runs and a root thread's rollout changed in the last 30 minutes, the log line names `codex` beside `claudeCode`. If Codex is not running or no rollout is recent, the line has `claudeCode` only, which is correct: say in the report which case you saw and the two counts printed above. Do not start Codex or write into `~/.codex` to force a result.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add Symbiodock docs/superpowers/plans
+git commit -m "feat: list Codex threads in the Agents tab"
+git push origin main
+```
+
+---
+
+### Task 6: Process-level tools and jumping to a session
+
+**Files:**
+- Create: `Symbiodock/Agents/HostApp.swift`
+- Modify: `Symbiodock/Agents/AgentProviders.swift`
+- Modify: `Symbiodock/Agents/AgentSessionCoordinator.swift`
+- Modify: `Symbiodock/App/AppDelegate.swift`
+
+**Interfaces:**
+- Consumes: core `ProcessLevelProvider`, `ProcessTree`, `AgentSession.hostAppPID`.
+- Produces: `HostApp.resolving(_ session: AgentSession, in: [ProcessSnapshot]) -> AgentSession` (nonisolated), `HostApp.bringForward(pid: Int32)` (main actor).
+
+- [ ] **Step 1: Find and activate the hosting app**
+
+`Symbiodock/Agents/HostApp.swift`:
+
+```swift
+import AppKit
+import SymbiodockCore
+
+/// The app a session runs in: the terminal or editor above the tool's process.
+enum HostApp {
+    /// Fills in `hostAppPID`: the nearest process, from the tool's own upward, that is a
+    /// regular app. A chain that ends in `tmux` or `launchd` has none, and stays nil.
+    static func resolving(_ session: AgentSession, in processes: [ProcessSnapshot]) -> AgentSession {
+        guard let pid = session.pid else { return session }
+        var session = session
+        session.hostAppPID = ([pid] + ProcessTree.ancestors(of: pid, in: processes)).first {
+            NSRunningApplication(processIdentifier: $0)?.activationPolicy == .regular
+        }
+        return session
+    }
+
+    /// Brings the app forward. Opening it again is what reliably activates an app from an
+    /// agent app like this one; plain activation is the fallback.
+    @MainActor
+    static func bringForward(pid: Int32) {
+        guard let app = NSRunningApplication(processIdentifier: pid) else { return }
+        guard let url = app.bundleURL else {
+            app.activate()
+            return
+        }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, error in
+            guard error != nil else { return }
+            Task { @MainActor in
+                NSRunningApplication(processIdentifier: pid)?.activate()
+            }
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Resolve the host in the scan**
+
+In `AgentSessionCoordinator.scan`, replace the body with:
+
+```swift
+        let processes = ProcessScanner.snapshot()
+        let context = AgentScanContext(now: Date(), processes: processes)
+        var sessions: [AgentSession] = []
+        for provider in providers {
+            sessions += await provider.sessions(in: context)
+        }
+        return sessions.map { HostApp.resolving($0, in: processes) }
+```
+
+- [ ] **Step 3: Add the five process-level tools**
+
+In `AgentProviders.all()`, the returned array becomes:
+
+```swift
+        let processLevel: [AgentTool] = [.geminiCLI, .cursorAgent, .openCode, .aider, .copilotCLI]
+        return [
+            ClaudeCodeProvider(home: home.appendingPathComponent(".claude", isDirectory: true)),
+            CodexProvider(home: home.appendingPathComponent(".codex", isDirectory: true)),
+        ] + processLevel.map { ProcessLevelProvider(tool: $0) }
+```
+
+- [ ] **Step 4: Make a click open the session**
+
+In `AppDelegate`, replace `onOpenSession: { _ in })` with:
+
+```swift
+            onOpenSession: { session in
+                if let pid = session.hostAppPID { HostApp.bringForward(pid: pid) }
+            })
+```
+
+- [ ] **Step 5: Build and check with a stand-in process**
+
+None of the five tools is installed here, so a stand-in named like one is run under a terminal:
+
+```bash
+xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock -configuration Debug -derivedDataPath build build 2>&1 | tail -3
+mkdir -p build/fake && printf 'import Foundation\nsleep(45)\n' > build/fake/main.swift && swiftc -o build/fake/opencode build/fake/main.swift
+(cd build && script -q /dev/null fake/opencode >/dev/null 2>&1 &)
+sleep 1; ps -o pid,tty,comm -p "$(pgrep -f 'fake/opencode$' | head -1)"
+pkill -x Symbiodock; while pgrep -x Symbiodock >/dev/null; do sleep 0.1; done
+(log stream --style compact --predicate 'subsystem == "com.yigtwxx.Symbiodock" && category == "agents"' > build/agents.log 2>&1 &) ; sleep 1
+open build/Build/Products/Debug/Symbiodock.app; sleep 8
+pkill -f 'log stream --style compact --predicate .subsystem == "com.yigtwxx.Symbiodock"'
+cat build/agents.log; pkill -x Symbiodock; pkill -f 'fake/opencode$'
+```
+
+Expected: `ps` shows the stand-in with a terminal (not `??`), and the log line names `openCode` beside the others. If `ps` shows `??`, the stand-in got no terminal: say so and try `script -q /dev/null build/fake/opencode` from the project root; the detection code is not at fault in that case.
+
+Bringing an app forward cannot be checked without a click on the island; it is on the owner's checklist.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add Symbiodock docs/superpowers/plans
+git commit -m "feat: detect five more agent tools and open a session's app"
+git push origin main
+```
+
+---
+
+### Task 7: Tool marks
+
+**Files:**
+- Create: `Symbiodock/Resources/AgentIcons/agent-<tool>.svg` (one per tool that has a usable mark)
+- Modify: `Symbiodock/Resources/ThirdPartyNotices.txt`
+
+**Interfaces:**
+- Consumes: `AgentToolIcon` loads `agent-<AgentTool.rawValue>.svg` from the bundle (Task 1).
+- Produces: bundled marks; tools without one keep their monogram.
+
+- [ ] **Step 1: Fetch the marks that Simple Icons offers under CC0**
+
+Simple Icons (https://github.com/simple-icons/simple-icons) is already the source of the site logos in `Symbiodock/Resources/PlatformIcons/`. Its files are CC0, but single icons can carry their own licence or guidelines, recorded in the package's `data/simple-icons.json` (older versions: `_data/simple-icons.json`).
+
+```bash
+mkdir -p build/icons && cd build/icons
+curl -fsSL https://cdn.jsdelivr.net/npm/simple-icons@latest/package.json | python3 -c 'import sys,json; print(json.load(sys.stdin)["version"])'
+for slug in claude openai googlegemini cursor githubcopilot opencode aider; do
+  curl -fsSL -o "$slug.svg" "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/$slug.svg" && echo "ok $slug" || echo "missing $slug"
+done
+curl -fsSL -o data.json https://cdn.jsdelivr.net/npm/simple-icons@latest/data/simple-icons.json || curl -fsSL -o data.json https://cdn.jsdelivr.net/npm/simple-icons@latest/_data/simple-icons.json
+python3 -c '
+import json
+data = json.load(open("data.json"))
+icons = data["icons"] if isinstance(data, dict) else data
+for icon in icons:
+    if icon.get("title") in ("Claude", "OpenAI", "Google Gemini", "Cursor", "GitHub Copilot", "OpenCode", "Aider"):
+        print(icon.get("title"), "| license:", icon.get("license"), "| guidelines:", icon.get("guidelines"))
+'
+cd ../..
+```
+
+Mapping: `claude` → `claudeCode`, `openai` → `codex`, `googlegemini` → `geminiCLI`, `cursor` → `cursorAgent`, `githubcopilot` → `copilotCLI`, `opencode` → `openCode`, `aider` → `aider`.
+
+Take a mark only if the file was downloaded **and** its entry has no `license` field (it is then CC0 like the collection). A tool whose mark is missing, or carries a licence other than CC0, keeps its monogram: do not look for a logo elsewhere.
+
+- [ ] **Step 2: Add the usable marks to the bundle**
+
+For each usable mark, copy it as `Symbiodock/Resources/AgentIcons/agent-<tool rawValue>.svg` (for example `agent-claudeCode.svg`). Each file must be a single-colour `<svg viewBox="0 0 24 24">` with one `<path>`; leave its content as downloaded. Check that no two resource files in `Symbiodock/Resources` share a file name: resources are copied flat into the bundle.
+
+- [ ] **Step 3: List them in the notices**
+
+Read `Symbiodock/Resources/ThirdPartyNotices.txt`, find how the Simple Icons site logos are listed there, and add the new files to that entry in the same form, with the Simple Icons version printed in Step 1.
+
+- [ ] **Step 4: Build, render and look**
+
+```bash
+xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock -configuration Debug -derivedDataPath build build 2>&1 | tail -3
+ls build/Build/Products/Debug/Symbiodock.app/Contents/Resources | grep '^agent-'
+SYMBIODOCK_RENDER_DIR=build/render build/Build/Products/Debug/Symbiodock.app/Contents/MacOS/Symbiodock
+```
+
+Open `build/render/status-marks.png` and `build/render/expanded-agents.png` with the Read tool: each bundled mark is drawn white, sharp and at the same visual size as the monogram tiles beside it. A mark that renders as a black or empty square is not a template image: check that it loaded and that `isTemplate` is set.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add Symbiodock docs/superpowers/plans
+git commit -m "feat: bundle marks for the agent tools"
+git push origin main
+```
+
+---
+
+## Hand checklist for the owner
+
+Build and start:
+
+```bash
+xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock -configuration Debug -derivedDataPath build build 2>&1 | tail -3
+pkill -x Symbiodock; open build/Build/Products/Debug/Symbiodock.app
+```
+
+Tabs:
+
+1. Hover the island. Two glyphs are at its top left (sparkles, music note); the selected one is bright with a dot under it. Click each: the content changes, the music controls still work.
+2. Right-click → `First tab` → `Media`. Play music and keep a Claude Code session working: the collapsed island shows the artwork and level bars. Choose `Agents`: it shows the tool glyph and the turning mark instead. Quit and relaunch: the choice is kept.
+3. With music paused for more than 10 seconds and no agent working, the island at the notch is the bare notch again.
+
+Claude Code:
+
+4. Start a Claude Code session in a terminal and give it a task. Within three seconds the collapsed island widens: tool glyph left, a turning arc right. Hover: the row shows the session's name, its folder, `Working …`.
+5. Let Claude Code ask a question (or a permission). The island does **not** open. The mark turns into a coral ring whose dot knocks twice, and a coral light breathes along the island's lower rim with a highlight passing every few seconds.
+6. Hover: the Agents tab opens whichever tab is first. The row is tinted, says `Needs input`, and shows the question on a second line. Answer in the terminal: the row goes back to `Working`.
+7. Let the task finish. The mark becomes a mint ring with a check mark that draws itself, and a mint light passes once and stays as a thin line. Hover: the row says `Done …`. Move away: the light and the check mark are gone; the row is `Idle …` the next time.
+8. Click a row. Its terminal (or editor) comes to the front.
+9. Close the session. Its row disappears within three seconds.
+
+Codex:
+
+10. Start a turn in Codex (desktop or CLI). A `Codex` row with the thread's name says `Working …`, then `Done …` when the turn ends. Clicking it brings Codex forward.
+
+Other tools (if you have one of Gemini CLI, Cursor Agent, OpenCode, Aider, Copilot CLI):
+
+11. Start it in a terminal. A row with its name and folder says `Running`. It never says working or done. Clicking it brings the terminal forward.
+
+Everywhere:
+
+12. Dock the island on the bottom edge and on the right edge and repeat 4–7: the capsule shows glyph, name and mark; the strip shows them top to bottom; the light runs along the free edges only.
+13. With five or more sessions, the list in the open island scrolls with two fingers.
+14. System Settings → Accessibility → Display → Reduce motion on: marks and light are still, in their colour.
+15. At rest (no hover), Activity Monitor shows Symbiodock near 0 % CPU; with one agent working it stays low.
+16. No macOS permission dialog appeared at any point.
+
+To see what the scan finds without any content: `log stream --predicate 'subsystem == "com.yigtwxx.Symbiodock" && category == "agents"'` prints a count and the tool names whenever the count changes.
+
+To look at every state without running an agent: `pkill -x Symbiodock; open --env SYMBIODOCK_DEMO_AGENTS=1 build/Build/Products/Debug/Symbiodock.app` (also `working`, `finished`, `quiet`).
+
+## Spec coverage
+
+| Spec section | Task |
+|---|---|
+| 5 Tab strip, summary, `First tab` menu, stored order | 2 |
+| 6.1 Claude Code provider | 4 |
+| 6.2 Codex provider | 5 |
+| 6.3 Process-level tools | 6 |
+| 6.4 Coordinator: intervals, one scan at a time | 4 |
+| 7.1 Status mark | 1 |
+| 7.2 Rim light, Reduce Motion | 3 |
+| 7.3 Collapsed faces in three forms | 3 |
+| 7.4 Agents tab rows, labels, empty state | 2 |
+| 7.5 Tool icons | 1, 7 |
+| 8 Jumping to a session | 6 |
+| 9 Error handling at the file and process boundary | 4, 5 |
+| 10 Off-screen renders, hand checklist | 1, 2, 3, this file |
+
+Spec section 6.3's research task per process-level tool is not a code task: it is done alongside, and its outcome is recorded in `CLAUDE.md`.

@@ -1,7 +1,7 @@
 # Tabs and the Agents tab
 
 Date: 2026-11-14
-Status: design approved by the owner on 2026-11-14; this written spec awaits the owner's review.
+Status: approved by the owner on 2026-11-14.
 Extends: `2026-11-14-symbiodock-v1-design.md` (sections 5.3, 5.4, 5.8, 5.9) and
 `2026-11-14-side-docking-design.md`.
 
@@ -76,11 +76,13 @@ public struct AgentSession: Identifiable, Equatable, Sendable {
     public let activity: AgentActivity
     public let since: Date           // when `activity` began
     public let pid: Int32?           // the tool's process, when known
+    public var hostAppPID: Int32?    // the regular app that hosts it, filled in by the app
 }
 
 public protocol AgentSessionProvider: Sendable {
     var tool: AgentTool { get }
-    func sessions(now: Date) async -> [AgentSession]
+    /// `context` carries the time and the process list, read once per scan.
+    func sessions(in context: AgentScanContext) async -> [AgentSession]
 }
 ```
 
@@ -97,8 +99,9 @@ the island shows.
   Within a group, the most recent `since` first.
 - A session is *finished and not yet seen* when the board saw it go from `working` or
   `needsInput` to `idle`. Sessions that are already idle when the app starts are not.
-- `markSeen()` clears every finished mark. The app calls it when the Agents tab is
-  shown in the expanded island.
+- `markSeen()` clears every finished mark. It is called when the island leaves the
+  Agents tab (it collapses, a drag begins, or another tab is chosen), so the rows still
+  say `Done` while they are looked at.
 - `attention`: `.needsInput` if any session needs input, else `.finished` if any is
   finished and not yet seen, else `.none`.
 - `lead`: the first session in sorted order, if it needs input, is working, or is
@@ -165,7 +168,9 @@ All paths are under the user's home. A missing directory means no sessions.
 - State: the last of `task_started`, `task_complete`, `turn_aborted` among the
   `event_msg` lines in the last 256 KB. `task_started` → working, the others → idle.
   `since` is that line's timestamp. No such line → the file is left out.
-- An idle thread is listed only if its file changed in the last 30 minutes.
+- An idle thread is listed only if its file changed in the last 30 minutes; a working
+  one only if it changed in the last two hours (a turn abandoned by a crash).
+- The newest three day folders are read, so a thread that runs past midnight stays.
 - A tail is parsed again only when the file's size or modification time changed.
 - No approval or question event was found in the rollouts on this Mac. Until one is
   identified, Codex never reports needs input.
@@ -176,9 +181,9 @@ All paths are under the user's home. A missing directory means no sessions.
 
 These are detected from the process list, which needs no knowledge of their files:
 
-- `ProcessScanner` (app target) lists the user's processes with executable path,
-  arguments (fetched only for interpreter processes such as `node` and `python`),
-  working directory, start time and controlling terminal.
+- `ProcessScanner` (app target) lists every process with its parent, and for the user's
+  own processes the executable path, arguments (fetched only for interpreter processes
+  such as `node` and `python`), working directory, start time and controlling terminal.
 - `AgentProcessMatcher` (core, pure) maps a process to a tool: an executable or script
   named `gemini`, `cursor-agent`, `opencode`, `aider`, `copilot`, or an argument path
   containing `@google/gemini-cli` or `@github/copilot`.
@@ -228,7 +233,7 @@ blurred copy as glow), so the island's frame and hit area do not change.
 - Needs input: coral. Its opacity breathes between 35 % and 90 % over 1.8 s, and every
   3.6 s a brighter highlight travels along the island's long axis.
 - Finished: one mint highlight travels across in 0.9 s, then a steady mint line at 50 %
-  stays until the Agents tab is shown.
+  stays until the Agents tab has been looked at.
 - Otherwise: no rim light.
 
 With Reduce Motion on, nothing travels, knocks or breathes: the mark and the rim are

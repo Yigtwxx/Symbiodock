@@ -71,29 +71,17 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 
 - Faz 0-2 tamam ve sahibi elle doğruladı: çekirdek paket, agent uygulama, çentik adası,
   hover, tıklama geçişi.
-- **Faz 3, 4, 5 ve 6'nın kodu tamam ve `main`'de, ama hiçbiri elle doğrulanmadı.** Sahibi
-  2026-11-14 akşamı Mac'in başında değildi ve "yapabildiğinin en iyisini yap" dedi. Her fazın
-  elle kontrol listesi kendi plan dosyasının sonunda:
-  `2026-11-14-m2-now-playing.md`, `2026-11-14-m5-launch-at-login.md`,
-  `2026-11-14-m3-m4-window-drag-and-effect.md`.
-- Kenara tutunma efekti (2026-11-14 gece, sahibi uzaktayken eklendi): kod `main`'de, ekran
-  dışı görüntülerle doğrulandı, canlı denenmedi. Elle kontrol maddeleri 14-20,
-  `2026-11-14-m3-m4-window-drag-and-effect.md` içinde.
-- Yan kenarda dikey ada ve platform simgesi (2026-11-14 gece): kod `main`'de. Çalışan
-  uygulamada ekran görüntüsüyle doğrulandı: sağ kenarda şerit, Safari'de YouTube logosu.
-  Denenmedi: hover ile açılma, şeridi sürükleyip koparma ve geri oturtma, Chrome, Kick ve
-  Twitch, iznin reddi. Elle kontrol listesi `2026-11-14-side-docking.md` sonunda.
-- Hiç çalıştırılmamış yollar: Apple Music yedeği (AppleScript, izin penceresi), canlı
-  sürükleme (fare olaylarının monitöre ulaşması), trackpad titreşimi.
+- **Faz 3, 4, 5, 6 ve yan kenar: sahibi 2026-11-14 gecesi elle kontrol listelerinin hepsini
+  denedi ve "her şey düzgün çalışıyor, doğrulandı" dedi.** v1 doğrulanmış sayılır. Listeler
+  kendi plan dosyalarının sonunda duruyor.
 - Menü çubuğunda öğe yok; menü adaya sağ tıkla açılır (Return to notch, Launch at login,
   Quit; gerekince Music access needed).
-- v1'in tüm fazları yazıldı. Sıradaki iş: sahibinin elle kontrolü ve çıkan sorunların
-  düzeltilmesi. Dağıtım öncesi sağlamlaştırma listesi `.superpowers/sdd/progress.md` içinde
-  (git'e girmez); özeti: yardımcı sürecin zorla öldürülmesi, komut sıralaması, Release ve
-  Intel derlemesinin perl altında denenmesi.
-- Faz 7 (sekmeler ve Agents sekmesi, 2026-11-14): tasarım onaylandı, spec yazıldı, kod yok.
-  Sahibi spec'i okuyup onaylayınca plan yazılır. Sahibi aynı gün Faz 3-6'nın elle kontrol
-  listelerini istedi ve kendisi deneyecek.
+- Dağıtım öncesi sağlamlaştırma listesi `.superpowers/sdd/progress.md` içinde (git'e girmez);
+  özeti: yardımcı sürecin zorla öldürülmesi, komut sıralaması, Release ve Intel derlemesinin
+  perl altında denenmesi.
+- Faz 7 (sekmeler ve Agents sekmesi, 2026-11-14): spec onaylandı, iki plan yazıldı
+  (`2026-11-14-agents-tab-core.md`, `2026-11-14-agents-tab-app.md`), uygulama sürüyor.
+  Sahibi "başla ve bitir" dedi.
 - Xcode 27.2 ve XcodeGen 2.45.4 kurulu, `xcode-select` ile seçili.
 
 ## "Yapılacakları yap" denince
@@ -159,9 +147,11 @@ Durmadan devam edilecek durumlar:
 
 v1 bunlarla biter.
 
-- [ ] **Faz 7 — Sekmeler ve Agents sekmesi.** Tasarım onaylı, yazılı spec sahibinin
-      okumasını bekliyor: `docs/superpowers/specs/2026-11-14-agents-tab-design.md`. Plan yok;
-      sahibi spec'i onaylayınca yazılacak. İş sırası spec bölüm 12'de.
+- [ ] **Faz 7 — Sekmeler ve Agents sekmesi.** Spec:
+      `docs/superpowers/specs/2026-11-14-agents-tab-design.md`. Planlar: önce
+      `docs/superpowers/plans/2026-11-14-agents-tab-core.md` (çekirdek, 5 görev), sonra
+      `docs/superpowers/plans/2026-11-14-agents-tab-app.md` (uygulama, 7 görev; elle kontrol
+      listesi sonunda).
 
 Sonrası (başka widget'lar, kişiselleştirme, dil desteği, imzalama, site) için sahibi ayrıca
 yön verecek; kendiliğinden başlama.
