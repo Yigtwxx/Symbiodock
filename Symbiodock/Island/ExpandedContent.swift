@@ -36,8 +36,8 @@ struct ExpandedContent: View {
     private func track(_ info: NowPlayingInfo) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                ArtworkView(data: info.artworkData, size: 50)
-                VStack(alignment: .leading, spacing: 3) {
+                ArtworkView(data: info.artworkData, size: 40)
+                VStack(alignment: .leading, spacing: 2) {
                     Text(info.title)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white)
@@ -57,15 +57,15 @@ struct ExpandedContent: View {
             HStack(spacing: 30) {
                 control("backward.fill", size: 15, label: "Previous", command: .previous)
                 control(
-                    info.isPlaying ? "pause.fill" : "play.fill", size: 21,
+                    info.isPlaying ? "pause.fill" : "play.fill", size: 19,
                     label: info.isPlaying ? "Pause" : "Play",
                     command: .togglePlayPause)
                 control("forward.fill", size: 15, label: "Next", command: .next)
             }
         }
-        .padding(.horizontal, 18)
+        .padding(.horizontal, 20)
         .padding(.top, 2)
-        .padding(.bottom, 9)
+        .padding(.bottom, 8)
     }
 
     private func control(
@@ -76,7 +76,7 @@ struct ExpandedContent: View {
         } label: {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
-                .frame(width: 40, height: 28)
+                .frame(width: 40, height: 24)
                 .contentShape(Rectangle())
         }
         .buttonStyle(ControlButtonStyle())
