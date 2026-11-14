@@ -16,11 +16,19 @@ public enum HoverTiming {
 @Observable
 public final class IslandState {
     public private(set) var phase: IslandPhase = .collapsed
+    public private(set) var nowPlaying: NowPlayingInfo?
+
+    /// True while there is a track to show, playing or paused.
+    public var hasTrack: Bool { nowPlaying != nil }
 
     public init() {}
 
     /// Called after the hover delay has elapsed, not on every pointer move.
     public func setHovering(_ hovering: Bool) {
         phase = hovering ? .expanded : .collapsed
+    }
+
+    public func setNowPlaying(_ info: NowPlayingInfo?) {
+        nowPlaying = info
     }
 }

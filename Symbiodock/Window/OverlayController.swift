@@ -9,7 +9,7 @@ final class OverlayController {
     /// Switch to `.polling` if event monitors do not deliver pointer movement.
     private static let trackerMode: MouseTracker.Mode = .eventMonitors
 
-    private let state = IslandState()
+    private let state: IslandState
     private let contextMenu: NSMenu
     private var panel: OverlayPanel?
     private var metrics: ScreenMetrics?
@@ -19,7 +19,8 @@ final class OverlayController {
     private var pointerInside = false
     private var hoverTask: Task<Void, Never>?
 
-    init(contextMenu: NSMenu) {
+    init(state: IslandState, contextMenu: NSMenu) {
+        self.state = state
         self.contextMenu = contextMenu
     }
 
@@ -87,11 +88,17 @@ final class OverlayController {
         tracker?.setSupplementalPolling(false)
     }
 
+    /// Re-checks the pointer after something other than pointer movement changed the hit rect.
+    func refreshPointer() {
+        pointerMoved(toGlobal: NSEvent.mouseLocation)
+    }
+
     private func pointerMoved(toGlobal point: CGPoint) {
         guard let metrics, let panel else { return }
 
         let hitRect = IslandLayout.hitRect(
-            phase: state.phase, notch: notch, screenSize: metrics.frame.size)
+            phase: state.phase, notch: notch, screenSize: metrics.frame.size,
+            hasTrack: state.hasTrack)
         let inside = hitRect.contains(metrics.localPoint(fromGlobal: point))
 
         // Clicks reach the panel only while the pointer is on the island. Assign only on
