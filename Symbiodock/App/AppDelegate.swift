@@ -23,11 +23,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         overlayController.start()
         self.overlayController = overlayController
 
-        let nowPlaying = NowPlayingCoordinator { [weak self] info in
-            self?.state.setNowPlaying(info)
-            // The collapsed hit rect depends on whether there is a track.
-            self?.overlayController?.refreshPointer()
-        }
+        let nowPlaying = NowPlayingCoordinator(
+            onUpdate: { [weak self] info in
+                self?.state.setNowPlaying(info)
+                // The collapsed hit rect depends on whether there is a track.
+                self?.overlayController?.refreshPointer()
+            },
+            onMusicAccessChange: { [weak self] denied in
+                self?.islandMenu?.setMusicAccessNeeded(denied)
+            })
         nowPlaying.start()
         self.nowPlaying = nowPlaying
     }

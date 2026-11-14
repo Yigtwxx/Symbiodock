@@ -7,11 +7,19 @@ final class NowPlayingCoordinator {
     private let service: NowPlayingService
     private var task: Task<Void, Never>?
 
-    init(onUpdate: @escaping @MainActor (NowPlayingInfo?) -> Void) {
+    init(
+        onUpdate: @escaping @MainActor (NowPlayingInfo?) -> Void,
+        onMusicAccessChange: @escaping @MainActor @Sendable (_ denied: Bool) -> Void
+    ) {
+        let appleMusic = AppleMusicProvider(onConsentChange: onMusicAccessChange)
         var providers: [any NowPlayingProvider] = []
-        if let paths = MediaRemoteProvider.Paths.inMainBundle() {
+        // SYMBIODOCK_PROVIDER=applemusic skips the system-wide source, to verify the fallback.
+        let appleMusicOnly =
+            ProcessInfo.processInfo.environment["SYMBIODOCK_PROVIDER"] == "applemusic"
+        if !appleMusicOnly, let paths = MediaRemoteProvider.Paths.inMainBundle() {
             providers.append(MediaRemoteProvider(paths: paths))
         }
+        providers.append(appleMusic)
         service = NowPlayingService(providers: providers, onUpdate: onUpdate)
     }
 

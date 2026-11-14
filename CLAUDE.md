@@ -62,9 +62,10 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 
 ## Durum
 
-- Milestone 0 ve 1 tamamlandı: agent uygulama, ada sağ tık menüsü (Quit), çentik adası, hover ile
-  büyüme/küçülme, ada dışındaki tıklamaların geçmesi.
-- Müzik verisi, sürükleme ve symbiote efekti yok.
+- Faz 0-3 kodu tamam: çekirdek paket testleriyle; agent uygulama ve ada sağ tık menüsü;
+  çentik adası, hover, tıklama geçişi; Now Playing (MediaRemote yardımcı süreci + Apple Music
+  yedeği), kapalı adada kapak ve seviye çubukları, açık adada parça bilgisi ve kontroller.
+- Sürükleme, symbiote efekti ve girişte başlatma yok. Faz 4 başlamadı.
 - Xcode 27.2 ve XcodeGen 2.45.4 kurulu, `xcode-select` ile seçili.
 
 ## "Yapılacakları yap" denince
@@ -113,7 +114,7 @@ Durmadan devam edilecek durumlar:
 - [x] **Faz 2 — Milestone 1: çentik adası.** Şeffaf panel çentikte; hover ile büyüyor ve
       küçülüyor; ada dışındaki tıklamalar alttaki uygulamaya geçiyor.
       Plan: aynı dosya, Görev 4-5.
-- [ ] **Faz 3 — Milestone 2: Now Playing.** Plan yok, yazılacak (spec 5.7, 5.8). İlk görev
+- [x] **Faz 3 — Milestone 2: Now Playing.** Plan yok, yazılacak (spec 5.7, 5.8). İlk görev
       `mediaremote-adapter` denemesi ve lisansının GPL-3.0 uyum kontrolü. Bitince: en az
       Apple Music'ten gerçek parça bilgisi ve çalışan önceki / oynat-duraklat / sonraki;
       kapalı adada solda kapak, sağda seviye çubukları.
