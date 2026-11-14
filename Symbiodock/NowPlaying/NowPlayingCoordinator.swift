@@ -25,7 +25,9 @@ final class NowPlayingCoordinator {
             providers.append(MediaRemoteProvider(paths: paths, helpers: helpers))
         }
         providers.append(appleMusic)
-        service = NowPlayingService(providers: providers, onUpdate: onUpdate)
+        // The service names the app; the resolver adds the site when the app is a browser.
+        let siteResolver = SiteResolver(onUpdate: onUpdate)
+        service = NowPlayingService(providers: providers) { siteResolver.publish($0) }
         (commands, commandSink) = AsyncStream.makeStream(of: PlaybackCommand.self)
     }
 
