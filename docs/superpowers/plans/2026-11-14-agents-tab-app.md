@@ -61,14 +61,14 @@ Modified: `IslandView.swift`, `CollapsedContent.swift`, `FloatingCollapsedConten
 - Create: `Symbiodock/Island/Agents/AgentStatusMark.swift`
 - Create: `Symbiodock/Island/Agents/AgentPet.swift`
 - Create: `Symbiodock/App/DebugRender.swift`
-- Modify (only if a figure needs tuning): `Packages/SymbiodockCore/Sources/SymbiodockCore/Agents/AgentPetGlyph.swift`
+- Modify (only if a figure needs tuning): `Packages/SymbiodockCore/Sources/SymbiodockCore/Agents/AgentPetRelief.swift`
 - Modify: `Symbiodock/App/AppDelegate.swift`
 
 **Interfaces:**
-- Consumes: `AgentRowState`, `AgentTool`, `AgentPetGlyph`, `AgentPetMotion` (core).
+- Consumes: `AgentRowState`, `AgentTool`, `AgentPetFigure`, `AgentPetMotion` (core).
 - Produces: `AgentPalette.alert`, `AgentPalette.mint`, `AgentPalette.tint(for:)`; `AgentStatusMark(state:size:frozenAt:)`; `AgentPet(tool:state:size:frozenAt:)`; `DebugRender.runIfRequested()`, `DebugRender.write(_:size:named:to:)`.
 
-The pets matter to the owner more than anything else in this feature: he asked for each tool's figure to be drawn from vertical bars, in the manner of the ElevenLabs mark, each in its tool's own colour, and to look clean and beautiful. Treat Step 5 as real design work: render, look, adjust the figures in `AgentPetGlyph.swift`, render again, until each figure reads at 60 pt and still reads at 18 pt.
+The pets matter to the owner more than anything else in this feature: he asked for each tool's figure to be drawn from vertical bars, in the manner of the ElevenLabs mark, each in its tool's own colour, and to look clean and beautiful. Treat Step 5 as real design work: render, look, adjust the figures in `AgentPetRelief.swift`, render again, until each figure reads at 60 pt and still reads at 18 pt.
 
 - [ ] **Step 1: Write the palette**
 
@@ -271,10 +271,10 @@ private struct CheckShape: Shape {
 import SwiftUI
 import SymbiodockCore
 
-/// A tool's pet: its figure drawn from fine vertical lines with round ends, in the tool's
-/// colour. Parts of the figure that stand farther back are drawn weaker, which gives it
-/// depth. It moves with its session: its lines stir a little while the session works, and
-/// it hops while the session needs input.
+/// A tool's pet: a small field of fine vertical lines in the tool's colour, in which the
+/// figure shows as the lines growing brighter and dimmer along their length, the way light
+/// falls on a form. It moves with its session: the lines stir a little while the session
+/// works, and the pet hops while the session needs input.
 struct AgentPet: View {
     let tool: AgentTool
     var state: AgentRowState = .finished
@@ -284,8 +284,6 @@ struct AgentPet: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// How strongly a line is drawn in front, in the middle and at the back.
-    private static let depthStrength: [Double] = [1, 0.5, 0.26]
     /// The stir is slow; it needs no more frames than this.
     private static let frameInterval = 1.0 / 20.0
 
@@ -322,46 +320,75 @@ struct AgentPet: View {
     }
 
     private func figure(time: TimeInterval, moving: Bool) -> some View {
-        let glyph = AgentPetGlyph.glyph(for: tool)
+        let lines = AgentPetArt.lines(for: tool, strength: strength)
+        let ground = AgentPalette.tint(for: tool, strength: strength * AgentPetFigure.groundStrength)
         let stirs = moving && state == .working
         let hop = moving && isNeedsInput ? AgentPetMotion.hop(at: time) : 0
-        let tool = tool
-        let strength = strength
         return Canvas { context, canvas in
             let side = min(canvas.width, canvas.height)
-            let bar = side * AgentPetGlyph.barWidth
-            // Back to front, so a nearer stretch covers the end of a farther one it touches.
-            for depth in Self.depthStrength.indices.reversed() {
-                let color = AgentPalette.tint(for: tool, strength: strength * Self.depthStrength[depth])
-                for (column, segments) in glyph.columns.enumerated() {
-                    let rise = stirs ? AgentPetMotion.sway(column: column, at: time) : 0
-                    for (index, segment) in segments.enumerated() where segment.depth == depth {
-                        var top = segment.top
-                        var bottom = segment.bottom
-                        if index == 0 {
-                            // Only the top of a line moves; the figure stands on the rest.
-                            top = min(max(top - rise, 0), bottom - AgentPetGlyph.barWidth)
-                        } else if segments[index - 1].bottom == segment.top,
-                                  segments[index - 1].depth < depth {
-                            // Runs on under the nearer stretch above it, so no notch shows.
-                            top -= AgentPetGlyph.barWidth
-                        }
-                        if index + 1 < segments.count, segments[index + 1].top == segment.bottom,
-                           segments[index + 1].depth < depth {
-                            bottom += AgentPetGlyph.barWidth
-                        }
-                        let rect = CGRect(
-                            x: side * AgentPetGlyph.pitch * CGFloat(column),
-                            y: side * top,
-                            width: bar,
-                            height: max(side * (bottom - top), bar))
-                        context.fill(
-                            Path(roundedRect: rect, cornerRadius: bar / 2), with: .color(color))
-                    }
+            let bar = side * AgentPetFigure.barWidth
+            for (column, stretches) in lines.enumerated() {
+                let x = side * AgentPetFigure.pitch * CGFloat(column)
+                // While its session works, each line is a little longer or shorter.
+                let reach = stirs ? AgentPetMotion.sway(column: column, at: time) : 0
+                let inset = side * (AgentPetMotion.swayAmplitude - reach)
+                let whole = CGRect(x: x, y: inset, width: bar, height: side - 2 * inset)
+                context.fill(Path(roundedRect: whole, cornerRadius: bar / 2), with: .color(ground))
+                for stretch in stretches {
+                    let rect = CGRect(
+                        x: x, y: side * stretch.top, width: bar,
+                        height: max(side * (stretch.bottom - stretch.top), bar))
+                        .intersection(whole)
+                    guard !rect.isNull, rect.height > 0 else { continue }
+                    context.fill(
+                        Path(roundedRect: rect, cornerRadius: bar / 2),
+                        with: .linearGradient(
+                            stretch.gradient,
+                            startPoint: CGPoint(x: x, y: side * stretch.top),
+                            endPoint: CGPoint(x: x, y: side * stretch.bottom)))
                 }
             }
         }
         .offset(y: -size * hop)
+    }
+}
+
+/// The pets as they are drawn: for each line, the stretches where the figure is, each with
+/// the gradient that carries its light and shade. Worked out once for each tool and
+/// strength; a pet is redrawn many times a second while its session works.
+@MainActor
+private enum AgentPetArt {
+    struct Stretch {
+        let top: Double
+        let bottom: Double
+        let gradient: Gradient
+    }
+
+    private struct Key: Hashable {
+        let tool: AgentTool
+        /// Strength in hundredths.
+        let strength: Int
+    }
+
+    private static var cache: [Key: [[Stretch]]] = [:]
+
+    static func lines(for tool: AgentTool, strength: Double) -> [[Stretch]] {
+        let key = Key(tool: tool, strength: Int((strength * 100).rounded()))
+        if let known = cache[key] { return known }
+        let figure = AgentPetFigure.figure(for: tool)
+        let lines = figure.lines.indices.map { index in
+            figure.stretches(ofLine: index).map { stretch in
+                let last = max(stretch.shades.count - 1, 1)
+                let stops = stretch.shades.enumerated().map { position, shade in
+                    Gradient.Stop(
+                        color: AgentPalette.tint(for: tool, strength: strength * shade),
+                        location: CGFloat(position) / CGFloat(last))
+                }
+                return Stretch(top: stretch.top, bottom: stretch.bottom, gradient: Gradient(stops: stops))
+            }
+        }
+        cache[key] = lines
+        return lines
     }
 }
 ```
@@ -388,7 +415,23 @@ enum DebugRender {
         let directory = URL(fileURLWithPath: path, isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         write(StatusMarkGallery(), size: CGSize(width: 560, height: 150), named: "status-marks", to: directory)
-        write(PetGallery(), size: CGSize(width: 760, height: 360), named: "pets", to: directory)
+        write(PetGallery(), size: CGSize(width: 800, height: 380), named: "pets", to: directory)
+        for (name, tab) in [("expanded-agents", IslandTab.agents), ("expanded-media", .media)] {
+            let state = IslandState()
+            DemoAgents.apply("1", to: state)
+            state.setHovering(true)
+            state.selectTab(tab)
+            write(
+                ExpandedPreview(state: state), size: CGSize(width: 520, height: 180),
+                named: name, to: directory)
+        }
+        let empty = IslandState()
+        empty.setHovering(true)
+        empty.selectTab(.agents)
+        write(
+            ExpandedPreview(state: empty), size: CGSize(width: 520, height: 180),
+            named: "expanded-agents-empty", to: directory)
+        write(CollapsedGallery(), size: CGSize(width: 620, height: 480), named: "collapsed-faces", to: directory)
         exit(0)
     }
 
@@ -452,14 +495,14 @@ private struct PetGallery: View {
             HStack(spacing: 14) {
                 ForEach(AgentTool.allCases, id: \.self) { tool in
                     VStack(spacing: 10) {
-                        AgentPet(tool: tool, size: 76, frozenAt: 0)
+                        AgentPet(tool: tool, size: 84, frozenAt: 0)
                         HStack(spacing: 8) {
-                            AgentPet(tool: tool, size: 34, frozenAt: 0)
-                            AgentPet(tool: tool, size: 22, frozenAt: 0)
+                            AgentPet(tool: tool, size: 36, frozenAt: 0)
+                            AgentPet(tool: tool, size: 24, frozenAt: 0)
                         }
                         caption(tool.displayName)
                     }
-                    .frame(width: 86)
+                    .frame(width: 92)
                 }
             }
             HStack(spacing: 18) {
@@ -479,6 +522,121 @@ private struct PetGallery: View {
         }
         .padding(18)
         .background(.black, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+/// The open island as it is at the notch: 480 × 134, with a 200 × 32 camera housing.
+private struct ExpandedPreview: View {
+    let state: IslandState
+
+    var body: some View {
+        let shape = UnevenRoundedRectangle(
+            bottomLeadingRadius: 24, bottomTrailingRadius: 24, style: .continuous)
+        ExpandedIsland(
+            state: state,
+            metrics: ExpandedHeaderMetrics(height: 32, leading: 140, gap: 200, trailing: 140),
+            onCommand: { _ in }, onOpenSession: { _ in })
+            .frame(width: 480, height: 134)
+            .background(.black, in: shape)
+            .clipShape(shape)
+    }
+}
+
+/// The collapsed faces with their rim light: at the notch, as a capsule, as a strip.
+private struct CollapsedGallery: View {
+    private let now = Date()
+
+    /// `AgentRow` has no public initialiser; a board produces the row for the wanted state.
+    private func row(_ state: AgentRowState, _ tool: AgentTool = .claudeCode) -> AgentRow {
+        func session(_ activity: AgentActivity) -> AgentSession {
+            AgentSession(
+                id: "x", tool: tool, title: "fix-login-flow", projectPath: nil,
+                activity: activity, since: now, pid: nil)
+        }
+        var board = AgentSessionBoard()
+        switch state {
+        case .needsInput(let prompt): board.update([session(.needsInput(prompt: prompt))])
+        case .working: board.update([session(.working)])
+        case .running: board.update([session(.running)])
+        case .idle: board.update([session(.idle)])
+        case .finished:
+            board.update([session(.working)])
+            board.update([session(.idle)])
+        }
+        return board.rows[0]
+    }
+
+    private func notch(_ state: AgentRowState, _ attention: AgentAttention, at time: TimeInterval) -> some View {
+        let radii = IslandLayout.cornerRadii(anchor: .notch, radius: IslandLayout.collapsedCornerRadius)
+        let shape = UnevenRoundedRectangle(
+            bottomLeadingRadius: radii.bottomLeading, bottomTrailingRadius: radii.bottomTrailing,
+            style: .continuous)
+        return shape.fill(.black)
+            .overlay { AgentNotchFace(row: row(state), notchWidth: 200) }
+            .overlay {
+                RimLight(
+                    attention: attention, radii: radii, dockedEdges: [.top], isVertical: false,
+                    frozenAt: time)
+            }
+            .frame(width: 272, height: 32)
+            .clipShape(shape)
+    }
+
+    private func capsule(_ state: AgentRowState, _ attention: AgentAttention, at time: TimeInterval) -> some View {
+        let anchor = IslandAnchor.edge(.bottom, fraction: 0.5)
+        let radii = IslandLayout.cornerRadii(anchor: anchor, radius: IslandLayout.collapsedCornerRadius)
+        let shape = UnevenRoundedRectangle(
+            topLeadingRadius: radii.topLeading, topTrailingRadius: radii.topTrailing,
+            style: .continuous)
+        return shape.fill(.black)
+            .overlay { AgentFloatingFace(row: row(state, .codex)) }
+            .overlay {
+                RimLight(
+                    attention: attention, radii: radii,
+                    dockedEdges: IslandLayout.dockedEdges(anchor: anchor), isVertical: false,
+                    frozenAt: time)
+            }
+            .frame(width: 200, height: 36)
+            .clipShape(shape)
+    }
+
+    private func strip(_ state: AgentRowState, _ attention: AgentAttention, at time: TimeInterval) -> some View {
+        let anchor = IslandAnchor.edge(.right, fraction: 0.5)
+        let radii = IslandLayout.cornerRadii(anchor: anchor, radius: IslandLayout.collapsedCornerRadius)
+        let shape = UnevenRoundedRectangle(
+            topLeadingRadius: radii.topLeading, bottomLeadingRadius: radii.bottomLeading,
+            style: .continuous)
+        return shape.fill(.black)
+            .overlay { AgentSideFace(row: row(state)) }
+            .overlay {
+                RimLight(
+                    attention: attention, radii: radii,
+                    dockedEdges: IslandLayout.dockedEdges(anchor: anchor), isVertical: true,
+                    frozenAt: time)
+            }
+            .frame(width: 36, height: 170)
+            .clipShape(shape)
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 24) {
+            VStack(alignment: .leading, spacing: 14) {
+                notch(.working, .none, at: 0)
+                notch(.needsInput(prompt: nil), .needsInput, at: 0.45)
+                notch(.needsInput(prompt: nil), .needsInput, at: 1.4)
+                notch(.finished, .finished, at: 0.45)
+                notch(.finished, .finished, at: 2)
+                capsule(.needsInput(prompt: nil), .needsInput, at: 0.45)
+                capsule(.finished, .finished, at: 2)
+                AgentFloatingFace(row: nil)
+                    .frame(width: 200, height: 36)
+                    .background(.black, in: Capsule())
+            }
+            strip(.needsInput(prompt: nil), .needsInput, at: 0.45)
+            strip(.finished, .finished, at: 2)
+            strip(.working, .none, at: 0)
+        }
+        .padding(16)
     }
 }
 #endif
@@ -505,13 +663,13 @@ Open `status-marks.png` with the Read tool and check, one by one: the working ma
 
 Open `pets.png` with the Read tool. This is the design step; do it properly:
 
-- Every figure is made of fine, evenly spaced vertical lines with round ends, in its tool's colour, with parts standing back in a weaker tone. No line is clipped at the picture's edge.
-- Each figure reads as what it is meant to be at 76 pt: Claude Code as a blocky creature with two eyes, arms and four legs (the far pair behind); Codex as a cloud with `>_` in it and a second cloud behind; Gemini as a four-pointed star with a small one far behind; Cursor as a cube with three faces at three strengths; OpenCode as a terminal window with `>_` and a second window behind; Aider as a folded `A`; Copilot as a helmeted head with dark goggles.
-- No two figures can be mistaken for each other at 22 pt.
-- The seven colours are clearly different from each other, and none of them reads as the alert red or the finished mint of the status marks.
-- In the `working` row the tops of the lines differ only slightly between the three frames: the pet stirs, it does not dance. In the `states` row the hopping pet sits a little higher than its neighbours, and running and idle are dimmer.
+- Every pet is a square field of fine, evenly spaced vertical lines in its tool's colour. Where there is no figure the lines are faint; the figure shows as the lines growing brighter and dimmer along their length.
+- Each figure reads as a lit form at 84 pt: Claude Code as a blocky creature with two eyes, arms and four legs (the far pair dimmer); Codex as a rounded cloud with `>_` cut into it and a dimmer cloud behind; Gemini as a faceted four-pointed star with a small one behind; Cursor as a cube whose three faces have three tones; OpenCode as a terminal window with a sunken screen and `>_`, and a dimmer window behind; Aider as an `A` of three tubes; Copilot as a round head with sunken goggles and two eyes.
+- Each is still recognisable at 24 pt, and no two can be mistaken for each other.
+- The colours are strong, not washed out: the lit parts of a figure show the tool's colour at or near full strength.
+- In the `working` row the ends of the lines differ only slightly between the three frames: the pet stirs, it does not dance. In the `states` row the hopping pet sits a little higher than its neighbours, and running and idle are dimmer.
 
-Where a figure falls short, change its drawing in `Packages/SymbiodockCore/Sources/SymbiodockCore/Agents/AgentPetGlyph.swift` (17 rows of 17 characters), run `swift test --package-path Packages/SymbiodockCore --filter AgentPetGlyphTests`, build and render again.
+Where a figure falls short, change its relief in `Packages/SymbiodockCore/Sources/SymbiodockCore/Agents/AgentPetRelief.swift`, run `swift test --package-path Packages/SymbiodockCore --filter AgentPetFigureTests`, build and render again. The lighting (how strong the shading is, how faint the ground lines are) is in `AgentPetFigure.swift`.
 
 - [ ] **Step 6: Commit**
 
@@ -770,7 +928,7 @@ private struct AgentRowView: View {
 
     private var content: some View {
         HStack(spacing: 10) {
-            AgentPet(tool: row.session.tool, state: row.state, size: 34)
+            AgentPet(tool: row.session.tool, state: row.state, size: 36)
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.session.title)
                     .font(.system(size: 13, weight: .semibold))
@@ -1285,7 +1443,7 @@ struct AgentNotchFace: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            AgentPet(tool: row.session.tool, state: row.state, size: 22)
+            AgentPet(tool: row.session.tool, state: row.state, size: 24)
                 .frame(maxWidth: .infinity)
             Color.clear
                 .frame(width: notchWidth)
@@ -1304,7 +1462,7 @@ struct AgentFloatingFace: View {
     var body: some View {
         HStack(spacing: 8) {
             if let row {
-                AgentPet(tool: row.session.tool, state: row.state, size: 22)
+                AgentPet(tool: row.session.tool, state: row.state, size: 24)
                 Text(row.session.title)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.white)
@@ -1333,7 +1491,7 @@ struct AgentSideFace: View {
     var body: some View {
         VStack(spacing: 8) {
             if let row {
-                AgentPet(tool: row.session.tool, state: row.state, size: 22)
+                AgentPet(tool: row.session.tool, state: row.state, size: 24)
                 RotatedLine(text: row.session.title)
                     .foregroundStyle(.white)
                 AgentStatusMark(state: row.state)

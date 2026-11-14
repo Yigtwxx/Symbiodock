@@ -13,7 +13,7 @@ enum DebugRender {
         let directory = URL(fileURLWithPath: path, isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         write(StatusMarkGallery(), size: CGSize(width: 560, height: 150), named: "status-marks", to: directory)
-        write(PetGallery(), size: CGSize(width: 760, height: 360), named: "pets", to: directory)
+        write(PetGallery(), size: CGSize(width: 800, height: 380), named: "pets", to: directory)
         for (name, tab) in [("expanded-agents", IslandTab.agents), ("expanded-media", .media)] {
             let state = IslandState()
             DemoAgents.apply("1", to: state)
@@ -93,14 +93,14 @@ private struct PetGallery: View {
             HStack(spacing: 14) {
                 ForEach(AgentTool.allCases, id: \.self) { tool in
                     VStack(spacing: 10) {
-                        AgentPet(tool: tool, size: 76, frozenAt: 0)
+                        AgentPet(tool: tool, size: 84, frozenAt: 0)
                         HStack(spacing: 8) {
-                            AgentPet(tool: tool, size: 34, frozenAt: 0)
-                            AgentPet(tool: tool, size: 22, frozenAt: 0)
+                            AgentPet(tool: tool, size: 36, frozenAt: 0)
+                            AgentPet(tool: tool, size: 24, frozenAt: 0)
                         }
                         caption(tool.displayName)
                     }
-                    .frame(width: 86)
+                    .frame(width: 92)
                 }
             }
             HStack(spacing: 18) {

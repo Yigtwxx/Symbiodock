@@ -1,10 +1,10 @@
 import SwiftUI
 import SymbiodockCore
 
-/// A tool's pet: its figure drawn from fine vertical lines with round ends, in the tool's
-/// colour. Parts of the figure that stand farther back are drawn weaker, which gives it
-/// depth. It moves with its session: its lines stir a little while the session works, and
-/// it hops while the session needs input.
+/// A tool's pet: a small field of fine vertical lines in the tool's colour, in which the
+/// figure shows as the lines growing brighter and dimmer along their length, the way light
+/// falls on a form. It moves with its session: the lines stir a little while the session
+/// works, and the pet hops while the session needs input.
 struct AgentPet: View {
     let tool: AgentTool
     var state: AgentRowState = .finished
@@ -14,8 +14,6 @@ struct AgentPet: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// How strongly a line is drawn in front, in the middle and at the back.
-    private static let depthStrength: [Double] = [1, 0.5, 0.26]
     /// The stir is slow; it needs no more frames than this.
     private static let frameInterval = 1.0 / 20.0
 
@@ -52,45 +50,74 @@ struct AgentPet: View {
     }
 
     private func figure(time: TimeInterval, moving: Bool) -> some View {
-        let glyph = AgentPetGlyph.glyph(for: tool)
+        let lines = AgentPetArt.lines(for: tool, strength: strength)
+        let ground = AgentPalette.tint(for: tool, strength: strength * AgentPetFigure.groundStrength)
         let stirs = moving && state == .working
         let hop = moving && isNeedsInput ? AgentPetMotion.hop(at: time) : 0
-        let tool = tool
-        let strength = strength
         return Canvas { context, canvas in
             let side = min(canvas.width, canvas.height)
-            let bar = side * AgentPetGlyph.barWidth
-            // Back to front, so a nearer stretch covers the end of a farther one it touches.
-            for depth in Self.depthStrength.indices.reversed() {
-                let color = AgentPalette.tint(for: tool, strength: strength * Self.depthStrength[depth])
-                for (column, segments) in glyph.columns.enumerated() {
-                    let rise = stirs ? AgentPetMotion.sway(column: column, at: time) : 0
-                    for (index, segment) in segments.enumerated() where segment.depth == depth {
-                        var top = segment.top
-                        var bottom = segment.bottom
-                        if index == 0 {
-                            // Only the top of a line moves; the figure stands on the rest.
-                            top = min(max(top - rise, 0), bottom - AgentPetGlyph.barWidth)
-                        } else if segments[index - 1].bottom == segment.top,
-                                  segments[index - 1].depth < depth {
-                            // Runs on under the nearer stretch above it, so no notch shows.
-                            top -= AgentPetGlyph.barWidth
-                        }
-                        if index + 1 < segments.count, segments[index + 1].top == segment.bottom,
-                           segments[index + 1].depth < depth {
-                            bottom += AgentPetGlyph.barWidth
-                        }
-                        let rect = CGRect(
-                            x: side * AgentPetGlyph.pitch * CGFloat(column),
-                            y: side * top,
-                            width: bar,
-                            height: max(side * (bottom - top), bar))
-                        context.fill(
-                            Path(roundedRect: rect, cornerRadius: bar / 2), with: .color(color))
-                    }
+            let bar = side * AgentPetFigure.barWidth
+            for (column, stretches) in lines.enumerated() {
+                let x = side * AgentPetFigure.pitch * CGFloat(column)
+                // While its session works, each line is a little longer or shorter.
+                let reach = stirs ? AgentPetMotion.sway(column: column, at: time) : 0
+                let inset = side * (AgentPetMotion.swayAmplitude - reach)
+                let whole = CGRect(x: x, y: inset, width: bar, height: side - 2 * inset)
+                context.fill(Path(roundedRect: whole, cornerRadius: bar / 2), with: .color(ground))
+                for stretch in stretches {
+                    let rect = CGRect(
+                        x: x, y: side * stretch.top, width: bar,
+                        height: max(side * (stretch.bottom - stretch.top), bar))
+                        .intersection(whole)
+                    guard !rect.isNull, rect.height > 0 else { continue }
+                    context.fill(
+                        Path(roundedRect: rect, cornerRadius: bar / 2),
+                        with: .linearGradient(
+                            stretch.gradient,
+                            startPoint: CGPoint(x: x, y: side * stretch.top),
+                            endPoint: CGPoint(x: x, y: side * stretch.bottom)))
                 }
             }
         }
         .offset(y: -size * hop)
+    }
+}
+
+/// The pets as they are drawn: for each line, the stretches where the figure is, each with
+/// the gradient that carries its light and shade. Worked out once for each tool and
+/// strength; a pet is redrawn many times a second while its session works.
+@MainActor
+private enum AgentPetArt {
+    struct Stretch {
+        let top: Double
+        let bottom: Double
+        let gradient: Gradient
+    }
+
+    private struct Key: Hashable {
+        let tool: AgentTool
+        /// Strength in hundredths.
+        let strength: Int
+    }
+
+    private static var cache: [Key: [[Stretch]]] = [:]
+
+    static func lines(for tool: AgentTool, strength: Double) -> [[Stretch]] {
+        let key = Key(tool: tool, strength: Int((strength * 100).rounded()))
+        if let known = cache[key] { return known }
+        let figure = AgentPetFigure.figure(for: tool)
+        let lines = figure.lines.indices.map { index in
+            figure.stretches(ofLine: index).map { stretch in
+                let last = max(stretch.shades.count - 1, 1)
+                let stops = stretch.shades.enumerated().map { position, shade in
+                    Gradient.Stop(
+                        color: AgentPalette.tint(for: tool, strength: strength * shade),
+                        location: CGFloat(position) / CGFloat(last))
+                }
+                return Stretch(top: stretch.top, bottom: stretch.bottom, gradient: Gradient(stops: stops))
+            }
+        }
+        cache[key] = lines
+        return lines
     }
 }

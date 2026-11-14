@@ -9,7 +9,7 @@ struct AgentNotchFace: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            AgentPet(tool: row.session.tool, state: row.state, size: 22)
+            AgentPet(tool: row.session.tool, state: row.state, size: 24)
                 .frame(maxWidth: .infinity)
             Color.clear
                 .frame(width: notchWidth)
@@ -28,7 +28,7 @@ struct AgentFloatingFace: View {
     var body: some View {
         HStack(spacing: 8) {
             if let row {
-                AgentPet(tool: row.session.tool, state: row.state, size: 22)
+                AgentPet(tool: row.session.tool, state: row.state, size: 24)
                 Text(row.session.title)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.white)
@@ -57,7 +57,7 @@ struct AgentSideFace: View {
     var body: some View {
         VStack(spacing: 8) {
             if let row {
-                AgentPet(tool: row.session.tool, state: row.state, size: 22)
+                AgentPet(tool: row.session.tool, state: row.state, size: 24)
                 RotatedLine(text: row.session.title)
                     .foregroundStyle(.white)
                 AgentStatusMark(state: row.state)

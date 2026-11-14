@@ -249,7 +249,7 @@ when `showsWings` is true; Agents when `hasFace` is true.
 
 | Form | Agents face |
 |---|---|
-| At the notch | Left wing: the lead session's pet (22 pt). Right wing: its status mark |
+| At the notch | Left wing: the lead session's pet (24 pt). Right wing: its status mark |
 | Floating capsule (200 × 36) | Pet, the lead session's title, status mark |
 | Side strip (36 × 170) | Pet on top, the title rotated in the middle, status mark at the bottom |
 
@@ -266,7 +266,7 @@ meaning.
   by scrolling down, and the list comes to rest on a row. With more than two sessions the
   list fades out at its lower edge to show that it goes on. One or two rows are centred
   in the space below the header.
-- A row is 46 pt: the tool's pet (34 pt, section 7.5), then two lines, then at the
+- A row is 46 pt: the tool's pet (36 pt, section 7.5), then two lines, then at the
   trailing end a label (11 pt) and the status mark.
 - First line: the session's title (13 pt semibold). Second line (11 pt): the tool's name
   and the project folder, `Claude Code · storefront`, white 50 %. A row that needs input
@@ -279,39 +279,43 @@ meaning.
 
 ### 7.5 Pets
 
-Each tool is shown by its pet: a small figure of what the tool is known by, made of fine
-vertical lines with round ends, in the tool's own colour. A figure is drawn on a 17 × 17
-grid; every column of the grid is one line, as wide as the gap beside it, broken wherever
-the drawing has a hole (an eye, a prompt, an opening).
+Each tool is shown by its pet: a small figure of what the tool is known by, in the tool's
+own colour. A pet is a square field of 21 fine vertical lines with round ends. Where
+there is no figure the lines are faint (8.5 % of the colour); the figure shows as the
+lines growing brighter and dimmer along their length, the way light falls on a form. A
+line is a little wider than the gap beside it, so the colour stays strong.
 
-A figure has depth: its parts stand in front, in the middle or at the back, and are drawn
-at 100 %, 50 % and 26 % of the tool's colour, mixed towards the island's black. None of
-the tool colours is the red or the mint that a state uses.
+The brightness comes from a model, not from a picture: each figure is a small relief
+(domes, plates, tubes, holes) lit from the upper left. What faces the light shows the
+tool's colour at full strength; what turns away, lies in a hollow or stands farther back
+is dimmer, never below 30 %. The shading is deliberately gentle. None of the tool colours
+is the red or the mint that a state uses.
 
 | Tool | Colour | Pet |
 |---|---|---|
-| Claude Code | `#D97757` | A blocky creature: flat top, two eyes, an arm on each side (middle), four legs, the far pair at the back |
-| Codex | `#4F9CF9` | A cloud with a prompt in it, `>` and `_`, and a second cloud behind it |
-| Gemini CLI | `#9D7BFF` | A four-pointed star, and a small one far behind it |
-| Cursor Agent | `#D7D7DB` | A cube seen from a corner: top in front, one side in the middle, the other at the back |
-| OpenCode | `#F0D9A8` | A terminal window with a prompt, `>` and `_` (middle), and a second window behind it |
-| Aider | `#A3E635` | The letter A, folded: left stroke in front, crossbar in the middle, right stroke at the back |
-| Copilot CLI | `#F27FC0` | A helmeted head: two goggles with dark glass, two eyes below them, an ear on each side |
+| Claude Code | `#D97757` | A blocky creature: a flat-topped body with two eyes, an arm on each side, four legs, the far pair standing back |
+| Codex | `#4F9CF9` | A rounded cloud with a prompt cut into it, `>` and `_`, and a second cloud behind it |
+| Gemini CLI | `#9D7BFF` | A four-pointed star, faceted like a cut stone, and a small one far behind it |
+| Cursor Agent | `#D7D7DB` | A cube seen from a corner; the light gives each of its three faces its own tone |
+| OpenCode | `#F0D9A8` | A terminal window with a sunken screen and a prompt, `>` and `_`, and a second window behind it |
+| Aider | `#A3E635` | The letter A made of three tubes: the left stroke nearest, the right one farthest |
+| Copilot CLI | `#F27FC0` | A round helmeted head: two goggles with sunken glass, two eyes below them, an ear on each side |
 
-The figures are drawings in the core package (`AgentPetGlyph`), so every tool is guaranteed
-one and their proportions are tested. No logo file is bundled or downloaded.
+The reliefs and their lighting are in the core package (`AgentPetReliefs`,
+`AgentPetFigure`), so every tool is guaranteed a figure and its properties are tested. No
+logo file is bundled or downloaded.
 
 The pet moves with its session, and only a little:
 
-- Working: the tops of its lines rise and fall by at most 2.5 % of the figure's side
-  (under a point), each at its own slow pace of two to four seconds a cycle. It stirs; it
-  does not dance. This is all the motion a working pet has.
+- Working: each line is a little longer or shorter, by at most 2.5 % of the figure's
+  side (under a point), each at its own slow pace of two to four seconds a cycle. It
+  stirs; it does not dance. This is all the motion a working pet has.
 - Needs input: it hops by 8 % of its side, twice, together with the status mark's knocks,
   then rests.
 - Finished it stands still at full strength; running it is at 70 %, idle at 45 %.
 - With Reduce Motion on it never moves.
 
-The pet is 34 pt in the Agents tab's rows and 22 pt in every collapsed agents face.
+The pet is 36 pt in the Agents tab's rows and 24 pt in every collapsed agents face.
 
 ## 8. Jumping to a session
 

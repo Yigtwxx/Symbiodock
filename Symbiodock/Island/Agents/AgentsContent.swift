@@ -121,7 +121,7 @@ private struct AgentRowView: View {
 
     private var content: some View {
         HStack(spacing: 10) {
-            AgentPet(tool: row.session.tool, state: row.state, size: 34)
+            AgentPet(tool: row.session.tool, state: row.state, size: 36)
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.session.title)
                     .font(.system(size: 13, weight: .semibold))

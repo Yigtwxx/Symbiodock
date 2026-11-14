@@ -38,7 +38,8 @@ Spec: `docs/superpowers/specs/2026-11-14-agents-tab-design.md`.
 | `Agents/CodexRolloutParser.swift` | Thread meta, turn state, listing rule, session |
 | `Agents/CodexSessionIndex.swift` | Thread titles |
 | `Agents/AgentProcess.swift` | `ProcessSnapshot`, `AgentProcessMatcher`, `ProcessTree`, `AgentScanContext`, `AgentSessionProvider`, `ProcessLevelProvider` |
-| `Agents/AgentPetGlyph.swift` | The pets: each tool's figure as fine lines at three depths, and how it moves |
+| `Agents/AgentPetRelief.swift` | The pieces the pets are modelled from, and each tool's relief |
+| `Agents/AgentPetFigure.swift` | Lighting a relief into brightness along 21 lines; how a pet moves |
 
 Tests mirror these under `Packages/SymbiodockCore/Tests/SymbiodockCoreTests/`.
 
@@ -2049,132 +2050,132 @@ git push origin main
 ### Task 6: Pets
 
 **Files:**
-- Create: `Packages/SymbiodockCore/Sources/SymbiodockCore/Agents/AgentPetGlyph.swift`
-- Test: `Packages/SymbiodockCore/Tests/SymbiodockCoreTests/AgentPetGlyphTests.swift`
+- Create: `Packages/SymbiodockCore/Sources/SymbiodockCore/Agents/AgentPetRelief.swift`
+- Create: `Packages/SymbiodockCore/Sources/SymbiodockCore/Agents/AgentPetFigure.swift`
+- Test: `Packages/SymbiodockCore/Tests/SymbiodockCoreTests/AgentPetFigureTests.swift`
 
 **Interfaces:**
 - Consumes: `AgentTool` (Task 1).
 - Produces:
-  - `AgentPetGlyph` (`columns: [[Segment]]`, `Segment { top: Double; bottom: Double; depth: Int }`), `AgentPetGlyph.gridSize` and `.columnCount` (17), `.barWidth` (1/33), `.pitch` (2/33), `.depthCount` (3), `AgentPetGlyph.glyph(for: AgentTool) -> AgentPetGlyph`.
+  - `AgentPetFigure` (`lines: [[Double]]`, `stretches(ofLine:) -> [Stretch]`, `Stretch { top; bottom; shades }`), `AgentPetFigure.figure(for: AgentTool)`, `.lineCount` (21), `.samplesPerLine` (84), `.pitch`, `.barWidth`, `.groundStrength` (0.085), `.faintestShade` (0.3).
   - `AgentPetMotion.sway(column: Int, at: TimeInterval) -> Double`, `AgentPetMotion.hop(at: TimeInterval) -> Double`, `.swayAmplitude` (0.025), `.hopHeight` (0.08), `.hopPeriod` (2.4), `.hopLength` (0.3).
 
-A pet is the figure a tool is known by, made of fine vertical lines with round ends. Each figure is drawn in the source as a 17 × 17 grid of characters: `#` in front, `+` in the middle, `-` at the back, `.` empty. Every column of the grid is one line; a run of ink at one depth is one stretch of it. A line is as wide as the gap beside it (1/33 of the figure's side). All measures are fractions of the figure's side.
+A pet is the figure a tool is known by. The island draws it as a field of fine vertical lines in which the figure shows as the lines' brightness changing along their length. To get that brightness, each figure is modelled as a small relief (a height above the plane at every point of the unit square, built from domes, plates, tubes and holes) and lit from the upper left; what faces the light is bright, what turns away or stands back is dim. The figure records, for each of 21 lines, the brightness at 84 points along it, 0 where there is no figure.
 
-This task was first written with seven thick bars per figure. The owner found that too plain and asked for finer lines, more detail and depth, so the figures were redrawn on this grid; the code below is what is in the repository.
+History, so the next reader is not surprised: the pets were first seven thick bars, then a 17 × 17 drawing with three flat depths. The owner asked for finer lines, more detail and depth, and described what he was after: an advertisement in which the whole picture is vertical lines and faces appear in them through the lines' changing colour, with the volume of nose and cheeks readable. He then asked for stronger colour and a slightly gentler effect, which is why the shading keeps a high floor and a line is wider than its gap.
 
 - [ ] **Step 1: Write the failing tests**
 
-`AgentPetGlyphTests.swift`:
+`AgentPetFigureTests.swift`:
 
 ```swift
 import Foundation
 import Testing
 @testable import SymbiodockCore
 
-struct AgentPetGlyphTests {
-    @Test func everyDrawingFillsItsGrid() {
-        for tool in AgentTool.allCases {
-            let art = AgentPetGlyph.art(for: tool)
-            #expect(art.count == AgentPetGlyph.gridSize, "\(tool)")
-            for row in art {
-                #expect(row.count == AgentPetGlyph.gridSize, "\(tool)")
-                let known = row.allSatisfy { "#+-.".contains($0) }
-                #expect(known, "\(tool)")
-            }
-        }
+struct AgentPetFigureTests {
+    /// Every shade of a figure that is not empty.
+    private func ink(_ figure: AgentPetFigure) -> [Double] {
+        figure.lines.flatMap { $0 }.filter { $0 > 0 }
     }
 
-    @Test func everyToolHasAFigureOfOneLinePerColumn() {
+    @Test func everyToolHasAFigureOnEveryLine() {
         for tool in AgentTool.allCases {
-            let glyph = AgentPetGlyph.glyph(for: tool)
-            #expect(glyph.columns.count == AgentPetGlyph.columnCount, "\(tool)")
-            // A figure that is mostly empty columns would not read as a figure.
-            let inked = glyph.columns.filter { !$0.isEmpty }.count
-            #expect(inked >= 13, "\(tool)")
+            let figure = AgentPetFigure.figure(for: tool)
+            #expect(figure.lines.count == AgentPetFigure.lineCount, "\(tool)")
+            for line in figure.lines {
+                #expect(line.count == AgentPetFigure.samplesPerLine, "\(tool)")
+            }
         }
     }
 
     @Test func theLinesAndTheirGapsFillTheWidth() {
-        let width = Double(AgentPetGlyph.columnCount - 1) * AgentPetGlyph.pitch + AgentPetGlyph.barWidth
+        let width = Double(AgentPetFigure.lineCount - 1) * AgentPetFigure.pitch + AgentPetFigure.barWidth
         #expect(abs(width - 1) < 1e-9)
     }
 
-    @Test func everyStretchCanBeDrawnWithRoundEnds() {
-        let minimum = AgentPetGlyph.barWidth - 1e-9
+    @Test func aFigureAlwaysStandsOutFromTheGround() {
+        #expect(AgentPetFigure.groundStrength < AgentPetFigure.faintestShade)
         for tool in AgentTool.allCases {
-            for (index, column) in AgentPetGlyph.glyph(for: tool).columns.enumerated() {
-                for segment in column {
-                    #expect(segment.top >= 0 && segment.bottom <= 1, "\(tool) column \(index)")
-                    #expect(segment.bottom - segment.top >= minimum, "\(tool) column \(index)")
-                }
-                for segment in column {
-                    #expect((0..<AgentPetGlyph.depthCount).contains(segment.depth), "\(tool) column \(index)")
-                }
-                for (upper, lower) in zip(column, column.dropFirst()) {
-                    // Two stretches either touch, at different depths, or are a real break apart.
-                    let gap = lower.top - upper.bottom
-                    if gap == 0 {
-                        #expect(upper.depth != lower.depth, "\(tool) column \(index)")
-                    } else {
-                        #expect(gap >= minimum, "\(tool) column \(index)")
-                    }
-                }
-            }
+            let shades = ink(AgentPetFigure.figure(for: tool))
+            let inRange = shades.allSatisfy { $0 >= AgentPetFigure.faintestShade && $0 <= 1 && $0.isFinite }
+            #expect(inRange, "\(tool)")
         }
     }
 
-    @Test func aDrawingBecomesLinesWithBreaks() {
-        let glyph = AgentPetGlyph(art: [
-            "#.+",
-            "#.+",
-            "..-",
-            "#.#",
-        ])
-        /// Where the edge of the given grid row lies.
-        func edge(_ row: Int) -> Double { Double(row) / Double(AgentPetGlyph.gridSize) }
-        #expect(
-            glyph.columns[0] == [
-                .init(top: edge(0), bottom: edge(2)), .init(top: edge(3), bottom: edge(4)),
-            ])
-        #expect(glyph.columns[1].isEmpty)
-        // A change of depth starts a new stretch without a break.
-        #expect(
-            glyph.columns[2] == [
-                .init(top: edge(0), bottom: edge(2), depth: 1),
-                .init(top: edge(2), bottom: edge(3), depth: 2),
-                .init(top: edge(3), bottom: edge(4), depth: 0),
-            ])
-        // Whatever the drawing leaves out is empty; nothing is read outside it.
-        #expect(glyph.columns.count == AgentPetGlyph.columnCount)
-        let restIsEmpty = glyph.columns[3...].allSatisfy { $0.isEmpty }
-        #expect(restIsEmpty)
-        let nothingDrawn = AgentPetGlyph(art: []).columns.allSatisfy { $0.isEmpty }
-        #expect(nothingDrawn)
+    @Test func aFigureFillsAFairPartOfItsSquare() {
+        let all = Double(AgentPetFigure.lineCount * AgentPetFigure.samplesPerLine)
+        for tool in AgentTool.allCases {
+            let share = Double(ink(AgentPetFigure.figure(for: tool)).count) / all
+            #expect(share > 0.1 && share < 0.8, "\(tool): \(share)")
+        }
     }
 
-    @Test func everyFigureHasDepth() {
+    @Test func everyFigureHasLightAndShade() {
         for tool in AgentTool.allCases {
-            let depths = Set(AgentPetGlyph.glyph(for: tool).columns.flatMap { $0.map(\.depth) })
-            #expect(depths.contains(0), "\(tool)")
-            #expect(depths.count >= 2, "\(tool)")
+            let shades = ink(AgentPetFigure.figure(for: tool))
+            let range = (shades.max() ?? 0) - (shades.min() ?? 0)
+            #expect(range >= 0.3, "\(tool): \(range)")
+            #expect((shades.max() ?? 0) >= 0.9, "\(tool)")
         }
     }
 
     @Test func noTwoToolsShareAFigure() {
-        let glyphs = AgentTool.allCases.map(AgentPetGlyph.glyph(for:))
-        for (index, glyph) in glyphs.enumerated() {
-            #expect(!glyphs[(index + 1)...].contains(glyph))
+        let figures = AgentTool.allCases.map(AgentPetFigure.figure(for:))
+        for (index, figure) in figures.enumerated() {
+            #expect(!figures[(index + 1)...].contains(figure))
         }
+    }
+
+    @Test func aFigureIsTheSameEveryTime() {
+        #expect(AgentPetFigure.figure(for: .codex) == AgentPetFigure.figure(for: .codex))
+        #expect(
+            AgentPetFigure.figure(for: .aider)
+                == AgentPetFigure(relief: AgentPetReliefs.relief(for: .aider)))
+    }
+
+    @Test func aLineIsCutIntoItsStretches() {
+        let figure = AgentPetFigure(lines: [[0, 0.5, 0.6, 0, 0.3], [0, 0, 0, 0, 0], []])
+        #expect(
+            figure.stretches(ofLine: 0) == [
+                .init(top: 0.2, bottom: 0.6, shades: [0.5, 0.6]),
+                .init(top: 0.8, bottom: 1, shades: [0.3]),
+            ])
+        #expect(figure.stretches(ofLine: 1).isEmpty)
+        #expect(figure.stretches(ofLine: 2).isEmpty)
+        #expect(figure.stretches(ofLine: 3).isEmpty)
+        #expect(figure.stretches(ofLine: -1).isEmpty)
+    }
+
+    @Test func theStretchesOfAFigureCoverItsInk() {
+        for tool in AgentTool.allCases {
+            let figure = AgentPetFigure.figure(for: tool)
+            var covered = 0
+            for index in figure.lines.indices {
+                for stretch in figure.stretches(ofLine: index) {
+                    #expect(stretch.top >= 0 && stretch.bottom <= 1 && stretch.top < stretch.bottom, "\(tool)")
+                    #expect(!stretch.shades.isEmpty, "\(tool)")
+                    covered += stretch.shades.count
+                }
+            }
+            #expect(covered == ink(figure).count, "\(tool)")
+        }
+    }
+
+    @Test func aReliefThatMisbehavesGivesNoInk() {
+        let figure = AgentPetFigure(relief: { x, _ in x < 0.5 ? .nan : .infinity })
+        let empty = figure.lines.allSatisfy { line in line.allSatisfy { $0 == 0 } }
+        #expect(empty)
     }
 
     @Test func aWorkingPetStirsOnlyALittle() {
         for step in 0..<400 {
             let time = Double(step) * 0.037
-            let values = (0..<AgentPetGlyph.columnCount).map { AgentPetMotion.sway(column: $0, at: time) }
-            #expect(values.allSatisfy { abs($0) <= AgentPetMotion.swayAmplitude + 1e-9 })
+            let values = (0..<AgentPetFigure.lineCount).map { AgentPetMotion.sway(column: $0, at: time) }
+            let small = values.allSatisfy { abs($0) <= AgentPetMotion.swayAmplitude + 1e-9 }
+            #expect(small)
         }
-        // Small: less than half a grid cell.
-        #expect(AgentPetMotion.swayAmplitude < 0.5 / Double(AgentPetGlyph.gridSize))
+        #expect(AgentPetMotion.swayAmplitude <= 0.03)
         // The lines do not move in step.
         #expect(AgentPetMotion.sway(column: 0, at: 1) != AgentPetMotion.sway(column: 3, at: 1))
     }
@@ -2185,7 +2186,7 @@ struct AgentPetGlyphTests {
         let frame = 1.0 / 20.0
         for step in 0..<400 {
             let time = Double(step) * frame
-            for column in 0..<AgentPetGlyph.columnCount {
+            for column in 0..<AgentPetFigure.lineCount {
                 let change = abs(
                     AgentPetMotion.sway(column: column, at: time + frame)
                         - AgentPetMotion.sway(column: column, at: time))
@@ -2215,249 +2216,334 @@ struct AgentPetGlyphTests {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -5`
-Expected: compile errors, `cannot find 'AgentPetGlyph' in scope`.
+Expected: compile errors, `cannot find 'AgentPetFigure' in scope`.
 
 - [ ] **Step 3: Write the implementation**
 
-`Agents/AgentPetGlyph.swift`:
+`Agents/AgentPetRelief.swift`:
 
 ```swift
 import Foundation
 
-/// A tool's pet: the figure the tool is known by, made of fine vertical lines with round
-/// ends. Each figure is drawn on a square grid; every column of the grid becomes one line,
-/// broken wherever the drawing has a hole (an eye, a prompt, an opening). Parts of a figure
-/// stand at different depths, which the views draw as different strengths of the tool's
-/// colour. All measures are fractions of the figure's side.
-public struct AgentPetGlyph: Equatable, Sendable {
-    /// A solid stretch of a line. 0 is the top of the figure, 1 its bottom.
-    public struct Segment: Equatable, Sendable {
+/// A relief: how high a figure rises above the plane at each point of the unit square
+/// (x to the right, y downward). 0 means there is nothing there.
+typealias AgentPetRelief = @Sendable (_ x: Double, _ y: Double) -> Double
+
+/// The pieces the pets are modelled from, and the pets themselves. A pet is the figure its
+/// tool is known by, shaped as a small relief so that light can fall on it.
+enum AgentPetReliefs {
+    // MARK: Pieces
+
+    /// Half an ellipsoid lying on the plane.
+    static func dome(
+        _ centerX: Double, _ centerY: Double, _ radiusX: Double, _ radiusY: Double, _ height: Double
+    ) -> AgentPetRelief {
+        { x, y in
+            let inside = 1 - pow((x - centerX) / radiusX, 2) - pow((y - centerY) / radiusY, 2)
+            return inside > 0 ? height * sqrt(inside) : 0
+        }
+    }
+
+    /// A plate with round corners and a rounded shoulder `bevel` wide.
+    static func slab(
+        _ left: Double, _ top: Double, _ right: Double, _ bottom: Double,
+        radius: Double, bevel: Double, _ height: Double
+    ) -> AgentPetRelief {
+        { x, y in
+            let offsetX = abs(x - (left + right) / 2) - ((right - left) / 2 - radius)
+            let offsetY = abs(y - (top + bottom) / 2) - ((bottom - top) / 2 - radius)
+            let outside = hypot(max(offsetX, 0), max(offsetY, 0)) + min(max(offsetX, offsetY), 0) - radius
+            guard outside < 0 else { return 0 }
+            let across = min(-outside / bevel, 1)
+            // A quarter circle: steep at the edge, flat on top.
+            return height * sqrt(1 - (1 - across) * (1 - across))
+        }
+    }
+
+    /// Half a tube lying between two points.
+    static func tube(
+        _ fromX: Double, _ fromY: Double, _ toX: Double, _ toY: Double,
+        radius: Double, _ height: Double
+    ) -> AgentPetRelief {
+        { x, y in
+            let alongX = toX - fromX
+            let alongY = toY - fromY
+            let part = min(
+                max(((x - fromX) * alongX + (y - fromY) * alongY) / (alongX * alongX + alongY * alongY), 0), 1)
+            let distance = hypot(x - (fromX + part * alongX), y - (fromY + part * alongY))
+            return distance < radius ? height * sqrt(1 - (distance / radius) * (distance / radius)) : 0
+        }
+    }
+
+    /// A four-pointed star, faceted like a cut stone.
+    static func star(
+        _ centerX: Double, _ centerY: Double, _ radius: Double, _ height: Double
+    ) -> AgentPetRelief {
+        { x, y in
+            let reach = pow(abs(x - centerX) / radius, 0.62) + pow(abs(y - centerY) / radius, 0.62)
+            return reach < 1 ? height * (1 - reach) : 0
+        }
+    }
+
+    /// The near corner of a cube: three faces falling away from the centre, inside a hexagon.
+    static func cubeCorner(
+        _ centerX: Double, _ centerY: Double, _ radius: Double, _ height: Double
+    ) -> AgentPetRelief {
+        { x, y in
+            let pointX = (x - centerX) / radius
+            let pointY = (y - centerY) / radius
+            let hexagon = max(
+                abs(pointX) / 0.866, abs(pointX * 0.5 / 0.866 + pointY), abs(pointX * 0.5 / 0.866 - pointY))
+            guard hexagon <= 1 else { return 0 }
+            let fall = max(-pointY, -0.866 * pointX + 0.5 * pointY, 0.866 * pointX + 0.5 * pointY)
+            return height * (1 - 0.6 * fall)
+        }
+    }
+
+    /// A plain rectangle, for holes: 1 inside, 0 outside.
+    static func box(_ left: Double, _ top: Double, _ right: Double, _ bottom: Double) -> AgentPetRelief {
+        { x, y in x >= left && x <= right && y >= top && y <= bottom ? 1 : 0 }
+    }
+
+    /// Whichever piece is highest at each point.
+    static func union(_ pieces: AgentPetRelief...) -> AgentPetRelief {
+        { x, y in pieces.reduce(0) { max($0, $1(x, y)) } }
+    }
+
+    /// The base with nothing left wherever a hole is.
+    static func cut(_ base: @escaping AgentPetRelief, _ holes: AgentPetRelief...) -> AgentPetRelief {
+        { x, y in holes.contains { $0(x, y) > 0 } ? 0 : base(x, y) }
+    }
+
+    /// The base pressed down to `depth` wherever the hole is: glass, a screen.
+    static func recess(
+        _ base: @escaping AgentPetRelief, _ hole: @escaping AgentPetRelief, to depth: Double
+    ) -> AgentPetRelief {
+        { x, y in
+            let height = base(x, y)
+            return height > 0 && hole(x, y) > 0 ? min(height, depth) : height
+        }
+    }
+
+    // MARK: Pets
+
+    static func relief(for tool: AgentTool) -> AgentPetRelief {
+        switch tool {
+        case .claudeCode: claudeCode
+        case .codex: codex
+        case .geminiCLI: geminiCLI
+        case .cursorAgent: cursorAgent
+        case .openCode: openCode
+        case .aider: aider
+        case .copilotCLI: copilotCLI
+        }
+    }
+
+    /// A blocky creature: a flat-topped body with two eyes, an arm on each side, four
+    /// legs, the far pair standing back.
+    private static var claudeCode: AgentPetRelief {
+        let body = slab(0.14, 0.20, 0.86, 0.66, radius: 0.07, bevel: 0.12, 0.46)
+        let arms = union(
+            slab(0.02, 0.36, 0.20, 0.52, radius: 0.04, bevel: 0.06, 0.22),
+            slab(0.80, 0.36, 0.98, 0.52, radius: 0.04, bevel: 0.06, 0.22))
+        let nearLegs = union(
+            slab(0.18, 0.58, 0.30, 0.86, radius: 0.04, bevel: 0.05, 0.36),
+            slab(0.70, 0.58, 0.82, 0.86, radius: 0.04, bevel: 0.05, 0.36))
+        let farLegs = union(
+            slab(0.36, 0.58, 0.46, 0.82, radius: 0.04, bevel: 0.05, 0.16),
+            slab(0.54, 0.58, 0.64, 0.82, radius: 0.04, bevel: 0.05, 0.16))
+        return cut(
+            union(body, arms, nearLegs, farLegs),
+            box(0.30, 0.32, 0.37, 0.46), box(0.63, 0.32, 0.70, 0.46))
+    }
+
+    /// A cloud with a prompt cut into it, ">" and "_", and a second cloud behind it.
+    private static var codex: AgentPetRelief {
+        let far = union(
+            dome(0.76, 0.34, 0.20, 0.20, 0.22),
+            slab(0.56, 0.36, 0.98, 0.60, radius: 0.12, bevel: 0.10, 0.17))
+        let near = union(
+            dome(0.36, 0.44, 0.24, 0.24, 0.50), dome(0.60, 0.50, 0.20, 0.20, 0.46),
+            dome(0.18, 0.58, 0.16, 0.16, 0.40),
+            slab(0.04, 0.50, 0.80, 0.80, radius: 0.15, bevel: 0.15, 0.42))
+        let prompt = union(
+            tube(0.22, 0.58, 0.31, 0.65, radius: 0.024, 1),
+            tube(0.31, 0.65, 0.22, 0.72, radius: 0.024, 1),
+            tube(0.40, 0.72, 0.54, 0.72, radius: 0.024, 1))
+        return union(far, cut(near, prompt))
+    }
+
+    /// A four-pointed star, and a small one far behind it.
+    private static var geminiCLI: AgentPetRelief {
+        union(star(0.46, 0.54, 0.46, 0.55), star(0.84, 0.16, 0.15, 0.24))
+    }
+
+    /// A cube seen from a corner; the light gives each of its three faces its own tone.
+    private static var cursorAgent: AgentPetRelief {
+        cubeCorner(0.5, 0.5, 0.47, 0.5)
+    }
+
+    /// A terminal window with a prompt on its screen, ">" and "_", and a second window
+    /// behind it.
+    private static var openCode: AgentPetRelief {
+        let far = slab(0.28, 0.06, 0.98, 0.66, radius: 0.06, bevel: 0.05, 0.16)
+        let near = slab(0.02, 0.24, 0.76, 0.92, radius: 0.06, bevel: 0.06, 0.44)
+        let screen = box(0.10, 0.40, 0.68, 0.84)
+        let prompt = union(
+            tube(0.18, 0.50, 0.28, 0.60, radius: 0.03, 0.4),
+            tube(0.28, 0.60, 0.18, 0.70, radius: 0.03, 0.4),
+            tube(0.38, 0.72, 0.54, 0.72, radius: 0.03, 0.4))
+        return union(far, recess(near, screen, to: 0.10), prompt)
+    }
+
+    /// The letter A made of three tubes: the left stroke nearest, the right one farthest.
+    private static var aider: AgentPetRelief {
+        union(
+            tube(0.54, 0.10, 0.90, 0.90, radius: 0.085, 0.20),
+            tube(0.30, 0.62, 0.72, 0.62, radius: 0.07, 0.32),
+            tube(0.50, 0.10, 0.12, 0.90, radius: 0.095, 0.48))
+    }
+
+    /// A round helmeted head: two goggles with sunken glass, two eyes below them, an ear
+    /// on each side.
+    private static var copilotCLI: AgentPetRelief {
+        let head = dome(0.5, 0.50, 0.44, 0.42, 0.52)
+        let ears = union(dome(0.05, 0.52, 0.07, 0.13, 0.2), dome(0.95, 0.52, 0.07, 0.13, 0.2))
+        let glass = union(
+            slab(0.17, 0.30, 0.45, 0.55, radius: 0.09, bevel: 0.02, 1),
+            slab(0.55, 0.30, 0.83, 0.55, radius: 0.09, bevel: 0.02, 1))
+        return cut(
+            union(ears, recess(head, glass, to: 0.07)),
+            box(0.36, 0.66, 0.41, 0.78), box(0.59, 0.66, 0.64, 0.78))
+    }
+}
+```
+
+`Agents/AgentPetFigure.swift`:
+
+```swift
+import Foundation
+
+/// A tool's pet as the island draws it: a field of fine vertical lines, where the figure
+/// shows as the lines' brightness changing along their length. The figure is a small
+/// relief lit from the upper left, so its forms read as volume: what faces the light is
+/// bright, what turns away or stands back is dim. All measures are fractions of the
+/// figure's side.
+public struct AgentPetFigure: Equatable, Sendable {
+    /// A stretch of one line where the figure is, with the brightness along it.
+    public struct Stretch: Equatable, Sendable {
+        /// 0 is the top of the figure, 1 its bottom.
         public let top: Double
         public let bottom: Double
-        /// 0 is in front, `depthCount - 1` is farthest back.
-        public let depth: Int
-
-        public init(top: Double, bottom: Double, depth: Int = 0) {
-            self.top = top
-            self.bottom = bottom
-            self.depth = depth
-        }
+        /// Brightness from `top` to `bottom`, evenly spaced, each above 0 and at most 1.
+        public let shades: [Double]
     }
 
-    /// Figures are drawn on a grid of this many cells each way.
-    public static let gridSize = 17
-    public static let columnCount = gridSize
-    /// A line is as wide as the gap beside it: 17 lines and 16 gaps fill the width.
-    public static let barWidth = 1.0 / Double(2 * gridSize - 1)
-    /// From one line's leading edge to the next.
-    public static let pitch = 2 * barWidth
-    /// In front, in the middle, at the back.
-    public static let depthCount = 3
+    public static let lineCount = 21
+    /// How finely the brightness along a line is recorded.
+    public static let samplesPerLine = 4 * lineCount
+    /// From one line's leading edge to the next: the lines and their gaps fill the width.
+    public static let pitch = 1.0 / (Double(lineCount - 1) + barShare)
+    /// A line is a little wider than the gap beside it, so the colour stays strong.
+    public static let barWidth = barShare * pitch
+    private static let barShare = 0.6
+    /// How bright the lines are where there is no figure: the ground it stands out from.
+    public static let groundStrength = 0.085
+    /// The dimmest a part of a figure can be, so that it always stands out from the ground.
+    public static let faintestShade = 0.3
 
-    /// The lines, left to right. A line with several stretches has breaks, or changes depth.
-    public let columns: [[Segment]]
+    /// Brightness along each line, left to right and top to bottom; 0 where the line shows
+    /// only the ground.
+    public let lines: [[Double]]
 
-    /// What a character of a drawing stands for: `#` in front, `+` in the middle, `-` at
-    /// the back; anything else is empty.
-    private static func depth(of character: Character) -> Int? {
-        switch character {
-        case "#": 0
-        case "+": 1
-        case "-": 2
-        default: nil
-        }
+    init(lines: [[Double]]) {
+        self.lines = lines
     }
 
-    /// Reads a drawing, top row first. A column of the drawing becomes a line; each run of
-    /// ink at one depth becomes a stretch. Cells outside the drawing count as empty, so a
-    /// short row cannot fail.
-    init(art: [String]) {
-        let rows = art.prefix(Self.gridSize).map(Array.init)
-        let size = Double(Self.gridSize)
-        columns = (0..<Self.gridSize).map { x in
-            var segments: [Segment] = []
-            var start = 0
-            var current: Int?
-            for y in 0...Self.gridSize {
-                let here = y < rows.count && x < rows[y].count ? Self.depth(of: rows[y][x]) : nil
-                guard here != current else { continue }
-                if let current {
-                    segments.append(
-                        Segment(top: Double(start) / size, bottom: Double(y) / size, depth: current))
-                }
-                start = y
-                current = here
+    /// The figure of a tool. Each is worked out once and kept.
+    public static func figure(for tool: AgentTool) -> AgentPetFigure {
+        figures[tool] ?? AgentPetFigure(relief: AgentPetReliefs.relief(for: tool))
+    }
+
+    private static let figures: [AgentTool: AgentPetFigure] = Dictionary(
+        uniqueKeysWithValues: AgentTool.allCases.map {
+            ($0, AgentPetFigure(relief: AgentPetReliefs.relief(for: $0)))
+        })
+
+    /// The stretches of one line where the figure is, top to bottom.
+    public func stretches(ofLine index: Int) -> [Stretch] {
+        guard lines.indices.contains(index) else { return [] }
+        let line = lines[index]
+        guard !line.isEmpty else { return [] }
+        let count = Double(line.count)
+        var stretches: [Stretch] = []
+        var start: Int?
+        for row in 0...line.count {
+            let inked = row < line.count && line[row] > 0
+            if inked, start == nil { start = row }
+            guard !inked, let from = start else { continue }
+            start = nil
+            stretches.append(
+                Stretch(top: Double(from) / count, bottom: Double(row) / count, shades: Array(line[from..<row])))
+        }
+        return stretches
+    }
+}
+
+// MARK: Lighting
+
+extension AgentPetFigure {
+    /// Where the light comes from: upper left, towards the viewer.
+    private static let light = (x: -0.52, y: -0.62, z: 0.59)
+    /// A relief's outline is a cliff; a cliff this steep or steeper is lit as this steep.
+    private static let steepestSlope = 2.2
+    private static let step = 0.006
+
+    /// Lights a relief and records what each line sees of it.
+    init(relief: AgentPetRelief) {
+        let peak = Self.peak(of: relief)
+        lines = (0..<Self.lineCount).map { column in
+            let x = Double(column) * Self.pitch + Self.barWidth / 2
+            return (0..<Self.samplesPerLine).map { row in
+                Self.shade(of: relief, x: x, y: (Double(row) + 0.5) / Double(Self.samplesPerLine), peak: peak)
             }
-            return segments
         }
     }
 
-    public static func glyph(for tool: AgentTool) -> AgentPetGlyph {
-        AgentPetGlyph(art: art(for: tool))
+    /// The highest point of a relief.
+    private static func peak(of relief: AgentPetRelief) -> Double {
+        var highest = 0.0
+        for column in 0..<60 {
+            for row in 0..<60 {
+                highest = max(highest, relief((Double(column) + 0.5) / 60, (Double(row) + 0.5) / 60))
+            }
+        }
+        return max(highest, 0.001)
     }
 
-    /// The drawings. Each is `gridSize` rows of `gridSize` characters.
-    static func art(for tool: AgentTool) -> [String] {
-        switch tool {
-        case .claudeCode:
-            // A blocky creature: flat top, two eyes, an arm on each side, four legs, the far
-            // pair behind.
-            [
-                ".................",
-                ".................",
-                ".................",
-                "..#############..",
-                "..#############..",
-                "..###..###..###..",
-                "++###..###..###++",
-                "++###..###..###++",
-                "++#############++",
-                "..#############..",
-                "..#############..",
-                "...##.--.--.##...",
-                "...##.--.--.##...",
-                "...##.--.--.##...",
-                ".................",
-                ".................",
-                ".................",
-            ]
-        case .codex:
-            // A cloud with a prompt in it, ">" and "_", and a second cloud behind it.
-            [
-                ".................",
-                ".................",
-                "...........---...",
-                ".........-------.",
-                ".....###.--------",
-                "...#######-------",
-                "..#########------",
-                ".###########-----",
-                "#############----",
-                "###.#########---.",
-                "####.########....",
-                "###.###...###....",
-                "#############....",
-                ".###########.....",
-                ".................",
-                ".................",
-                ".................",
-            ]
-        case .geminiCLI:
-            // A four-pointed star, and a small one far behind it.
-            [
-                ".................",
-                ".............-...",
-                ".......#.....-...",
-                ".......#...-----.",
-                ".......#.....-...",
-                "......###....-...",
-                "......###........",
-                ".....#####.......",
-                "...#########.....",
-                "###############..",
-                "...#########.....",
-                ".....#####.......",
-                "......###........",
-                "......###........",
-                ".......#.........",
-                ".......#.........",
-                ".......#.........",
-            ]
-        case .cursorAgent:
-            // A cube seen from a corner: its top in front, one side in the middle, the other
-            // at the back.
-            [
-                ".................",
-                ".......###.......",
-                ".....#######.....",
-                "...###########...",
-                ".+#############-.",
-                ".+++#########---.",
-                ".+++++#####-----.",
-                ".+++++++#-------.",
-                ".+++++++.-------.",
-                ".+++++++.-------.",
-                ".+++++++.-------.",
-                "..++++++.------..",
-                "....++++.----....",
-                "......++.--......",
-                ".................",
-                ".................",
-                ".................",
-            ]
-        case .openCode:
-            // A terminal window with a prompt, ">" and "_", and a second window behind it.
-            [
-                ".................",
-                "....-------------",
-                "....-------------",
-                "....--.........--",
-                "#############..--",
-                "#############..--",
-                "##.........##..--",
-                "##.+.......##..--",
-                "##..+......##..--",
-                "##...+.....##..--",
-                "##..+......##----",
-                "##.+..+++..##----",
-                "##.........##....",
-                "#############....",
-                "#############....",
-                ".................",
-                ".................",
-            ]
-        case .aider:
-            // The letter A, folded: its left stroke in front, the crossbar in the middle, the
-            // right stroke turning away.
-            [
-                ".................",
-                "........#........",
-                ".......##+.......",
-                ".......##+.......",
-                "......##.++......",
-                "......##.++......",
-                ".....##...++.....",
-                ".....##...++.....",
-                "....##.....++....",
-                "....##+++++++....",
-                "...###+++++++-...",
-                "...##.......--...",
-                "..##.........--..",
-                "..##.........--..",
-                ".##...........--.",
-                ".................",
-                ".................",
-            ]
-        case .copilotCLI:
-            // A helmeted head: two goggles with dark glass, two eyes below them, an ear on
-            // each side.
-            [
-                ".................",
-                ".....#######.....",
-                "...###########...",
-                "..#############..",
-                ".###############.",
-                ".##----###----##.",
-                "+##----###----##+",
-                "+##----###----##+",
-                "+##----###----##+",
-                "+###############+",
-                ".###############.",
-                ".#####.###.#####.",
-                ".#####.###.#####.",
-                "..#############..",
-                "....#########....",
-                ".................",
-                ".................",
-            ]
-        }
+    /// How bright the relief is at a point: 0 where there is nothing.
+    private static func shade(of relief: AgentPetRelief, x: Double, y: Double, peak: Double) -> Double {
+        let height = relief(x, y)
+        guard height > 0, height.isFinite else { return 0 }
+        let slopeX = clamp((relief(x + step, y) - relief(x - step, y)) / (2 * step))
+        let slopeY = clamp((relief(x, y + step) - relief(x, y - step)) / (2 * step))
+        let length = sqrt(slopeX * slopeX + slopeY * slopeY + 1)
+        let facing = max(0, (-slopeX * light.x - slopeY * light.y + light.z) / length)
+        // What stands farther back is dimmer. The shading is kept gentle: the figure should
+        // read as a form, and still show its tool's colour at full strength where lit.
+        let nearness = 0.62 + 0.38 * min(height / peak, 1)
+        return min(max(pow((0.46 + 0.54 * facing) * nearness, 0.7), faintestShade), 1)
+    }
+
+    private static func clamp(_ slope: Double) -> Double {
+        slope.isFinite ? min(max(slope, -steepestSlope), steepestSlope) : 0
     }
 }
 
 /// How a pet moves. Pure functions of time, so the views only draw.
 public enum AgentPetMotion {
-    /// How far the top of a line rises or sinks while its session works: under half a
-    /// grid cell, less than a point on screen. Enough to see that it is alive, no more.
+    /// How far the end of a line moves in or out while its session works: a fortieth of
+    /// the figure's side, under a point on screen. Enough to see that it is alive, no more.
     public static let swayAmplitude = 0.025
     /// How high the pet jumps while its session needs input.
     public static let hopHeight = 0.08
@@ -2465,8 +2551,8 @@ public enum AgentPetMotion {
     public static let hopPeriod: TimeInterval = 2.4
     public static let hopLength: TimeInterval = 0.3
 
-    /// The rise (positive) or fall of one line's top at `time`. Every line breathes at its
-    /// own slow pace (a cycle takes two to four seconds), so the figure stirs gently
+    /// How far one line is longer (positive) or shorter at `time`. Every line breathes at
+    /// its own slow pace (a cycle takes two to four seconds), so the pet stirs gently
     /// instead of marching in step.
     public static func sway(column: Int, at time: TimeInterval) -> Double {
         let pace = 2.4 + 0.9 * sin(Double(column) * 2.3)
@@ -2495,7 +2581,7 @@ Expected: every test passes.
 
 ```bash
 git add Packages/SymbiodockCore
-git commit -m "feat(core): describe each agent tool's pet as seven bars"
+git commit -m "feat(core): model each agent tool's pet as a lit relief"
 git push origin main
 ```
 
