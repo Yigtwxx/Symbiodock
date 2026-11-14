@@ -63,8 +63,6 @@ If a drag ever gets stuck (the body follows nothing, or clicks stop reaching oth
 
 ## Known gaps
 
-- With the menu bar set to hide automatically, an island docked at the top edge near the middle can sit under the camera housing.
-- Dragging from the expanded island makes the body jump to its collapsed size at once (no morph).
 - Returning to the notch after a tear has no "re-merging" goo; the capsule glides in and takes the notch's shape.
 - The island cannot be grabbed again during the 550 ms it takes to settle.
 - Dragged toward another display, the island stops at the edge of its own.

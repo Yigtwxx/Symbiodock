@@ -97,7 +97,13 @@ extension IslandLayout {
             case .bottomRight: origin = CGPoint(x: maxX, y: maxY)
             }
         }
-        return CGRect(origin: origin, size: size)
+        var rect = CGRect(origin: origin, size: size)
+        // With the menu bar hidden the visible frame reaches the top of the display, and an
+        // island docked there could end up behind the camera housing. Hang it below instead.
+        if rect.intersects(notch) {
+            rect.origin.y = notch.maxY + floatingInset
+        }
+        return rect
     }
 
     /// `visibleFrame` if it is usable, otherwise the whole display.

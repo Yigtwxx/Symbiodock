@@ -201,4 +201,27 @@ struct IslandLayoutTests {
         #expect(isFinite(frame(.corner(.topLeft), visible: .null)))
         #expect(isFinite(frame(.edge(.top, fraction: 0.5), visible: .zero)))
     }
+
+    @Test func floatingIslandNeverSitsUnderTheNotch() {
+        // With the menu bar hidden the visible frame reaches the top of the display.
+        let full = CGRect(x: 0, y: 0, width: 1512, height: 982)
+
+        let middle = IslandLayout.frame(
+            anchor: .edge(.top, fraction: 0.5), phase: .collapsed, notch: notch,
+            visibleFrame: full, screenSize: screen, hasTrack: false)
+        #expect(!middle.intersects(notch))
+        #expect(middle == CGRect(x: 656, y: 40, width: 200, height: 36))
+
+        let expanded = IslandLayout.frame(
+            anchor: .edge(.top, fraction: 0.5), phase: .expanded, notch: notch,
+            visibleFrame: full, screenSize: screen, hasTrack: false)
+        #expect(!expanded.intersects(notch))
+        #expect(expanded.minY == 40)
+
+        // Away from the notch the top edge is still the top edge.
+        let aside = IslandLayout.frame(
+            anchor: .edge(.top, fraction: 0.1), phase: .collapsed, notch: notch,
+            visibleFrame: full, screenSize: screen, hasTrack: false)
+        #expect(aside.minY == 8)
+    }
 }
