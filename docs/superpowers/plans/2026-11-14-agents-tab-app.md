@@ -1347,6 +1347,7 @@ struct AgentSideFace: View {
             }
         }
         .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .combine)
     }
 }
@@ -1564,12 +1565,24 @@ and at the end of the file, inside the `#if DEBUG`:
 private struct CollapsedGallery: View {
     private let now = Date()
 
+    /// `AgentRow` has no public initialiser; a board produces the row for the wanted state.
     private func row(_ state: AgentRowState, _ tool: AgentTool = .claudeCode) -> AgentRow {
-        AgentRow(
-            session: AgentSession(
+        func session(_ activity: AgentActivity) -> AgentSession {
+            AgentSession(
                 id: "x", tool: tool, title: "fix-login-flow", projectPath: nil,
-                activity: .working, since: now, pid: nil),
-            state: state)
+                activity: activity, since: now, pid: nil)
+        }
+        var board = AgentSessionBoard()
+        switch state {
+        case .needsInput(let prompt): board.update([session(.needsInput(prompt: prompt))])
+        case .working: board.update([session(.working)])
+        case .running: board.update([session(.running)])
+        case .idle: board.update([session(.idle)])
+        case .finished:
+            board.update([session(.working)])
+            board.update([session(.idle)])
+        }
+        return board.rows[0]
     }
 
     private func notch(_ state: AgentRowState, _ attention: AgentAttention, at time: TimeInterval) -> some View {
