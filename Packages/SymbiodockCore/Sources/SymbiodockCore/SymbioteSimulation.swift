@@ -19,7 +19,13 @@ public struct SymbioteFrame: Equatable, Sendable {
     /// Beads at the tips of torn stubs.
     public var droplets: [Droplet]
 
-    public init(ribbons: [[CGPoint]] = [], droplets: [Droplet] = []) {
+    /// Thin closed polygons along the lit side of the thicker strands: a wet sheen.
+    public var highlights: [[CGPoint]]
+
+    public init(
+        ribbons: [[CGPoint]] = [], droplets: [Droplet] = [], highlights: [[CGPoint]] = []
+    ) {
+        self.highlights = highlights
         self.ribbons = ribbons
         self.droplets = droplets
     }
@@ -60,6 +66,10 @@ public struct SymbioteSimulation: Sendable {
     /// Chord length at which a strand has its full thickness.
     static let restLength: CGFloat = 30
     static let minimumNeckRadius: CGFloat = 1.3
+    /// Strands at least this thick where they meet a body get lumps and a sheen.
+    static let texturedRadius: CGFloat = 4
+    /// Where the light comes from, for the sheen: up and to the left.
+    static let lightDirection = CGPoint(x: -0.6, y: -0.8)
 
     private struct Blueprint {
         var weight: CGFloat      // thickness relative to the main strand
@@ -70,11 +80,17 @@ public struct SymbioteSimulation: Sendable {
     }
 
     private static let blueprints: [Blueprint] = [
-        Blueprint(weight: 1.00, offset: 0.06, tearScale: 1.00, neck: 0.50, bow: 0.15),
-        Blueprint(weight: 0.70, offset: -0.50, tearScale: 0.94, neck: 0.44, bow: -1.0),
-        Blueprint(weight: 0.56, offset: 0.62, tearScale: 0.88, neck: 0.57, bow: 1.0),
-        Blueprint(weight: 0.40, offset: -0.20, tearScale: 0.82, neck: 0.52, bow: -0.5),
-        Blueprint(weight: 0.30, offset: 0.34, tearScale: 0.74, neck: 0.46, bow: 0.7),
+        // Thick trunks, medium cords and hair-thin threads, mixed across the bodies.
+        Blueprint(weight: 1.00, offset: 0.05, tearScale: 1.00, neck: 0.50, bow: 0.15),
+        Blueprint(weight: 0.78, offset: -0.46, tearScale: 0.95, neck: 0.44, bow: -1.0),
+        Blueprint(weight: 0.62, offset: 0.56, tearScale: 0.90, neck: 0.57, bow: 1.0),
+        Blueprint(weight: 0.46, offset: -0.78, tearScale: 0.85, neck: 0.50, bow: -1.3),
+        Blueprint(weight: 0.38, offset: 0.28, tearScale: 0.83, neck: 0.53, bow: 0.6),
+        Blueprint(weight: 0.28, offset: -0.22, tearScale: 0.79, neck: 0.47, bow: -0.5),
+        Blueprint(weight: 0.22, offset: 0.82, tearScale: 0.76, neck: 0.45, bow: 1.4),
+        Blueprint(weight: 0.17, offset: -0.62, tearScale: 0.73, neck: 0.55, bow: -0.9),
+        Blueprint(weight: 0.13, offset: 0.42, tearScale: 0.70, neck: 0.49, bow: 0.8),
+        Blueprint(weight: 0.10, offset: -0.06, tearScale: 0.67, neck: 0.52, bow: 0.3),
     ]
 
     private struct Node: Sendable {
@@ -152,7 +168,8 @@ public struct SymbioteSimulation: Sendable {
         let conserved = 0.8 * endRadius * (restLength / (restLength + d)).squareRoot()
         // Close to the tear distance thinning runs away.
         let late = 1 - 0.7 * smoothstep(0.8, 1.0, d / max(tearDistance, 1))
-        return max(conserved * late, minimumNeckRadius)
+        // Hair-thin strands may go below the usual floor, or they would all look alike.
+        return max(conserved * late, min(minimumNeckRadius, 0.45 * endRadius))
     }
 
     // MARK: Stepping
@@ -299,10 +316,10 @@ public struct SymbioteSimulation: Sendable {
 
             switch strands[index].phase {
             case .attached:
-                frame.ribbons.append(bridge(index, endRadius: endRadius, distance: distance, pinch: 0))
+                appendBridge(to: &frame, index, endRadius: endRadius, distance: distance, pinch: 0)
             case .pinching(let elapsed):
                 let pinch = 1 - pow(1 - elapsed / Self.pinchDuration, 0.7)
-                frame.ribbons.append(bridge(index, endRadius: endRadius, distance: distance, pinch: CGFloat(pinch)))
+                appendBridge(to: &frame, index, endRadius: endRadius, distance: distance, pinch: CGFloat(pinch))
             case .recoiling(let elapsed, let recoil):
                 let remaining = CGFloat(max(0, 1 - recoil.progress))
                 appendStub(
@@ -321,7 +338,9 @@ public struct SymbioteSimulation: Sendable {
     }
 
     /// A strand still joining both bodies: thick where it meets them, thin in between.
-    private func bridge(_ index: Int, endRadius: CGFloat, distance: CGFloat, pinch: CGFloat) -> [CGPoint] {
+    private func appendBridge(
+        to frame: inout SymbioteFrame, _ index: Int, endRadius: CGFloat, distance: CGFloat, pinch: CGFloat
+    ) {
         let blueprint = Self.blueprints[index]
         let line = centerline(strands[index].nodes.map(\.position))
         let total = max(line.lengths.last ?? 0, 0.001)
@@ -334,12 +353,20 @@ public struct SymbioteSimulation: Sendable {
             // Liquid-bridge profile: flares exponentially into both bodies.
             let flare = min(exp(-s / flareLength) + exp(-(total - s) / flareLength), 1)
             var radius = neck + (endRadius - neck) * flare
+            // Thicker strands are slightly lumpy, like something organic rather than a drawn line.
+            if endRadius >= Self.texturedRadius {
+                radius *= 1 + 0.16 * sin(s / (0.8 * endRadius) + CGFloat(index) * 1.7)
+            }
             // While pinching off, the strand closes to nothing at its break point.
             let fromBreak = (s - breakLength) / 9
             radius *= 1 - pinch * exp(-fromBreak * fromBreak)
             return radius
         }
-        return ribbon(line.points, radii)
+        frame.ribbons.append(ribbon(line.points, radii))
+        if endRadius >= Self.texturedRadius {
+            if let sheen = highlight(line.points, radii) { frame.highlights.append(sheen) }
+            if let rim = rimLight(line.points, radii) { frame.highlights.append(rim) }
+        }
     }
 
     /// One half of a torn strand, pulling back into its body with a whip and a bead at its tip.
@@ -363,8 +390,20 @@ public struct SymbioteSimulation: Sendable {
             radii.append((tipRadius + (endRadius - tipRadius) * taper) * fade)
         }
         frame.ribbons.append(ribbon(points, radii))
+        if endRadius >= Self.texturedRadius, let sheen = highlight(points, radii) {
+            frame.highlights.append(sheen)
+        }
         if let tip = points.last {
-            frame.droplets.append(.init(center: tip, radius: tipRadius * 1.25 * fade))
+            let radius = tipRadius * 1.25 * fade
+            frame.droplets.append(.init(center: tip, radius: radius))
+            if radius >= 2 {
+                // A glint on the bead, on the lit side.
+                let center = tip + Self.lightDirection * (radius * 0.38)
+                frame.highlights.append((0..<8).map { step in
+                    let angle = CGFloat(step) / 8 * 2 * .pi
+                    return center + CGPoint(x: cos(angle), y: sin(angle)) * (radius * 0.26)
+                })
+            }
         }
     }
 
@@ -409,6 +448,38 @@ public struct SymbioteSimulation: Sendable {
             return line.points[i - 1] + (line.points[i] - line.points[i - 1]) * t
         }
         return line.points.last ?? .zero
+    }
+
+    /// A thin sliver along the lit side of a strand, fading out toward both ends.
+    private func highlight(_ points: [CGPoint], _ radii: [CGFloat]) -> [CGPoint]? {
+        sliver(points, radii, side: 1, inset: 0.42, width: 0.2)
+    }
+
+    /// A fainter line along the far side, which makes the strand read as round.
+    private func rimLight(_ points: [CGPoint], _ radii: [CGFloat]) -> [CGPoint]? {
+        sliver(points, radii, side: -1, inset: 0.62, width: 0.07)
+    }
+
+    private func sliver(
+        _ points: [CGPoint], _ radii: [CGFloat], side: CGFloat, inset: CGFloat, width: CGFloat
+    ) -> [CGPoint]? {
+        let skip = points.count / 6
+        let range = skip..<(points.count - skip)
+        guard range.count >= 3 else { return nil }
+        var shifted: [CGPoint] = []
+        var widths: [CGFloat] = []
+        for i in range {
+            let tangent = (points[min(i + 1, points.count - 1)] - points[max(i - 1, 0)]).normalized
+            var normal = CGPoint(x: -tangent.y, y: tangent.x)
+            if normal.x * Self.lightDirection.x + normal.y * Self.lightDirection.y < 0 {
+                normal = normal * -1
+            }
+            normal = normal * side
+            let t = CGFloat(i - range.lowerBound) / CGFloat(range.count - 1)
+            shifted.append(points[i] + normal * (radii[i] * inset))
+            widths.append(max(radii[i] * width * sin(CGFloat.pi * t), 0.12))
+        }
+        return ribbon(shifted, widths)
     }
 
     /// The outline of a curve with a radius at every point: one side forward, the other back.

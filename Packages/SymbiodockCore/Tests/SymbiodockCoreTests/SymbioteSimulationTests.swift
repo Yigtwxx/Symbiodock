@@ -28,7 +28,9 @@ struct SymbioteSimulationTests {
         hold(&simulation, at: 40, for: 0.5)
 
         let frame = simulation.frame
-        #expect(frame.ribbons.count == 5)
+        #expect(frame.ribbons.count == 10)
+        // Only the thicker strands carry a sheen.
+        #expect(!frame.highlights.isEmpty)
         #expect(frame.droplets.isEmpty)
         #expect(frame.ribbons.allSatisfy { polygon in
             polygon.count >= 6 && polygon.allSatisfy { $0.x.isFinite && $0.y.isFinite }

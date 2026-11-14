@@ -213,20 +213,24 @@ Two parts: a simulation and a renderer.
 - Input per step: root point (where the island was attached), island point (where it
   is now), `dt`. It steps internally at a fixed 1/240 s, so the result does not depend
   on the display's frame rate.
-- Five strands of different thickness attach across both bodies. Each is a chain of
+- Ten strands attach across both bodies, from thick trunks to hair-thin threads
+  (the owner asked for more strands of mixed thickness on 2026-11-14). Each is a chain of
   6 nodes; the interior nodes chase a rest curve with a critically damped spring, so
   the strand lags behind the pointer like syrup. The rest curve sags sideways while
   the strand is short and straightens as it is pulled taut.
 - Thickness: a liquid-bridge profile, thick where the strand flares into a body and
   thin in between. The neck follows volume conservation (`∝ √(L₀ / (L₀ + d))`), thins
   faster in the last fifth before its tear distance, and never grows with distance.
-- Tearing: the main strand tears at 120 pt; thinner strands tear earlier (74–94 % of
+- Tearing: the main strand tears at 120 pt; thinner strands tear earlier (67–95 % of
   that), so the goo comes apart strand by strand. A tearing strand pinches shut at
   its break point for 70 ms, then splits into two stubs that whip and pull back into
   their bodies, each with a bead at its tip. `isTorn` becomes true when the main
   strand starts to break; `isFinished` when nothing is left to draw.
-- Output (`SymbioteFrame`): closed polygons (one per strand or stub) and droplets
-  (center, radius).
+- Texture, kept simple (owner's request): the thicker strands are slightly lumpy
+  along their length, carry a sheen on the side facing the light (up and to the
+  left) and a fainter rim line on the far side; the bead at a stub's tip has a glint.
+- Output (`SymbioteFrame`): closed polygons (one per strand or stub), droplets
+  (center, radius) and highlight polygons for the sheen.
 
 `SymbioteCanvas` (SwiftUI `Canvas`, in the app):
 
@@ -234,7 +238,9 @@ Two parts: a simulation and a renderer.
   `.alphaThreshold(min: 0.5)` on top of `.blur(radius: 5)`: the metaball technique,
   which webs neighbouring strands together where they leave a body. On top, the same
   strands and bodies drawn crisp, because the filter swallows anything thinner than
-  its blur and rounds the bodies' corners.
+  its blur and rounds the bodies' corners; the highlights are filled in translucent
+  white between the crisp strands and the bodies. The bodies themselves stay flat
+  black.
 - At the notch the root shape is the notch rect itself, so the strands merge with the
   physical notch. At an edge or corner the root is a temporary blob at the old
   position that shrinks to nothing after the tear.

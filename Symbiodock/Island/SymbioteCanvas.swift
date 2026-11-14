@@ -17,12 +17,14 @@ struct SymbioteCanvas: View {
     var origin: CGPoint = .zero
 
     private static let blurRadius: CGFloat = 5
+    private static let sheenOpacity = 0.34
 
     var body: some View {
         // Built once per frame and filled in both layers.
         let strands = strandPaths()
         let ribbons = strands.ribbons.offsetBy(dx: -origin.x, dy: -origin.y)
         let droplets = strands.droplets.offsetBy(dx: -origin.x, dy: -origin.y)
+        let highlights = highlightPath().offsetBy(dx: -origin.x, dy: -origin.y)
         let root = root.offsetBy(dx: -origin.x, dy: -origin.y)
         let island = island.offsetBy(dx: -origin.x, dy: -origin.y)
         return Canvas(opaque: false, colorMode: .nonLinear, rendersAsynchronously: false) { context, _ in
@@ -39,10 +41,21 @@ struct SymbioteCanvas: View {
             }
             context.fill(ribbons, with: .color(.black))
             context.fill(droplets, with: .color(.black))
+            // A faint wet sheen on the thicker strands; the bodies stay flat and cover its ends.
+            context.fill(highlights, with: .color(.white.opacity(Self.sheenOpacity)))
             context.fill(root, with: .color(.black))
             context.fill(island, with: .color(.black))
         }
         .allowsHitTesting(false)
+    }
+
+    private func highlightPath() -> Path {
+        var path = Path()
+        for polygon in frame.highlights {
+            path.addLines(polygon)
+            path.closeSubpath()
+        }
+        return path
     }
 
     /// Ribbons and droplets as one path each. Kept apart because a nonzero fill can punch a hole
