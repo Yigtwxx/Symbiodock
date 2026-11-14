@@ -11,6 +11,7 @@ struct AgentLabelsTests {
         #expect(AgentLabels.duration(3600) == "1h 0m")
         #expect(AgentLabels.duration(3600 + 4 * 60) == "1h 4m")
         #expect(AgentLabels.duration(.infinity) == "<1m")
+        #expect(AgentLabels.duration(1e300) == "87600h 0m")
     }
 
     @Test func statusLabels() {

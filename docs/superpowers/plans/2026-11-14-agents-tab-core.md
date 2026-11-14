@@ -202,6 +202,7 @@ struct AgentLabelsTests {
         #expect(AgentLabels.duration(3600) == "1h 0m")
         #expect(AgentLabels.duration(3600 + 4 * 60) == "1h 4m")
         #expect(AgentLabels.duration(.infinity) == "<1m")
+        #expect(AgentLabels.duration(1e300) == "87600h 0m")
     }
 
     @Test func statusLabels() {
@@ -452,7 +453,8 @@ public enum AgentLabels {
     /// 30 → "<1m", 125 → "2m", 3840 → "1h 4m".
     public static func duration(_ interval: TimeInterval) -> String {
         guard interval.isFinite, interval >= 60 else { return "<1m" }
-        let minutes = Int(interval / 60)
+        // Clamp first: Int(_:) traps for a huge finite value (ten years of minutes is plenty).
+        let minutes = Int(min(interval / 60, 5_256_000))
         return minutes < 60 ? "\(minutes)m" : "\(minutes / 60)h \(minutes % 60)m"
     }
 
