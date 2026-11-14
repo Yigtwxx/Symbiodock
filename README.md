@@ -27,4 +27,7 @@ The v1 design is described in
 
 ## License
 
-[MIT](LICENSE)
+Copyright (C) 2026 Yigtwxx
+
+Symbiodock is free software, licensed under the
+[GNU General Public License v3.0](LICENSE).
