@@ -42,21 +42,21 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 
 ## Git
 
-- Bu projede sahibi açıkça izin verdi: iş parça parça commit edilir ve push edilir.
-  PR açma, merge ve force-push için yine sor.
+- Bu projede sahibi açıkça izin verdi: iş parça parça commit edilir ve PR açmadan
+  doğrudan `main`'e push edilir (2026-11-14). Force-push için yine sor.
 - Conventional Commits; başlık en fazla 72 karakter, emir kipi, gövdede "neden".
 - Secret, `.env`, anahtar dosyaları asla commit edilmez.
 
 ## Durum
 
-- Depo açıldı; `main` üzerinde yalnızca README ve .gitignore var.
-- `docs/v1-design` branch'inde: tasarım dokümanı, bu dosya, LICENSE, README güncellemesi.
+- Depo açıldı; tasarım dokümanı, bu dosya, LICENSE ve README `main` üzerinde.
 - Uygulama kodu yok. Xcode projesi yok.
+- Sahibi Xcode'u indiriyor (2026-11-14); kurulduğu `xcodebuild -version` ile doğrulanmalı.
 
 ## Sıradaki adımlar
 
 1. Sahibi tasarım dokümanını gözden geçirir.
-2. Xcode kurulur (şu an yalnızca Command Line Tools var; `xcodebuild` çalışmıyor).
+2. Xcode kurulumu biter (indirme sürüyor; o zamana kadar `xcodebuild` çalışmıyor).
 3. Milestone 0 ve 1 için uygulama planı yazılır (`superpowers:writing-plans`), sonra
    uygulanır. Planlar milestone başına yazılır, çünkü milestone 2 bir denemenin
    sonucuna bağlı.
