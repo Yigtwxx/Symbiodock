@@ -48,7 +48,8 @@ final class OverlayController {
         self.onOpenSession = onOpenSession
         session.onCatch = {
             Self.dragLog.notice("strands caught a surface")
-            Self.haptic(.alignment)
+            // The firmest pattern AppKit offers; `.alignment` was too faint to notice.
+            Self.haptic(.levelChange)
         }
     }
 
@@ -342,7 +343,6 @@ final class OverlayController {
         let wasDetached = state.phase == .detached
         // Strands holding a surface decide where the island goes; otherwise the nearest place.
         let held = session.heldSurface
-        let wasCaught = session.hasCaughtSurface
         let resolved = SnapResolver.anchor(
             forRelease: session.bodyCenter, attachedTo: held, notch: geometry.notch,
             visibleFrame: geometry.visibleFrame)
@@ -351,8 +351,9 @@ final class OverlayController {
         Self.dragLog.notice("drag ended; detached: \(wasDetached), held: \(held != nil)")
         if wasDetached {
             AnchorStore.save(state.anchor)
-            // An island already caught by its strands gave its tick when they took hold.
-            if !wasCaught { Self.haptic(.alignment) }
+            // The island sticks now, caught or not: a firm tick while the finger is still on
+            // the trackpad. A caught island also ticked when its strands took hold.
+            Self.haptic(.levelChange)
         }
         // The glide needs no clicks; give the display back at once.
         setAcceptsMouse(false)

@@ -159,11 +159,6 @@ final class DragSession {
         return reach.surface
     }
 
-    /// True once the main strand has taken hold of `heldSurface` (the tick has been given).
-    var hasCaughtSurface: Bool {
-        heldSurface != nil && reach?.hasCaught == true
-    }
-
     /// The pointer let go: glide into `frame`, the island's place at `anchor`.
     func settle(into frame: CGRect, anchor: IslandAnchor) {
         let center = CGPoint(x: frame.midX, y: frame.midY)
