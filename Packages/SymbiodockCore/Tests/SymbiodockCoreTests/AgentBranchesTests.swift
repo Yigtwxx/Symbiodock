@@ -61,4 +61,29 @@ struct AgentBranchesTests {
         #expect(AgentBranch.subagent(sub("x", at: 0)).id == "s:x")
         #expect(AgentBranch.more(2).id == "more")
     }
+
+    @Test func aToneIsTheSameInEveryRun() {
+        // FNV-1a, not `hashValue`, which changes from one launch to the next.
+        #expect(AgentBranches.tone(of: "a", count: 3) == 1)
+        #expect(AgentBranches.tone(of: "c", count: 3) == 0)
+        #expect(AgentBranches.tone(of: "x", count: 3) == 2)
+        #expect(AgentBranches.tone(of: "anything", count: 1) == 0)
+    }
+
+    @Test func linesNeverShareATone() {
+        // "a" and "b" both hash to tone 1; "b" passes to the next free one.
+        let lines = [AgentBranch.subagent(sub("a", at: 1)), .subagent(sub("b", at: 2)), .subagent(sub("c", at: 3))]
+        #expect(AgentBranches.tones(for: lines, count: 3) == [1, 2, 0])
+    }
+
+    @Test func aSubagentKeepsItsToneWhenOthersJoinBelow() {
+        let a = AgentBranch.subagent(sub("a", at: 1))
+        #expect(AgentBranches.tones(for: [a], count: 3) == [1])
+        #expect(AgentBranches.tones(for: [a, .subagent(sub("x", at: 2))], count: 3) == [1, 2])
+    }
+
+    @Test func theCountLineHasNoTone() {
+        let lines = [AgentBranch.subagent(sub("c", at: 1)), .more(4)]
+        #expect(AgentBranches.tones(for: lines, count: 3) == [0, nil])
+    }
 }

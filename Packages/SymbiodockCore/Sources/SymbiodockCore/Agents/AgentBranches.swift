@@ -63,6 +63,34 @@ public enum AgentBranches {
         return lines + [.more(shown.count - kept)]
     }
 
+    /// A subagent's own tone among `count`, from its id: FNV-1a, so the same in every run.
+    public static func tone(of id: String, count: Int) -> Int {
+        guard count > 1 else { return 0 }
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in id.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 0x0000_0100_0000_01b3
+        }
+        return Int(hash % UInt64(count))
+    }
+
+    /// The tone of each line's dot. A subagent takes its own tone unless a line above has
+    /// it; then the next free one, so that up to `count` lines never share a colour. The
+    /// count line has none.
+    public static func tones(for lines: [AgentBranch], count: Int) -> [Int?] {
+        guard count > 0 else { return lines.map { _ in nil } }
+        var taken = Set<Int>()
+        return lines.map { line in
+            guard case .subagent(let subagent) = line else { return nil }
+            var pick = Self.tone(of: subagent.id, count: count)
+            if taken.count < count {
+                while taken.contains(pick) { pick = (pick + 1) % count }
+            }
+            taken.insert(pick)
+            return pick
+        }
+    }
+
     private static func isActive(_ state: AgentRowState) -> Bool {
         switch state {
         case .working, .needsInput: true
