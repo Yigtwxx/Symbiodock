@@ -4,6 +4,9 @@ Date: 2026-11-14
 Status: approved by the owner on 2026-11-14.
 Extends: `2026-11-14-symbiodock-v1-design.md` (sections 5.3, 5.4, 5.8, 5.9) and
 `2026-11-14-side-docking-design.md`.
+Amended by: `2026-11-15-subagent-branches-design.md` (subagents as branches, open size
+600 × 150, amber `#FFD60A` instead of red for needs input, scans woken by session file
+changes).
 
 ## 1. Goal
 

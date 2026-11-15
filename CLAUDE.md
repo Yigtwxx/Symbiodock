@@ -42,14 +42,17 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 | Platform simgesi | Yalnızca dikey şeritte. Music/Spotify: uygulama simgesi. Tarayıcı: Safari ve Chrome'a AppleScript ile sekmeler sorulur, YouTube/Kick/Twitch logosu gösterilir (Simple Icons, CC0); izin yoksa tarayıcı simgesi (2026-11-14) | Sahibi: "yt ise yt"; sistem yalnızca tarayıcıyı söylüyor, site için Automation izni şart ve sahibi onayladı |
 | Sekmeler | Açık adada sekme şeridi: `Agents` ve `Media`. Sıra sağ tık menüsünde `First tab` ile seçilir ve saklanır; varsayılan `Agents` birinci. Hover'da birinci sekme açılır; bir agent ilgi bekliyorsa `Agents` açılır (2026-11-14) | Sahibi: "sekmeler halinde olsun... kullanıcı seçebilsin hangisini 1 hangisini 2" |
 | AI agent oturumları | Yalnızca dosya ve süreç listesi okunur; hook yok, hiçbir aracın dizinine yazılmaz. Claude Code ve Codex tam durumla; Gemini CLI, Cursor Agent, OpenCode, Aider, Copilot CLI süreç düzeyinde (`Running`). Satıra tıklayınca oturumun uygulaması öne gelir; adadan cevap verilmez (2026-11-14) | Sahibi: "hook veya herhangi bir hata olmasın"; "hepsi olsun, geri dönüş yaparlar biz düzeltiriz" (spec: `2026-11-14-agents-tab-design.md`) |
-| Agent ilgi belirteci | Soru ya da izin bekleyen oturum adayı kendiliğinden açmaz. Kapalı adada durum işareti (kırmızı `#FF4D4F` halka, "kapıyı çalan" nokta) ve kenar ışığı; biten oturum için nane yeşili onay işareti, `Agents` sekmesi açılınca silinir (2026-11-14) | Sahibi: "direkt açılmasın, belirtici bir ibare olsun"; düz kırmızı/yeşil noktayı "çok basic" buldu; renk mercandan kırmızıya çekildi, çünkü pet'ler araç renginde ve Claude turuncusuyla karışmasın ("soru bekliyor kısmını başka bir renk yaparız") |
+| Agent ilgi belirteci | Soru ya da izin bekleyen oturum adayı kendiliğinden açmaz. Kapalı adada durum işareti (amber `#FFD60A` halka, "kapıyı çalan" nokta; 2026-11-15'e kadar kırmızı `#FF4D4F`) ve kenar ışığı; biten oturum için nane yeşili onay işareti, `Agents` sekmesi açılınca silinir (2026-11-14) | Sahibi: "direkt açılmasın, belirtici bir ibare olsun"; düz kırmızı/yeşil noktayı "çok basic" buldu; renk mercandan kırmızıya çekildi, çünkü pet'ler araç renginde ve Claude turuncusuyla karışmasın ("soru bekliyor kısmını başka bir renk yaparız"); 2026-11-15 ambere: "soru rengi kırmızı olmasın ya sanki fail olmuş gibi duruyor" |
 | Agents listesi | Açık adada aynı anda en fazla 2 oturum alt alta görünür, fazlası aşağı kaydırılır (2026-11-14) | Sahibi: "alt alta gözüksün max 2 tane gözüksün aşağıya kaydırılabilsin" |
 | Araç pet'leri | Her araç, tanındığı figürle ve kendi renginde gösterilir (Claude Code: yuvarlak yıldız biçimli tombul yaratık, iki küçük dik göz, iki küçük ayak; Codex: maviden mora geçen tombul bulut, üstünde beyaz parlayan `>_`, bacak yok; Gemini: yıldız, Cursor: küp, OpenCode: terminal penceresi, Aider: A, Copilot: gözlüklü kafa). Pet, 21 ince dikey çizgiden oluşan bir karedir; figür, çizgilerin renginin çizgi boyunca açılıp koyulaşmasıyla görünür. Tonlar bir resimden değil, sol üstten aydınlatılan küçük bir kabartma modelinden hesaplanır. Çalışırken çizgiler yalnızca çok az uzayıp kısalır. Logo dosyası paketlenmez (2026-11-14/15) | Sahibinin tarifi: ElevenLabs reklamı, "ekran tamamen çizgilerden oluşuyor... çubukların rengi değişerek yüz silüeti olduğu anlaşılıyordu ve burunları yanakları filan derinlik vardı". Önceki denemelere tepkileri: 7 kalın çubuk "çok basit", üç düz tonlu derinlik "iyi gibi", ilk kabartma "renkler çok soluk... o hissiyatı bi tık azalt ama çok azıcık". Hareket: "minik minik uzayıp küçülsün... gözü yormasın". Codex ve Claude figürü için sahibi bir Instagram videosunu (@canwebuildthis) fikir olarak gösterdi: "bacakları olmasın ama gövdesi bu şekilde olsun (tıpa tıp benzetme, sadece fikir olsun)"; Codex için "çok iyi oldu" dedi |
 | Pet renkleri | Her pet tek renk değil; rengi sol üstten sağ alta geçişlidir (Claude: şeftali→turuncu→kiremit, Codex: mavi→mor, Gemini: mavi→mor→pembe...) (2026-11-15) | Sahibi: "her pet tek renk olmak zorunda değil, renk geçişleri olabilir, hem daha gerçekçi hem daha estetik durur" |
 | Çentiği saran ışık | Kanatları görünen ada gerçek çentikten 2 pt uzundur (`IslandLayout.notchLip`), böylece kenar ışığı çentiğin altından kesintisiz geçer. Kaba durursa 0 yapılır ve ışık ortada kesilir (2026-11-15) | Sahibi: "gerçek çentiğin kalınlığı 10px ise 11px yapalım, o kırmızı ışık kesintisiz geçsin... kaba durursa eskisi gibi yaparız" |
 | Animasyon maliyeti | Hiçbir görünüm istirahatte kare kare çizilmez: dönen yay, vuruşlar ve halkalar, ışığın nefesi ve geçen parlaklık, evcil hayvanın dalgası ve ses çubukları Core Animation'da çalışır; anahtar kareler çekirdekteki testli formüllerden örneklenir (2026-11-15) | Ölçüm: 0,35 sn'den sık yeniden çizim tam ekran panelin güncelleme döngüsünü açık tutuyor, ~%5 çekirdek. Ara sürümde elle yazılmış zamanlayıcı aynı anı tekrar verip ana iş parçacığını kilitledi; sahibi "üstüne gelince büyümüyor" diye bildirdi |
 | Pet hareketi | Çalışan pet soldan sağa derinlikte bir Meksika dalgası yapar: tepe geçen çizgi %10 büyür ve tam renkte görünür, bekleyenler %82'de durur; beyaz eklenmez, hiçbir şey yukarı aşağı oynamaz. Soru bekleyen pet durur; zıplama yoktur. Dalga Core Animation'da çalışır (2026-11-15; önceki "minik kıpırtı" ve zıplama kaldırıldı) | Sahibi: "soldan sağa Meksika dalgası gibi dalgalansın, çalıştığı anlaşılır"; "yukarıya aşağıya değil de derinlik açısından yapsak"; zıplama için "kötü bir düşünce"; beyaz parlama için "beyaz bi şey geçiyor ya o olmasın" |
-| Açık ada genişliği | 540 pt (önce 480), yükseklik 134 (2026-11-15) | Sahibi: "biraz daha uzun gözüksün, 540 yap" |
+| Açık ada boyutu | 600 × 150 pt; yan kenarda 600 × 170, şeritten kısa olamaz (2026-11-15; önce 540 × 134, ondan önce 480 genişlik) | Sahibi: "biraz daha uzun gözüksün, 540 yap"; sonra "adanın boyunu da uzatalım biraz kısa geldi gözüme" deyip 600 × 150 seçti |
+| Alt ajan dalları | Bir oturumun alt ajanları satırının altında çatal gibi dallanır: `├─`/`└─`, ad ve süre; en fazla 3 satır, fazlası `+N more`. Biten alt ajan, ebeveynin turu bitene kadar soluk ve nane yeşili `Done ✓` ile kalır; çalışan önce gelir. Ada sabit boyda kalır, dallı oturum listeyi doldurursa kaydırılır. Claude Code: `subagents/agent-*.meta.json` (`finished`), durdurulan için ebeveyn transcript'indeki bildirim; Codex: `thread_spawn` rollout'ları. Kapalı adada gösterge yok (2026-11-15) | Sahibi: "subagent filan çalışıyorsa fork gibi gözüksün alt kısmında" (spec: `2026-11-15-subagent-branches-design.md`) |
+| Anında temizleme | `~/.claude/sessions` FSEvents ile izlenir; dosya değişince tarama hemen başlar (iki tarama arası en az 0,25 sn). Ölçüm: dosya yazılınca 0,22 sn, silinince 0,015 sn (2026-11-15) | Sahibi: "soruya cevap verdikten 1 2 sn sonra soru efekti gidiyor"; Claude Code durumu 0,1 sn'de yazıyordu, ada 3 sn'de bir bakıyordu |
+| Çentikteki ışık efektleri | Kenar ışığına, çentiğin altından geçen çizgiye ve sağdaki noktanın efektine dokunulmaz (2026-11-15) | Sahibi: "çentikteki ışık efektlerine karışma şimdilik"; ne istediğini sonra ayrıntılı anlatacak |
 | Pet parlaklığı | Gölgelendirme tabanı yükseltildi (en soluk ton %36), renkler biraz daha parlak (2026-11-15) | Sahibi: "renkleri bi tık daha parlatalım ama çok abartmadan" |
 | Mimari | Spec bölüm 4-5 | Sahibi onayladı |
 | Proje üretimi | XcodeGen (`project.yml`), `.xcodeproj` commit edilmez | Komut satırından üretilebilir ve diff'i okunur |
@@ -63,7 +66,7 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 | Girişte başlatma | v1'de var, ada menüsünde aç/kapa (milestone 5) | Sahibinin tercihi |
 | Duraklatılmış parça | Kapalı adadaki kanatlar duraklatmadan 10 sn sonra gizlenir; açık ada parçayı göstermeye devam eder (2026-11-14) | Sahibinin seçimi; duraklatılmış bir sekme çentiği gün boyu kaplamasın |
 | Menü | Menü çubuğunda öğe yok; menü adaya sağ tıkla açılır (2026-11-14) | Sahibi menü çubuğunda ikon istemedi; ileride başka özellikler için oraya öğe gelebilir |
-| Geri bildirim | Kopma, liflerin bir yüzeye tutunması ve (tutunmadan) bırakma anında trackpad titreşimi, ses yok | Sahibinin tercihi |
+| Geri bildirim | Kopma, liflerin bir yüzeye tutunması ve bırakma (tutunmuş ya da değil) anında trackpad titreşimi, hepsi `.levelChange`; ses yok (2026-11-15: tutunma `.alignment`'tan güçlendirildi, tutunmuşken bırakmaya titreşim eklendi; AppKit'te şiddet ayarı yok) | Sahibinin tercihi; 2026-11-15: "yapışırkenki titreşim efekti de yok gibi... varsa hissiyatını arttır biraz" |
 | Arayüz dili | Tamamen İngilizce; çeviri altyapısı kurulmaz | Dil desteği çok sonra gelecek |
 | v1 sonrası widget'lar | İlki: sekmeler ve `Agents` sekmesi (2026-11-14). Sonrakiler kararlaştırılmadı | Sahibi sonra söyleyecek; sorma, o açana kadar bekle |
 | Depo | `Yigtwxx/Symbiodock`, public | Sahibinin isteği |
@@ -108,6 +111,13 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 - Bilinen, bırakılanlar: kanatlar belirirken imleç çentiğin hemen yanındaysa ada kendiliğinden
   açılabilir (medya yolunda da böyle); seviye çubukları Reduce Motion'ı dikkate almıyor
   (v1'den beri).
+- **Faz 8 (alt ajan dalları, 600 × 150 ada, amber soru, anında temizleme, güçlü titreşim): kod
+  tamam ve `main`'de (2026-11-15).** 342 çekirdek testi geçiyor. Canlı görülenler: oturum
+  dosyası yazılınca ada 0,22 sn'de, silinince 0,015 sn'de fark ediyor; dallar ekran dışı
+  görüntülerde doğru (`expanded-agents*.png`). Canlı denerken bulunan çökme düzeltildi
+  (FSEvents geri çağrısı ana aktöre bağlı sayılıyordu). Denenmeyenler: gerçek alt ajanlarla
+  dallar, soru cevaplanınca amber'in gidişi gözle, titreşimin hissi, Codex alt ajanları. Elle
+  kontrol listesi `docs/superpowers/plans/2026-11-15-subagent-branches.md` sonunda (16 madde).
 - Xcode 27.2 ve XcodeGen 2.45.4 kurulu, `xcode-select` ile seçili.
 
 ## "Yapılacakları yap" denince
@@ -178,6 +188,9 @@ v1 bunlarla biter.
       `docs/superpowers/plans/2026-11-14-agents-tab-core.md` (çekirdek, 6 görev), sonra
       `docs/superpowers/plans/2026-11-14-agents-tab-app.md` (uygulama, 6 görev; elle kontrol
       listesi sonunda).
+- [x] **Faz 8 — Alt ajan dalları, büyük ada, amber soru, anında temizleme.** Kod tamam, elle
+      kontrol bekliyor. Spec: `docs/superpowers/specs/2026-11-15-subagent-branches-design.md`.
+      Plan: `docs/superpowers/plans/2026-11-15-subagent-branches.md` (elle kontrol listesi sonunda).
 
 Sonrası (başka widget'lar, kişiselleştirme, dil desteği, imzalama, site) için sahibi ayrıca
 yön verecek; kendiliğinden başlama.
@@ -206,6 +219,12 @@ spec'te yazılı.
   Copilot CLI `~/.copilot/session-state/<uuid>/events.jsonl` içinde tur ve izin olaylarını
   kısmen yazıyor; Gemini CLI ve Aider yalnızca mesajları yazıyor; Cursor Agent kapalı kaynak.
   Bu araçlardan biri kurulursa önce gerçek dosyalarına bakılır.
+- Alt ajanlar (2026-11-15'te denendi, Claude Code 2.1.325): `subagents/agent-<id>.meta.json`
+  çalışırken `finished` içermiyor, normal bitince `finished: true` ekleniyor; `TaskStop` ile
+  durdurulana hiç yazılmıyor, ebeveyn transcript'ine `<task-id>…</task-id>` bildirimi düşüyor.
+  Denenmeyenler: Esc ile kesilen ön plan alt ajanı için ebeveynde `tool_result` yazıldığı
+  (yedek: 10 dk sessizlik kuralı), iç içe alt ajanın (spawn depth 2) aynı klasöre yazdığı,
+  Codex'te bir seviyeden derin alt ajanlar.
 - Claude Code oturum dosyasının canlılığı süreç listesinden karar verilir (süreç kullanıcının
   olmalı ve dosyanın son yazımından en geç 2 sn sonra başlamış olmalı). Çok uzun süre hiç
   durum değiştirmeyen canlı bir oturumun dosyası başka nedenle yeniden yazılmıyorsa bu kural
