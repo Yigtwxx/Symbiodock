@@ -102,6 +102,20 @@ struct ClaudeCompactionReaderTests {
         #expect(isSameInstant(ClaudeCompactionReader.compactionMark(inTail: data), .ended(boundaryDate)))
     }
 
+    @Test func aLongTrailAfterTheBoundaryStillEnds() {
+        // Real manual compactions write 312–441 KB after the boundary; this is 40 × ~6 KB.
+        let bigAttachment =
+            #"{"type":"attachment","uuid":"t2","timestamp":"2026-11-15T20:42:38.900Z","attachment":{"type":"hook","output":"\#(String(repeating: "x", count: 6 * 1024))"}}"#
+        let trail = Array(repeating: bigAttachment, count: 40)
+        let data = tail(
+            [assistant("a1"), snapshot("cmd"), boundary(trigger: "manual"), summary, caveat, command,
+             stdout] + trail + metadata)
+        #expect(data.count > 200 * 1024)
+        // The reader reads tailSize bytes; the measured 441 KB must fit in it.
+        #expect(ClaudeCompactionReader.tailSize > 441 * 1024)
+        #expect(isSameInstant(ClaudeCompactionReader.compactionMark(inTail: data), .ended(boundaryDate)))
+    }
+
     @Test func anEndCountsForAShortWhileOnly() {
         let end = boundaryDate
         #expect(ClaudeCompactionReader.isCompacting(.ended(end), now: end.addingTimeInterval(0.1)))

@@ -15,8 +15,11 @@ public enum CompactionMark: Equatable, Sendable {
 /// `/compact` user record (2.1.303–2.1.318). Spec:
 /// `2026-11-15-finish-seal-and-compacting-design.md`, section 5.1.
 public enum ClaudeCompactionReader {
-    /// How much of the transcript's end is read; the mark is always among the last records.
-    public static let tailSize = 64 * 1024
+    /// How much of the transcript's end is read. The records after a manual compaction's
+    /// boundary measured 312–441 KB (11 compactions, 2026-11-16), so a smaller tail never
+    /// reaches the boundary and the end rule never fires. The start mark is always near the
+    /// end, so a normal turn still stops after a line or two.
+    public static let tailSize = 1024 * 1024
     /// How old a mark must be before it counts: a normal prompt's snapshot is followed by
     /// its user record within milliseconds.
     public static let settleTime: TimeInterval = 1

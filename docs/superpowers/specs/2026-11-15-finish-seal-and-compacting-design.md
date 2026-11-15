@@ -129,7 +129,7 @@ Evidence (this Mac, 2026-11-15):
   compact.") and the status never changes: nothing to show.
 
 Rule, in a new core reader `ClaudeCompactionReader.compactionMark(inTail:) -> CompactionMark?`,
-asked only when the session file says `busy`, over the last 64 KB of the transcript:
+asked only when the session file says `busy`, over the last 1 MB of the transcript (the records after a manual boundary measured 312–441 KB, 11 compactions, 2026-11-16):
 
 1. Walk the lines from the end, skipping every record that is not `user`, `assistant`,
    `system`, `attachment` or a `file-history-snapshot` that is not an update. (New

@@ -34,7 +34,7 @@
 - Test: `Packages/SymbiodockCore/Tests/SymbiodockCoreTests/ClaudeCompactionReaderTests.swift`
 
 **Interfaces:**
-- Produces: `ClaudeCompactionReader.tailSize: Int` (64 KB), `ClaudeCompactionReader.settleTime: TimeInterval` (1), `ClaudeCompactionReader.compactionStart(inTail: Data) -> Date?`, `ClaudeCompactionReader.isCompacting(start: Date, now: Date) -> Bool`.
+- Produces: `ClaudeCompactionReader.tailSize: Int` (1 MB), `ClaudeCompactionReader.settleTime: TimeInterval` (1), `ClaudeCompactionReader.compactionStart(inTail: Data) -> Date?`, `ClaudeCompactionReader.isCompacting(start: Date, now: Date) -> Bool`.
 
 - [ ] **Step 1: Write the failing tests**
 
