@@ -39,16 +39,21 @@ final class SessionFolderWatcher {
         guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
               isDirectory.boolValue
         else { return false }
-        // The watcher outlives its stream (`stop()` ends it), so the relay needs no retain.
+        // The stream owns one retain of the relay, balanced by `sessionFolderReleased` when
+        // the stream is released, so a callback in flight during `stop()` never sees a freed relay.
+        let info = Unmanaged.passRetained(relay).toOpaque()
         var context = FSEventStreamContext(
-            version: 0, info: Unmanaged.passUnretained(relay).toOpaque(),
-            retain: nil, release: nil, copyDescription: nil)
+            version: 0, info: info,
+            retain: nil, release: sessionFolderReleased, copyDescription: nil)
         let flags = FSEventStreamCreateFlags(
             kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer)
         guard let stream = FSEventStreamCreate(
             kCFAllocatorDefault, sessionFolderChanged, &context, [path] as CFArray,
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 0.05, flags)
-        else { return false }
+        else {
+            Unmanaged<Relay>.fromOpaque(info).release()
+            return false
+        }
         FSEventStreamSetDispatchQueue(stream, queue)
         guard FSEventStreamStart(stream) else {
             FSEventStreamInvalidate(stream)
@@ -78,4 +83,10 @@ private func sessionFolderChanged(
 ) {
     guard let info else { return }
     Unmanaged<SessionFolderWatcher.Relay>.fromOpaque(info).takeUnretainedValue().fire()
+}
+
+/// Balances the stream's retain of the relay. File-level for the same reason as above.
+private func sessionFolderReleased(_ info: UnsafeRawPointer?) {
+    guard let info else { return }
+    Unmanaged<SessionFolderWatcher.Relay>.fromOpaque(info).release()
 }

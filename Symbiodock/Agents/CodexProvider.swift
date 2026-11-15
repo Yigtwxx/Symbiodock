@@ -51,7 +51,10 @@ actor CodexProvider: AgentSessionProvider {
                 if let subagent = CodexRolloutParser.subagent(
                     meta: meta, state: state, modified: stamp.modified, now: context.now)
                 {
-                    children.append((meta.id, subagent))
+                    // Two rollouts may carry the same subagent; keep the first.
+                    if !children.contains(where: { $0.id == meta.id }) {
+                        children.append((meta.id, subagent))
+                    }
                 }
                 continue
             }

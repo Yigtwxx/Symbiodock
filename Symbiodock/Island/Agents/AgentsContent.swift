@@ -196,6 +196,9 @@ private struct AgentBranchLines: View {
     /// The connector runs under the pet's centre: the row's padding and half the pet.
     private static let connectorX: CGFloat = 10 + 18
     private static let tick: CGFloat = 8
+    /// The pet (36 pt) sits in the 46 pt row, so its bottom is this far above the first
+    /// line; the first vertical starts that much higher to reach it.
+    private static let petGap: CGFloat = (46 - 36) / 2
     /// The trailing text ends where the row's label ends: the row's padding, the status
     /// mark and the spacing before it.
     private static let trailingInset: CGFloat = 10 + 14 + 10
@@ -210,15 +213,19 @@ private struct AgentBranchLines: View {
     var body: some View {
         VStack(spacing: 0) {
             ForEach(branches) { branch in
-                line(branch, isLast: branch.id == branches.last?.id)
+                line(
+                    branch, isFirst: branch.id == branches.first?.id,
+                    isLast: branch.id == branches.last?.id)
             }
         }
         .padding(.bottom, Self.bottomPadding)
     }
 
-    private func line(_ branch: AgentBranch, isLast: Bool) -> some View {
+    private func line(_ branch: AgentBranch, isFirst: Bool, isLast: Bool) -> some View {
         HStack(spacing: 6) {
-            Connector(x: Self.connectorX, tick: Self.tick, isLast: isLast)
+            Connector(
+                x: Self.connectorX, tick: Self.tick, isLast: isLast,
+                reach: isFirst ? Self.petGap : 0)
                 .stroke(.white.opacity(0.22), lineWidth: 1)
                 .frame(width: Self.connectorX + Self.tick, height: Self.lineHeight)
             label(branch)
@@ -268,10 +275,12 @@ private struct Connector: Shape {
     let x: CGFloat
     let tick: CGFloat
     let isLast: Bool
+    /// How far above the line's rect the vertical starts (up to the pet, for the first).
+    let reach: CGFloat
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        path.move(to: CGPoint(x: x, y: rect.minY))
+        path.move(to: CGPoint(x: x, y: rect.minY - reach))
         path.addLine(to: CGPoint(x: x, y: isLast ? rect.midY : rect.maxY))
         path.move(to: CGPoint(x: x, y: rect.midY))
         path.addLine(to: CGPoint(x: x + tick, y: rect.midY))

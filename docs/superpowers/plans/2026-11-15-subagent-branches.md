@@ -2335,7 +2335,8 @@ git push origin main
 6. The tab strip's dot is amber while a question is open.
 7. Answer the question: the amber look is gone in about a third of a second.
 8. Start two background subagents in a Claude Code session: two branches under its row, `├─` then `└─`, each with its name and time.
-9. Let one finish while the session still works: it turns dim with a mint `Done ✓` and moves below the working one.
+9. Let one finish: while the session still works, or when it was idle and wakes up to read the
+   result, the branch turns dim with a mint `Done ✓` below the working ones.
 10. Let the session finish its turn: the finished branches go.
 11. Stop a running subagent: its branch goes within a few seconds.
 12. Start four or more subagents: two branches and `+N more`.

@@ -69,7 +69,8 @@ A row's branches, in `AgentBranches.lines(for:state:turnStart:)`:
 
 1. Working subagents, oldest start first.
 2. Finished subagents, newest finish first, only while the row's state is `working` or
-   `needsInput` and only those that finished at or after the turn start. When the parent
+   `needsInput` and only those that finished at or after the turn start (or at most 10 s before it: a background
+   subagent's notification is what starts the turn). When the parent
    becomes idle, `finished` or `running`, they are gone.
 3. Three lines or fewer: all of them. More: the first two, then `more(N)` for the rest.
 

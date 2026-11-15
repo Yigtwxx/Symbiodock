@@ -65,6 +65,7 @@ public enum ClaudeSubagentParser {
             if meta.isBackground {
                 marker = "<task-id>\(id)</task-id>"
             } else if let toolUseID = meta.toolUseID, !toolUseID.isEmpty {
+                // Claude Code writes its JSONL without spaces; this marker relies on that.
                 marker = "\"tool_use_id\":\"\(toolUseID)\""
             } else {
                 continue

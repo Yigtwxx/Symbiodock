@@ -36,8 +36,13 @@ public enum AgentBranches {
     /// The most lines below one row.
     public static let maximumLines = 3
 
+    /// A subagent that finished this long before the turn began still counts for the turn:
+    /// its notification is what started the turn.
+    public static let finishedGrace: TimeInterval = 10
+
     /// Working subagents, oldest first; then, while the parent works or waits, the ones
-    /// that finished during its current turn, newest first. More than `maximumLines`:
+    /// that finished during its current turn (or just before it, `finishedGrace`), newest
+    /// first. More than `maximumLines`:
     /// the first lines and a count of the rest.
     public static func lines(
         for subagents: [AgentSubagent], state: AgentRowState, turnStart: Date?
@@ -48,7 +53,7 @@ public enum AgentBranches {
         var finished: [AgentSubagent] = []
         if let turnStart, isActive(state) {
             finished = subagents
-                .filter { $0.isFinished && $0.since >= turnStart }
+                .filter { $0.isFinished && $0.since >= turnStart.addingTimeInterval(-finishedGrace) }
                 .sorted { $0.since != $1.since ? $0.since > $1.since : $0.id < $1.id }
         }
         let shown = working + finished

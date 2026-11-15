@@ -188,10 +188,17 @@ struct AgentSessionBoardTests {
         var board = AgentSessionBoard()
         board.update([
             session("a", .working, since: 10, subagents: [
-                sub("early", finished: true, at: 5), sub("late", finished: true, at: 12),
+                sub("early", finished: true, at: -5), sub("late", finished: true, at: 12),
             ]),
         ])
         #expect(branchIDs(board) == ["late"])
+    }
+
+    @Test func aBackgroundSubagentThatEndedWhileIdleShowsDoneInTheTurnItStarts() {
+        var board = AgentSessionBoard()
+        board.update([session("a", .idle, since: 0, subagents: [sub("bg", at: 1)])])
+        board.update([session("a", .working, since: 32, subagents: [sub("bg", finished: true, at: 30)])])
+        #expect(branchIDs(board) == ["bg"])
     }
 
     @Test func finishedSubagentsGoWhenTheParentIdles() {

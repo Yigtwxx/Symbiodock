@@ -41,9 +41,12 @@ struct AgentBranchesTests {
 
     @Test func finishedBeforeTheTurnStartAreLeftOut() {
         let lines = AgentBranches.lines(
-            for: [sub("before", finished: true, at: 5), sub("at", finished: true, at: 10)],
+            for: [
+                sub("before", finished: true, at: -1), sub("grace", finished: true, at: 0),
+                sub("at", finished: true, at: 10),
+            ],
             state: .working, turnStart: base.addingTimeInterval(10))
-        #expect(ids(lines) == ["at"])
+        #expect(ids(lines) == ["at", "grace"])
     }
 
     @Test func finishedShowOnlyWhileTheParentIsActive() {

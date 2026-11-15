@@ -207,6 +207,20 @@ struct CodexRolloutParserTests {
             meta: root, state: CodexTurnState(isWorking: true, since: started), modified: now, now: now) == nil)
     }
 
+    @Test func aFinishedSubagentIsListedAsLongAsAWorkingThread() throws {
+        let meta = try #require(CodexRolloutParser.meta(fromHead: data([namedChildMeta])))
+        let now = Date(timeIntervalSince1970: 1_794_670_000)
+        func finished(agoSeconds: TimeInterval) -> AgentSubagent? {
+            let modified = now.addingTimeInterval(-agoSeconds)
+            return CodexRolloutParser.subagent(
+                meta: meta, state: CodexTurnState(isWorking: false, since: modified),
+                modified: modified, now: now)
+        }
+        #expect(finished(agoSeconds: 31 * 60) != nil)
+        #expect(finished(agoSeconds: 2 * 3600) != nil)
+        #expect(finished(agoSeconds: 2 * 3600 + 1) == nil)
+    }
+
     @Test func aSubagentHangsUnderTheListedThreadItDescendsFrom() {
         let parents = ["c": "b", "b": "a", "x": "y", "y": "x"]
         #expect(CodexRolloutParser.rootID(of: "c", parents: parents, listed: ["a"]) == "a")

@@ -146,7 +146,8 @@ public enum CodexRolloutParser {
             guard now.timeIntervalSince(modified) <= subagentQuietLimit else { return nil }
             return AgentSubagent(id: meta.id, title: title, isFinished: false, since: meta.started ?? state.since)
         }
-        guard now.timeIntervalSince(modified) <= idleListing else { return nil }
+        // Listed as long as Claude's finished subagents.
+        guard now.timeIntervalSince(modified) <= workingListing else { return nil }
         return AgentSubagent(id: meta.id, title: title, isFinished: true, since: state.since)
     }
 
