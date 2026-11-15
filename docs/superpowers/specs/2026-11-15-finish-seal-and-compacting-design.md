@@ -1,7 +1,7 @@
 # A Face ID-style finish, and a compacting session
 
 Date: 2026-11-15
-Status: design agreed with the owner on 2026-11-15; this written spec awaits their review.
+Status: approved by the owner on 2026-11-15.
 Extends: `2026-11-14-agents-tab-design.md` (sections 4, 6) and
 `2026-11-15-subagent-branches-design.md`.
 
@@ -54,8 +54,10 @@ wing at the notch, the left of a floating island, the top of a side strip. It la
 At the same time the right mark shows its existing mint check and ripple, unchanged.
 With Reduce Motion the seal is a still mint circle with a check, shown for 1.0 s.
 
-The effect is one-shot Core Animation (shape path, stroke and opacity keyframes);
-nothing animates after it.
+The effect plays once: SwiftUI's `keyframeAnimator` runs one time value from 0 to 1.7 s
+and the view draws the pose a tested core function (`AgentSealTiming.pose(at:)`) gives for
+it. It redraws only during those 1.7 s, like the check the mark already draws with a
+spring; nothing animates after it, so the rule about rest holds.
 
 ### 4.2 Settling (core)
 
@@ -130,7 +132,9 @@ asked only when the session file says `busy`, over the last 64 KB of the transcr
 1. Walk the lines from the end, skipping every record that is not `user`, `assistant`,
    `system`, `attachment` or a `file-history-snapshot` that is not an update. (New
    metadata types are skipped without being listed.)
-2. The first record left decides:
+2. A `file-history-snapshot` whose `messageId` is a record already in the tail is an
+   ordinary snapshot and is passed over too (2.1.303–2.1.318 write the `/compact` record
+   first and its snapshot after it). The first record left decides:
    - a `file-history-snapshot` whose `messageId` is no record's `uuid` in the tail →
      its timestamp (2.1.325);
    - a `user` record whose content is a plain string starting with `/compact` → its
@@ -203,6 +207,8 @@ Core (`swift test`):
   is not attention; compacting → idle is not a finish; compacting clears a finish.
 - `IslandState`: `settleFinished`; whether the compacting rim shows.
 - Pet motion: the band position over a period.
+- `AgentSealTiming`: the poses at the phase boundaries, and that the phases fit the
+  duration.
 
 App: frozen renders through `DebugRender` (seal at 0.2, 0.6, 1.0, 1.5 s; compacting at
 notch, side, corner and in the list), and `SYMBIODOCK_DEMO_AGENTS=compacting` beside the
