@@ -108,6 +108,10 @@ public struct AgentSessionBoard: Equatable, Sendable {
         rebuild(from: rows.map(\.session))
     }
 
+    /// A finish that has not been looked at yet, settled or not: the list keeps `Done ✓`
+    /// for it until `markSeen`.
+    public var hasUnseenFinish: Bool { !finishedIDs.isEmpty }
+
     public var attention: AgentAttention {
         var result = AgentAttention.none
         for row in rows {

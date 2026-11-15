@@ -171,6 +171,18 @@ struct AgentSessionBoardTests {
         #expect(board == before)
     }
 
+    @Test func anUnseenFinishLastsUntilMarkSeen() {
+        var board = AgentSessionBoard()
+        board.update([session("a", .working)])
+        #expect(!board.hasUnseenFinish)
+        board.update([session("a", .idle, since: 5)])
+        #expect(board.hasUnseenFinish)
+        board.settle("a")
+        #expect(board.hasUnseenFinish)
+        board.markSeen()
+        #expect(!board.hasUnseenFinish)
+    }
+
     @Test func markSeenForgetsSettledFinishes() {
         var board = AgentSessionBoard()
         board.update([session("a", .working)])

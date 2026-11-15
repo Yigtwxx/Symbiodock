@@ -43,7 +43,8 @@ struct ExpandedIsland: View {
         HStack(spacing: 0) {
             TabStrip(
                 order: state.tabOrder, selected: state.selectedTab,
-                attention: state.board.attention
+                attention: state.board.attention,
+                hasUnseenFinish: state.board.hasUnseenFinish
             ) { tab in
                 state.selectTab(tab)
             }

@@ -35,7 +35,7 @@ struct AgentFloatingFace: View {
                     .foregroundStyle(.white)
                     .lineLimit(1)
                 Spacer(minLength: 0)
-                AgentStatusMark(state: row.state)
+                AgentStatusMark(state: row.isSettled ? .idle : row.state)
             } else {
                 Image(systemName: "sparkles")
                     .font(.system(size: 11, weight: .semibold))
@@ -62,7 +62,7 @@ struct AgentSideFace: View {
                 AgentFacePet(row: row)
                 RotatedLine(text: row.session.title)
                     .foregroundStyle(.white)
-                AgentStatusMark(state: row.state)
+                AgentStatusMark(state: row.isSettled ? .idle : row.state)
             } else {
                 Image(systemName: "sparkles")
                     .font(.system(size: 11, weight: .semibold))
@@ -105,7 +105,8 @@ private struct AgentFacePet: View {
             FinishSeal(tool: row.session.tool, size: 24)
                 .id(row.id)
         } else {
-            AgentPet(tool: row.session.tool, state: row.state, size: 24)
+            // A settled finish has ended its mark: the plain pet, quiet.
+            AgentPet(tool: row.session.tool, state: row.isSettled ? .idle : row.state, size: 24)
         }
     }
 }

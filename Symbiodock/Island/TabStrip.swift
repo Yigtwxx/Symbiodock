@@ -6,6 +6,8 @@ struct TabStrip: View {
     let order: [IslandTab]
     let selected: IslandTab
     let attention: AgentAttention
+    /// A finish the user has not looked at yet, even after its effect ended.
+    var hasUnseenFinish = false
     let onSelect: (IslandTab) -> Void
 
     var body: some View {
@@ -24,10 +26,10 @@ struct TabStrip: View {
         }
     }
 
-    /// Whether the pip is showing on this tab's glyph: the agents want attention while
-    /// another tab is looked at.
+    /// Whether the pip is showing on this tab's glyph: the agents want attention, or hold
+    /// a finish not seen yet, while another tab is looked at.
     private func showsPip(_ tab: IslandTab) -> Bool {
-        tab == .agents && selected != .agents && attention != .none
+        tab == .agents && selected != .agents && (attention != .none || hasUnseenFinish)
     }
 
     /// What the pip says, for VoiceOver; empty while there is no pip.
