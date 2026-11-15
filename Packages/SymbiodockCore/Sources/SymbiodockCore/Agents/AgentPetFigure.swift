@@ -160,4 +160,32 @@ public enum AgentPetMotion {
         guard distance < waveWidth / 2 else { return 0 }
         return 0.5 * (1 + cos(2 * .pi * distance / waveWidth))
     }
+
+    /// How tall the crest of the downward wave is, as a share of the pet's height: as many
+    /// lines' worth as the crest across is wide.
+    public static let downBand = waveWidth / Double(AgentPetFigure.lineCount)
+    /// Where the downward crest's centre is when it enters (above the pet) and when it
+    /// leaves (below it), as shares of the pet's height from its top.
+    public static let downCrestRange: ClosedRange<Double> = (-downBand / 2)...(1 + downBand / 2)
+
+    /// Where the centre of the downward crest is at `time`, as a share of the pet's height
+    /// from its top; nil while the pet rests. A compacting pet's wave: the period and pace
+    /// of the wave across, running from top to bottom. It moves at an even pace, so two
+    /// keyframes (entry and exit) describe it exactly.
+    public static func downCrest(at time: TimeInterval) -> Double? {
+        var beat = time.truncatingRemainder(dividingBy: wavePeriod)
+        if beat < 0 { beat += wavePeriod }
+        guard beat < waveTravel else { return nil }
+        let span = downCrestRange.upperBound - downCrestRange.lowerBound
+        return downCrestRange.lowerBound + span * beat / waveTravel
+    }
+
+    /// How far forward the part of the pet at height `y` (0 top, 1 bottom) is at `time`:
+    /// 0 at rest, 1 at the crest; the same raised cosine as the wave across.
+    public static func waveDown(y: Double, at time: TimeInterval) -> Double {
+        guard let crest = downCrest(at: time) else { return 0 }
+        let distance = abs(y - crest)
+        guard distance < downBand / 2 else { return 0 }
+        return 0.5 * (1 + cos(2 * .pi * distance / downBand))
+    }
 }
