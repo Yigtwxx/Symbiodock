@@ -182,4 +182,20 @@ struct ClaudeSessionParserTests {
         ]
         #expect(!ClaudeSessionParser.isLive(pid: 4242, fileModified: written, among: reused))
     }
+
+    @Test func aBusySessionThatCompactsIsCompacting() throws {
+        let busy = try #require(ClaudeSessionParser.record(from: data("{\"pid\":1,\"status\":\"busy\"}")))
+        #expect(
+            ClaudeSessionParser.session(from: busy, prompt: nil, compacting: true, fallbackSince: fallback)?
+                .activity == .compacting)
+        // Only a busy session compacts.
+        let idle = try #require(ClaudeSessionParser.record(from: data("{\"pid\":1,\"status\":\"idle\"}")))
+        #expect(
+            ClaudeSessionParser.session(from: idle, prompt: nil, compacting: true, fallbackSince: fallback)?
+                .activity == .idle)
+    }
+
+    @Test func aTurnThatEndedWithABackgroundShellIsIdle() {
+        #expect(session("{\"pid\":1,\"status\":\"shell\"}")?.activity == .idle)
+    }
 }

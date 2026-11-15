@@ -13,6 +13,7 @@ public enum AgentAttention: Equatable, Sendable {
 public enum AgentRowState: Equatable, Sendable {
     case needsInput(prompt: String?)
     case working
+    case compacting
     case finished
     case running
     case idle
@@ -21,7 +22,7 @@ public enum AgentRowState: Equatable, Sendable {
     var rank: Int {
         switch self {
         case .needsInput: 0
-        case .working: 1
+        case .working, .compacting: 1
         case .finished: 2
         case .running: 3
         case .idle: 4
@@ -66,6 +67,9 @@ public struct AgentSessionBoard: Equatable, Sendable {
                 if !activeIDs.contains(session.id) || turnStarts[session.id] == nil {
                     turnStarts[session.id] = session.since
                 }
+            case .compacting:
+                // Not a turn: what showed as finished is not, and its end will not be.
+                finishedIDs.remove(session.id)
             case .idle:
                 if activeIDs.contains(session.id) { finishedIDs.insert(session.id) }
             case .running:
@@ -91,7 +95,7 @@ public struct AgentSessionBoard: Equatable, Sendable {
             switch row.state {
             case .needsInput: return .needsInput
             case .finished: result = .finished
-            case .working, .running, .idle: break
+            case .working, .compacting, .running, .idle: break
             }
         }
         return result
@@ -101,7 +105,7 @@ public struct AgentSessionBoard: Equatable, Sendable {
     public var lead: AgentRow? {
         guard let first = rows.first else { return nil }
         switch first.state {
-        case .needsInput, .working, .finished: return first
+        case .needsInput, .working, .compacting, .finished: return first
         case .running, .idle: return nil
         }
     }
@@ -149,6 +153,7 @@ public struct AgentSessionBoard: Equatable, Sendable {
         switch session.activity {
         case .needsInput(let prompt): .needsInput(prompt: prompt)
         case .working: .working
+        case .compacting: .compacting
         case .running: .running
         case .idle: finishedIDs.contains(session.id) ? .finished : .idle
         }

@@ -57,6 +57,7 @@ struct AgentStatusMark: View {
     private var color: Color {
         switch state {
         case .working: .white.opacity(0.9)
+        case .compacting: AgentPalette.compacting
         case .needsInput: AgentPalette.alert
         case .finished: AgentPalette.mint
         case .running: .white.opacity(0.5)
@@ -124,6 +125,7 @@ struct AgentStatusMark: View {
     private var accessibilityText: String {
         switch state {
         case .working: "Working"
+        case .compacting: "Compacting"
         case .needsInput: "Needs input"
         case .finished: "Finished"
         case .running: "Running"

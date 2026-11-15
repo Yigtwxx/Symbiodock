@@ -86,6 +86,7 @@ private enum AgentFaceLabel {
         let state: String = switch row.state {
         case .needsInput: "Needs input"
         case .working: "Working"
+        case .compacting: "Compacting"
         case .finished: "Finished"
         case .running: "Running"
         case .idle: "Idle"

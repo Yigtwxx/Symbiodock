@@ -94,7 +94,7 @@ public enum AgentBranches {
     private static func isActive(_ state: AgentRowState) -> Bool {
         switch state {
         case .working, .needsInput: true
-        case .finished, .running, .idle: false
+        case .compacting, .finished, .running, .idle: false
         }
     }
 }

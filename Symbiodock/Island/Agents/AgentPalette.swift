@@ -9,6 +9,10 @@ enum AgentPalette {
     /// A session has finished. #63E6A9
     static let mint = Color(red: 99.0 / 255.0, green: 230.0 / 255.0, blue: 169.0 / 255.0)
 
+    /// A session compacts its conversation. #BF5AF2, purple: apart from the tool colours,
+    /// the mint and the amber.
+    static let compacting = Color(red: 191.0 / 255.0, green: 90.0 / 255.0, blue: 242.0 / 255.0)
+
     /// The colours a tool's pet runs through, from its upper left to its lower right, as
     /// red, green and blue from 0 to 255. None of them is the alert amber or the finished mint;
     /// OpenCode's yellow never meets the amber, as OpenCode never needs input.

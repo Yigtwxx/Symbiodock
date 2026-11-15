@@ -20,6 +20,9 @@ public enum AgentTool: String, CaseIterable, Sendable {
 /// What a session is doing, as far as its tool lets us read it.
 public enum AgentActivity: Equatable, Sendable {
     case working
+    /// Compacting its conversation (`/compact`): busy, but not on a turn of its own, so its
+    /// end is not a finish.
+    case compacting
     /// Waiting for the user. `prompt` is the question, when it could be read.
     case needsInput(prompt: String?)
     /// The turn is over and the session waits for the next request.

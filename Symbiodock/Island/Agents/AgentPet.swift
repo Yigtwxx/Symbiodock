@@ -46,7 +46,7 @@ struct AgentPet: View {
     /// A pet whose session is doing nothing steps back.
     private var strength: Double {
         switch state {
-        case .working, .needsInput, .finished: 1
+        case .working, .compacting, .needsInput, .finished: 1
         case .running: 0.7
         case .idle: 0.45
         }

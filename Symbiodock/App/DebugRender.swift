@@ -162,6 +162,7 @@ private struct CollapsedGallery: View {
         switch state {
         case .needsInput(let prompt): board.update([session(.needsInput(prompt: prompt))])
         case .working: board.update([session(.working)])
+        case .compacting: board.update([session(.compacting)])
         case .running: board.update([session(.running)])
         case .idle: board.update([session(.idle)])
         case .finished:

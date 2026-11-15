@@ -47,4 +47,9 @@ struct AgentLabelsTests {
         #expect(AgentLabels.branchDescription(.subagent(done), now: now) == "Subagent Read the spec, done")
         #expect(AgentLabels.branchDescription(.more(3), now: now) == "3 more subagents")
     }
+
+    @Test func aCompactingSessionSaysSo() {
+        let start = Date(timeIntervalSince1970: 0)
+        #expect(AgentLabels.status(.compacting, since: start, now: start.addingTimeInterval(300)) == "Compacting")
+    }
 }

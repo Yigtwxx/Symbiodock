@@ -15,6 +15,7 @@ public enum AgentLabels {
         switch state {
         case .needsInput: return "Needs input"
         case .working: return "Working \(elapsed)"
+        case .compacting: return "Compacting"
         case .finished: return "Done \(elapsed)"
         case .running: return "Running"
         case .idle: return "Idle \(elapsed)"

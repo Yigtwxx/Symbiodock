@@ -6,7 +6,7 @@ public struct ClaudeSessionRecord: Equatable, Sendable {
     public let sessionID: String?
     public let cwd: String?
     public let name: String?
-    /// "busy", "idle", "waiting", or something newer.
+    /// "busy", "idle", "waiting", "shell", or something newer.
     public let status: String?
     public let waitingFor: String?
     public let statusUpdatedAt: Date?
@@ -78,15 +78,20 @@ public enum ClaudeSessionParser {
 
     /// The session a record stands for; nil for a spare process.
     /// - Parameter prompt: the open question, if one was read from the transcript.
+    /// - Parameter compacting: whether the transcript shows a compaction under way; counts
+    ///   only while the session is busy.
     /// - Parameter fallbackSince: used when the file does not say when the status began.
     public static func session(
-        from record: ClaudeSessionRecord, prompt: String?, fallbackSince: Date
+        from record: ClaudeSessionRecord, prompt: String?, compacting: Bool = false,
+        fallbackSince: Date
     ) -> AgentSession? {
         guard !record.isSpare else { return nil }
         let activity: AgentActivity =
             switch record.status {
-            case "busy": .working
-            case "idle": .idle
+            case "busy": compacting ? .compacting : .working
+            // "shell": the turn is over while a background shell command still runs
+            // (seen with 2.1.325); the session waits for the user like an idle one.
+            case "idle", "shell": .idle
             case "waiting": .needsInput(prompt: prompt)
             default: .running
             }

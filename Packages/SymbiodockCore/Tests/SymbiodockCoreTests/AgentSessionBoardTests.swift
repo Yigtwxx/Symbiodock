@@ -232,4 +232,50 @@ struct AgentSessionBoardTests {
         board.markSeen()
         #expect(branchIDs(board) == ["w"])
     }
+
+    @Test func aCompactingSessionLeadsLikeAWorkingOne() {
+        var board = AgentSessionBoard()
+        board.update([session("idle", .idle), session("c", .compacting)])
+        #expect(board.rows.map(\.id) == ["c", "idle"])
+        #expect(board.lead?.id == "c")
+        #expect(board.lead?.state == .compacting)
+        #expect(board.hasFace)
+        #expect(board.attention == .none)
+    }
+
+    @Test func aCompactionThatEndsIsNotAFinish() {
+        var board = AgentSessionBoard()
+        board.update([session("c", .compacting)])
+        board.update([session("c", .idle, since: 5)])
+        #expect(board.rows.map(\.state) == [.idle])
+        #expect(board.attention == .none)
+    }
+
+    @Test func aCompactionSeenLateAfterWorkingIsNotAFinish() {
+        // The first scans of a compaction show it as working (spec 5.1).
+        var board = AgentSessionBoard()
+        board.update([session("c", .working)])
+        board.update([session("c", .compacting, since: 3)])
+        board.update([session("c", .idle, since: 5)])
+        #expect(board.rows.map(\.state) == [.idle])
+    }
+
+    @Test func compactingClearsAFinish() {
+        var board = AgentSessionBoard()
+        board.update([session("c", .working)])
+        board.update([session("c", .idle, since: 5)])
+        #expect(board.rows.map(\.state) == [.finished])
+        board.update([session("c", .compacting, since: 9)])
+        #expect(board.rows.map(\.state) == [.compacting])
+        board.update([session("c", .idle, since: 12)])
+        #expect(board.rows.map(\.state) == [.idle])
+    }
+
+    @Test func aMessageQueuedDuringACompactionFinishesNormally() {
+        var board = AgentSessionBoard()
+        board.update([session("c", .compacting)])
+        board.update([session("c", .working, since: 5)])
+        board.update([session("c", .idle, since: 9)])
+        #expect(board.rows.map(\.state) == [.finished])
+    }
 }

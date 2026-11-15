@@ -132,6 +132,7 @@ private struct AgentRowView: View {
         switch row.state {
         case .needsInput: AgentPalette.alert
         case .finished: AgentPalette.mint
+        case .compacting: AgentPalette.compacting
         case .working, .running, .idle: .white.opacity(0.6)
         }
     }
