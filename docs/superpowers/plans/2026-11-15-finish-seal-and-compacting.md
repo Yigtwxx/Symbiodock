@@ -49,6 +49,12 @@ struct ClaudeCompactionReaderTests {
 
     private func tail(_ lines: [String]) -> Data { Data(lines.joined(separator: "\n").utf8) }
 
+    /// Parsed timestamps and the literals above can differ in the last binary digit.
+    private func isSameInstant(_ date: Date?, _ expected: Date) -> Bool {
+        guard let date else { return false }
+        return abs(date.timeIntervalSince(expected)) < 0.001
+    }
+
     private func snapshot(_ messageID: String, update: Bool = false) -> String {
         #"{"type":"file-history-snapshot","messageId":"\#(messageID)","snapshot":{"messageId":"\#(messageID)","trackedFileBackups":{},"timestamp":"2026-11-15T20:42:20.696Z"},"isSnapshotUpdate":\#(update)}"#
     }
@@ -74,7 +80,7 @@ struct ClaudeCompactionReaderTests {
 
     @Test func aSnapshotWhoseMessageIsNotWrittenYetMarksTheStart() {
         let data = tail([user("u1", "hello"), assistant("a1"), snapshot("cmd")] + metadata)
-        #expect(ClaudeCompactionReader.compactionStart(inTail: data) == snapshotDate)
+        #expect(isSameInstant(ClaudeCompactionReader.compactionStart(inTail: data), snapshotDate))
     }
 
     @Test func aSnapshotFollowedByItsMessageIsANormalPrompt() {
@@ -89,18 +95,18 @@ struct ClaudeCompactionReaderTests {
 
     @Test func snapshotUpdatesArePassedOver() {
         let data = tail([user("u0", "hi"), assistant("a0"), snapshot("cmd"), snapshot("a0", update: true)])
-        #expect(ClaudeCompactionReader.compactionStart(inTail: data) == snapshotDate)
+        #expect(isSameInstant(ClaudeCompactionReader.compactionStart(inTail: data), snapshotDate))
     }
 
     @Test func metadataAndQueuedMessagesAfterTheMarkDoNotHideIt() {
         let data = tail([assistant("a1"), snapshot("cmd")] + metadata + [queued])
-        #expect(ClaudeCompactionReader.compactionStart(inTail: data) == snapshotDate)
+        #expect(isSameInstant(ClaudeCompactionReader.compactionStart(inTail: data), snapshotDate))
     }
 
     @Test func theOlderPlainCommandRecordMarksTheStart() {
         // 2.1.303–2.1.318: the `/compact` record first, then its snapshot.
         let data = tail([assistant("a1"), user("c1", "/compact"), snapshot("c1")] + metadata)
-        #expect(ClaudeCompactionReader.compactionStart(inTail: data) == userDate)
+        #expect(isSameInstant(ClaudeCompactionReader.compactionStart(inTail: data), userDate))
     }
 
     @Test func aFinishedCompactionIsNoStart() {
@@ -111,7 +117,7 @@ struct ClaudeCompactionReaderTests {
 
     @Test func brokenLinesAreSkipped() {
         let data = tail(["{\"type\":\"assist", assistant("a1"), snapshot("cmd"), "not json"])
-        #expect(ClaudeCompactionReader.compactionStart(inTail: data) == snapshotDate)
+        #expect(isSameInstant(ClaudeCompactionReader.compactionStart(inTail: data), snapshotDate))
         #expect(ClaudeCompactionReader.compactionStart(inTail: Data()) == nil)
     }
 
