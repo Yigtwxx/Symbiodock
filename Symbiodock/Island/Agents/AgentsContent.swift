@@ -196,11 +196,11 @@ private struct AgentBranchLines: View {
     /// The connector runs under the pet's centre: the row's padding and half the pet.
     private static let connectorX: CGFloat = 10 + 18
     private static let tick: CGFloat = 8
-    /// The pet (36 pt) sits in the 46 pt row, so its bottom is this far above the first
-    /// line; the first vertical starts that much higher to reach it.
     /// The parent pet's colours the dots take: its first, middle and last.
     private static let toneCount = 3
     private static let dotSize: CGFloat = 4
+    /// The pet (36 pt) sits in the 46 pt row, so its bottom is this far above the first
+    /// line; the first vertical starts that much higher to reach it.
     private static let petGap: CGFloat = (46 - 36) / 2
     /// The trailing text ends where the row's label ends: the row's padding, the status
     /// mark and the spacing before it.
