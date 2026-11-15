@@ -84,8 +84,10 @@ it waits 1.7 s (1.0 s with Reduce Motion), keyed on `attentionRow.id`, then call
 `settleFinished`. The face views only play the animation, which starts when the row
 appears on the face, so both begin together.
 
-- If the island opens mid-effect, or a question takes the face, the timer is cancelled
-  and the row stays unsettled; the seal plays again from the start next time.
+- If the island opens mid-effect it opens on `Agents` (a finish is attention); leaving the
+  tab clears the finish, so no seal replays. If a question takes the face, or the island is
+  dragged, the timer is cancelled and the row stays unsettled; the seal plays again from
+  the start next time.
 - If the Agents tab is opened, `markSeen` clears the finish and nothing plays.
 - Several sessions that finish play one after another: when one settles, the next
   unsettled one becomes `attentionRow`.
@@ -126,7 +128,7 @@ Evidence (this Mac, 2026-11-15):
 - `/compact` in a session without messages fails at once ("Not enough messages to
   compact.") and the status never changes: nothing to show.
 
-Rule, in a new core reader `ClaudeCompactionReader.compactionStart(inTail:) -> Date?`,
+Rule, in a new core reader `ClaudeCompactionReader.compactionMark(inTail:) -> CompactionMark?`,
 asked only when the session file says `busy`, over the last 64 KB of the transcript:
 
 1. Walk the lines from the end, skipping every record that is not `user`, `assistant`,
@@ -141,7 +143,17 @@ asked only when the session file says `busy`, over the last 64 KB of the transcr
      timestamp (2.1.303–2.1.318);
    - anything else → nil.
 3. The session is compacting when the start is at least 1 s old
-   (`ClaudeCompactionReader.isCompacting(start:now:)`).
+   (`ClaudeCompactionReader.isCompacting(_:now:)`).
+
+The end. Once `compact_boundary` is written there is no start mark any more, yet the
+session file stays `busy` for about 0.1 s more; a scan in that window would read plain
+working, and the following `idle` would count as a finish (seal and `Done ✓`), which is
+ruled out. So the reader also walks past `attachment` records and bookkeeping `user`
+records (`isMeta`, `isCompactSummary`, content starting `<local-command-stdout>` or
+`<command-name>/compact`), and a `system` record `compact_boundary` whose
+`compactMetadata.trigger` is `manual` gives `.ended(timestamp)`. A busy session counts as
+compacting for up to 5 s after that boundary (`endGrace`), so the end is never a finish.
+An `auto` boundary counts for nothing.
 
 The 1 s age keeps the instant between a normal prompt's snapshot and its user record from
 counting. The provider caches the start, not the verdict, by the transcript's size and
@@ -155,7 +167,8 @@ those first seconds the session shows as working. The end shows within 0.25 s, b
 the session file turns `idle`.
 
 Not detected: automatic compaction (it leaves nothing at its start) and Codex. A manual
-compaction shorter than the first scan shows only as working.
+compaction shorter than the first scan shows only as working, and its end then counts as a
+finish.
 
 ### 5.2 Model (core)
 

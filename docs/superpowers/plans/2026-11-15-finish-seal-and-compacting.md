@@ -27,6 +27,8 @@
 
 ### Task 1: Read the compaction mark from a transcript
 
+> Note: the final review changed this API. `compactionStart(inTail:)` and `isCompacting(start:now:)` became `compactionMark(inTail:) -> CompactionMark?` (`.started` / `.ended`) and `isCompacting(_:now:)`, so the end of a manual compaction is never a finish (spec 5.1). The code below is the original draft.
+
 **Files:**
 - Create: `Packages/SymbiodockCore/Sources/SymbiodockCore/Agents/ClaudeCompactionReader.swift`
 - Test: `Packages/SymbiodockCore/Tests/SymbiodockCoreTests/ClaudeCompactionReaderTests.swift`
@@ -2119,7 +2121,7 @@ git push origin main
 2. Open the Agents tab: the session's row says `Done ✓`. Leave the tab: it goes.
 3. While one session works, let another finish: the finished pet takes the face, plays the seal, and the face goes back to the working one.
 4. With music playing and `Media` as the first tab, let a session finish: the right side shows the mint check for about 1.7 s, then the level bars return.
-5. Hover the island during a seal: it opens. Leave without opening `Agents`: the seal plays again from the start.
+5. Hover the island during a seal: it opens on `Agents` with `Done ✓`. Leave it: the finish is cleared and no seal replays.
 6. In a session with some conversation, run `/compact`: within about 4 s a purple dashed line runs clockwise around the island, the right mark is a turning purple dashed ring, and the pet's wave runs from top to bottom.
 7. When the compaction ends, all of it goes within a moment; no seal plays and no `Done ✓` appears.
 8. Open the island during a compaction: the row shows `Compacting` with the purple ring; the dashed line belongs to the collapsed island only.

@@ -252,7 +252,9 @@ spec'te yazılı.
   örnekte görüldü. 2.1.303–2.1.318'de başta düz `/compact` kaydı var (8 örnek). `/model`
   penceresi açıkken transcript'e bir şey yazılmıyor, durum `waiting`/`dialog open`. Claude Code
   güncellenip iz değişirse oturum compact sırasında "çalışıyor" görünür; okuyucu yeni ize
-  göre güncellenir.
+  göre güncellenir. Bitiş kuralı: elle `compact_boundary` + yanındaki kayıtlar (özet, caveat,
+  komut, stdout, attachment) görülünce oturum `busy` kaldığı sürece en fazla 5 sn compact
+  sayılır; böylece compact'ın bitişi hiçbir zaman bitiş (finish) sayılmaz.
 - Claude Code `status: "shell"`: tur bitmiş, arka planda kabuk komutu sürüyor (bir oturumda iki
   kez görüldü). Boşta sayılıyor; başka anlamı çıkarsa buraya yazılır.
 
