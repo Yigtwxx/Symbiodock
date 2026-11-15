@@ -115,9 +115,12 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
   tamam ve `main`'de (2026-11-15).** 342 çekirdek testi geçiyor. Canlı görülenler: oturum
   dosyası yazılınca ada 0,22 sn'de, silinince 0,015 sn'de fark ediyor; dallar ekran dışı
   görüntülerde doğru (`expanded-agents*.png`). Canlı denerken bulunan çökme düzeltildi
-  (FSEvents geri çağrısı ana aktöre bağlı sayılıyordu). Denenmeyenler: gerçek alt ajanlarla
-  dallar, soru cevaplanınca amber'in gidişi gözle, titreşimin hissi, Codex alt ajanları. Elle
-  kontrol listesi `docs/superpowers/plans/2026-11-15-subagent-branches.md` sonunda (16 madde).
+  (FSEvents geri çağrısı ana aktöre bağlı sayılıyordu). Sahibi 2026-11-15 akşamı canlı denedi:
+  "böyle kalsın her şey düzgün çalışıyor"; iki gerçek arka plan alt ajanının dalları ve amber
+  soru aynı anda adada göründü. Ana çizgi de dal tonlarında renkli (sahibinin isteği). Adadan
+  soru cevaplama istenmedi ("şimdilik hayır"). Açıkça teyit edilmeyenler: titreşimin hissi,
+  bitişte `Done ✓`, Codex alt ajanları. Elle kontrol listesi
+  `docs/superpowers/plans/2026-11-15-subagent-branches.md` sonunda (18 madde).
 - Xcode 27.2 ve XcodeGen 2.45.4 kurulu, `xcode-select` ile seçili.
 
 ## "Yapılacakları yap" denince
