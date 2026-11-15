@@ -7,7 +7,7 @@ import Foundation
 @MainActor
 final class SessionFolderWatcher {
     /// Carries the handler into the C callback, which runs on `queue`.
-    private final class Relay: Sendable {
+    fileprivate final class Relay: Sendable {
         let onChange: @MainActor @Sendable () -> Void
 
         init(_ onChange: @escaping @MainActor @Sendable () -> Void) {
@@ -46,12 +46,7 @@ final class SessionFolderWatcher {
         let flags = FSEventStreamCreateFlags(
             kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer)
         guard let stream = FSEventStreamCreate(
-            kCFAllocatorDefault,
-            { _, info, _, _, _, _ in
-                guard let info else { return }
-                Unmanaged<Relay>.fromOpaque(info).takeUnretainedValue().fire()
-            },
-            &context, [path] as CFArray,
+            kCFAllocatorDefault, sessionFolderChanged, &context, [path] as CFArray,
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 0.05, flags)
         else { return false }
         FSEventStreamSetDispatchQueue(stream, queue)
@@ -71,4 +66,16 @@ final class SessionFolderWatcher {
         FSEventStreamRelease(stream)
         self.stream = nil
     }
+}
+
+/// The stream's callback. FSEvents calls it on the watcher's queue, so it must not belong
+/// to the main actor: a closure written inside `start()` would, and Swift's isolation
+/// check stops the app the first time FSEvents calls it.
+private func sessionFolderChanged(
+    _ stream: ConstFSEventStreamRef, _ info: UnsafeMutableRawPointer?, _ count: Int,
+    _ paths: UnsafeMutableRawPointer, _ flags: UnsafePointer<FSEventStreamEventFlags>,
+    _ ids: UnsafePointer<FSEventStreamEventId>
+) {
+    guard let info else { return }
+    Unmanaged<SessionFolderWatcher.Relay>.fromOpaque(info).takeUnretainedValue().fire()
 }
