@@ -1,8 +1,7 @@
 import SwiftUI
 import SymbiodockCore
 
-/// One glyph for a session's state, used wherever a state is shown. Working turns, needs
-/// input knocks, finished draws a check; the rest stand still.
+/// One glyph for a session's state, used wherever a state is shown. Working turns, compacting turns a purple ring of dashes, needs input knocks, finished draws a check; the rest stand still.
 ///
 /// Nothing here redraws frame by frame: the turning arc, the knocks and the rings are
 /// Core Animation layers (`SpinningArc`, `MarkPulses`). SwiftUI draws the still mark, and
@@ -19,6 +18,8 @@ struct AgentStatusMark: View {
 
     private static let stroke: CGFloat = 1.75
     private static let turnPeriod: TimeInterval = 1.1
+    private static let compactPeriod: TimeInterval = 2.0
+    private static let compactDashes = 8
 
     var body: some View {
         mark
@@ -40,6 +41,18 @@ struct AgentStatusMark: View {
             .accessibilityLabel(accessibilityText)
     }
 
+    private var isCompacting: Bool { state == .compacting }
+
+    /// Whether the ring turns: a working arc, or a compacting ring of dashes.
+    private var turns: Bool { state == .working || isCompacting }
+
+    private var period: TimeInterval { isCompacting ? Self.compactPeriod : Self.turnPeriod }
+
+    /// A dash and its gap along the still compacting ring.
+    private var dashLength: CGFloat {
+        .pi * (size - Self.stroke) / CGFloat(2 * Self.compactDashes)
+    }
+
     private var isFinished: Bool { state == .finished }
 
     private var isNeedsInput: Bool {
@@ -49,7 +62,7 @@ struct AgentStatusMark: View {
     private var animates: Bool { !reduceMotion && frozenAt == nil }
 
     /// Whether Core Animation is turning the arc.
-    private var spins: Bool { animates && state == .working }
+    private var spins: Bool { animates && turns }
 
     /// Whether Core Animation is knocking the dot.
     private var knocks: Bool { animates && isNeedsInput }
@@ -73,7 +86,7 @@ struct AgentStatusMark: View {
     /// it is the still mark and the layers add the motion.
     private var mark: some View {
         let time = frozenAt
-        let turn = time.map { state == .working ? $0.truncatingRemainder(dividingBy: Self.turnPeriod) / Self.turnPeriod * 360 : 0 } ?? 0
+        let turn = time.map { turns ? $0.truncatingRemainder(dividingBy: period) / period * 360 : 0 } ?? 0
         let beat = (time ?? 0).truncatingRemainder(dividingBy: AgentMarkMotion.knockPeriod)
         let frozenKnock = time != nil && isNeedsInput
         return ZStack {
@@ -90,11 +103,18 @@ struct AgentStatusMark: View {
             }
             Circle()
                 .trim(from: 0, to: state == .working ? 0.75 : 1)
-                .stroke(color, style: StrokeStyle(lineWidth: Self.stroke, lineCap: .round))
+                .stroke(
+                    color,
+                    style: StrokeStyle(
+                        lineWidth: Self.stroke, lineCap: .round,
+                        dash: isCompacting ? [dashLength, dashLength] : []))
                 .rotationEffect(.degrees(turn - 90))
                 .opacity(spins ? 0 : 1)
             if spins {
-                SpinningArc(color: color, lineWidth: Self.stroke, period: Self.turnPeriod)
+                SpinningArc(
+                    color: color, lineWidth: Self.stroke, period: period,
+                    sweep: isCompacting ? 1 : 0.75,
+                    dashCount: isCompacting ? Self.compactDashes : nil)
                     .transition(.opacity)
             }
             Circle()

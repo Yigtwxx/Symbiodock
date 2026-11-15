@@ -12,7 +12,7 @@ enum DebugRender {
         guard let path = ProcessInfo.processInfo.environment["SYMBIODOCK_RENDER_DIR"] else { return }
         let directory = URL(fileURLWithPath: path, isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        write(StatusMarkGallery(), size: CGSize(width: 560, height: 150), named: "status-marks", to: directory)
+        write(StatusMarkGallery(), size: CGSize(width: 640, height: 150), named: "status-marks", to: directory)
         write(PetGallery(), size: CGSize(width: 800, height: 380), named: "pets", to: directory)
         for (name, tab) in [("expanded-agents", IslandTab.agents), ("expanded-media", .media)] {
             let state = IslandState()
@@ -64,6 +64,7 @@ enum DebugRender {
 private struct StatusMarkGallery: View {
     private static let states: [(String, AgentRowState, TimeInterval)] = [
         ("working", .working, 0.2),
+        ("compacting", .compacting, 0.3),
         ("knock", .needsInput(prompt: nil), 0.15),
         ("ripple", .needsInput(prompt: nil), 0.7),
         ("finished", .finished, 0),

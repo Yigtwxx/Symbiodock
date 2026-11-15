@@ -53,17 +53,20 @@ struct SpinningArc: NSViewRepresentable {
     let period: TimeInterval
     /// The share of the circle that is drawn.
     var sweep: Double = 0.75
+    /// Draws the arc as this many dashes with equal gaps; nil for a solid arc.
+    var dashCount: Int? = nil
 
     func makeNSView(context: Context) -> ArcView { ArcView() }
 
     func updateNSView(_ view: ArcView, context: Context) {
-        view.configure(color: NSColor(color), lineWidth: lineWidth, period: period, sweep: sweep)
+        view.configure(color: NSColor(color), lineWidth: lineWidth, period: period, sweep: sweep, dashCount: dashCount)
     }
 
     final class ArcView: NSView {
         private let arc = CAShapeLayer()
         private var period: TimeInterval = 1
         private var sweep = 0.75
+        private var dashCount: Int?
 
         override init(frame: NSRect) {
             super.init(frame: frame)
@@ -78,12 +81,13 @@ struct SpinningArc: NSViewRepresentable {
 
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
-        func configure(color: NSColor, lineWidth: CGFloat, period: TimeInterval, sweep: Double) {
+        func configure(color: NSColor, lineWidth: CGFloat, period: TimeInterval, sweep: Double, dashCount: Int?) {
             arc.strokeColor = color.cgColor
             arc.lineWidth = lineWidth
-            if self.period != period || self.sweep != sweep {
+            if self.period != period || self.sweep != sweep || self.dashCount != dashCount {
                 self.period = period
                 self.sweep = sweep
+                self.dashCount = dashCount
                 needsLayout = true
             }
             startSpinning()
@@ -101,6 +105,12 @@ struct SpinningArc: NSViewRepresentable {
                 center: CGPoint(x: bounds.width / 2, y: bounds.height / 2), radius: radius,
                 startAngle: .pi / 2, endAngle: .pi / 2 - 2 * .pi * sweep, clockwise: true)
             arc.path = path
+            if let dashCount, dashCount > 0 {
+                let piece = 2 * .pi * radius / CGFloat(2 * dashCount)
+                arc.lineDashPattern = [NSNumber(value: Double(piece)), NSNumber(value: Double(piece))]
+            } else {
+                arc.lineDashPattern = nil
+            }
             CATransaction.commit()
             startSpinning()
         }
