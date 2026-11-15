@@ -4,13 +4,14 @@ import SymbiodockCore
 /// The colours the agents bring to the black island: two for what a session's state
 /// says, and a run of colours for each tool's pet.
 enum AgentPalette {
-    /// A session waits for the user. #FF4D4F
-    static let alert = Color(red: 1.0, green: 77.0 / 255.0, blue: 79.0 / 255.0)
+    /// A session waits for the user. #FFD60A, amber: red read as a failure.
+    static let alert = Color(red: 1.0, green: 214.0 / 255.0, blue: 10.0 / 255.0)
     /// A session has finished. #63E6A9
     static let mint = Color(red: 99.0 / 255.0, green: 230.0 / 255.0, blue: 169.0 / 255.0)
 
     /// The colours a tool's pet runs through, from its upper left to its lower right, as
-    /// red, green and blue from 0 to 255. None of them is the alert red or the finished mint.
+    /// red, green and blue from 0 to 255. None of them is the alert amber or the finished mint;
+    /// OpenCode's yellow never meets the amber, as OpenCode never needs input.
     private static func run(for tool: AgentTool) -> [(Double, Double, Double)] {
         switch tool {
         case .claudeCode: [(245, 150, 95), (235, 112, 70), (205, 78, 48)]  // #F5965F #EB7046 #CD4E30
