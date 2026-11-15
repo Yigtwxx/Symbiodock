@@ -5,6 +5,7 @@ import SymbiodockCore
 /// Claude Code keeps one small JSON file per running session in `~/.claude/sessions`,
 /// with its name, folder and whether it is busy, idle or waiting for the user. Beside each
 /// session's transcript, a `subagents` folder holds a small meta file per subagent.
+/// While a session is busy, the end of its transcript tells whether it is compacting.
 actor ClaudeCodeProvider: AgentSessionProvider {
     nonisolated let tool = AgentTool.claudeCode
     /// `~/.claude`
@@ -28,16 +29,26 @@ actor ClaudeCodeProvider: AgentSessionProvider {
         let ended: Set<String>
     }
 
+    /// When a busy session's transcript showed its compaction starting, as of the
+    /// transcript's stamp. The start is kept, not the verdict: the transcript does not
+    /// change while a compaction runs, and a start counts only once it has settled.
+    private struct Compaction {
+        let stamp: FileStamp
+        let start: Date?
+    }
+
     /// What one scan read or kept; whatever belongs to sessions that are gone is dropped.
     private struct Kept {
         var asked: [String: Asked] = [:]
         var metas: [String: MetaEntry] = [:]
         var ends: [String: Ends] = [:]
+        var compactions: [String: Compaction] = [:]
     }
 
     private var asked: [String: Asked] = [:]
     private var metas: [String: MetaEntry] = [:]
     private var ends: [String: Ends] = [:]
+    private var compactions: [String: Compaction] = [:]
 
     init(home: URL) {
         self.home = home
@@ -51,6 +62,7 @@ actor ClaudeCodeProvider: AgentSessionProvider {
             asked.removeAll()
             metas.removeAll()
             ends.removeAll()
+            compactions.removeAll()
             return []
         }
 
@@ -59,6 +71,7 @@ actor ClaudeCodeProvider: AgentSessionProvider {
             asked = kept.asked
             metas = kept.metas
             ends = kept.ends
+            compactions = kept.compactions
         }
         return files.compactMap { url in
             guard url.pathExtension == "json",
@@ -70,6 +83,8 @@ actor ClaudeCodeProvider: AgentSessionProvider {
                       from: record,
                       prompt: record.status == "waiting"
                           ? question(of: record, remembering: &kept.asked) : nil,
+                      compacting: record.status == "busy"
+                          && isCompacting(record, now: context.now, remembering: &kept.compactions),
                       fallbackSince: stamp.modified)
             else { return nil }
             session.subagents = subagents(of: record, now: context.now, remembering: &kept)
@@ -169,6 +184,28 @@ actor ClaudeCodeProvider: AgentSessionProvider {
             .flatMap(ClaudeTranscriptPromptReader.pendingQuestion(inTail:))
         kept[path] = Asked(stamp: stamp, question: question)
         return question
+    }
+
+    /// Whether a busy session is compacting its conversation, read from its transcript's
+    /// end (see `ClaudeCompactionReader`). The transcript is read again only when its size
+    /// or modification time changed.
+    private func isCompacting(
+        _ record: ClaudeSessionRecord, now: Date, remembering kept: inout [String: Compaction]
+    ) -> Bool {
+        guard let cwd = record.cwd, let sessionID = record.sessionID,
+              let path = ClaudeSessionParser.transcriptRelativePath(cwd: cwd, sessionID: sessionID)
+        else { return false }
+        let url = home.appendingPathComponent(path)
+        guard let stamp = FileReading.stamp(of: url) else { return false }
+        let start: Date?
+        if let known = compactions[path], known.stamp == stamp {
+            start = known.start
+        } else {
+            start = FileReading.tail(of: url, maxBytes: ClaudeCompactionReader.tailSize)
+                .flatMap(ClaudeCompactionReader.compactionStart(inTail:))
+        }
+        kept[path] = Compaction(stamp: stamp, start: start)
+        return start.map { ClaudeCompactionReader.isCompacting(start: $0, now: now) } ?? false
     }
 
     /// A session file can outlive its process, and its pid can then belong to anything.
