@@ -12,17 +12,23 @@ final class AgentSessionCoordinator {
     private static let restingInterval = 3
 
     private let providers: [any AgentSessionProvider]
+    private let wakeFolders: [URL]
     private let isWatching: @MainActor () -> Bool
     private let onUpdate: @MainActor ([AgentSession]) -> Void
+    private let signal = ScanSignal()
+    private var watchers: [SessionFolderWatcher] = []
     private var task: Task<Void, Never>?
 
+    /// - Parameter wakeFolders: folders whose changes start a scan at once.
     /// - Parameter isWatching: whether the Agents tab is on screen; then the scan runs every second.
     init(
         providers: [any AgentSessionProvider],
+        wakeFolders: [URL] = [],
         isWatching: @escaping @MainActor () -> Bool,
         onUpdate: @escaping @MainActor ([AgentSession]) -> Void
     ) {
         self.providers = providers
+        self.wakeFolders = wakeFolders
         self.isWatching = isWatching
         self.onUpdate = onUpdate
     }
@@ -31,9 +37,18 @@ final class AgentSessionCoordinator {
         guard task == nil else { return }
         let providers = providers
         let scanner = ProcessScanner()
+        let signal = signal
+        watchers = wakeFolders.map { SessionFolderWatcher(folder: $0) { signal.fire() } }
         task = Task { [weak self] in
             var lastCount = -1
+            var lastStart: Date?
             while !Task.isCancelled {
+                // However often it is woken, two scans never start too close together.
+                let gap = ScanPacing.delay(sinceLastStart: lastStart, now: Date())
+                if gap > 0 { try? await Task.sleep(for: .seconds(gap)) }
+                lastStart = Date()
+                // A folder that did not exist yet may have appeared since.
+                self?.watchers.forEach { $0.start() }
                 // One scan at a time: the next starts only after this one has ended.
                 let sessions = await Self.scan(providers, with: scanner)
                 guard !Task.isCancelled, let self else { return }
@@ -43,9 +58,10 @@ final class AgentSessionCoordinator {
                     let tools = Set(sessions.map(\.tool.rawValue)).sorted().joined(separator: ",")
                     Self.log.notice("sessions: \(sessions.count, privacy: .public) [\(tools, privacy: .public)]")
                 }
-                // Wake early as soon as the Agents tab is being looked at.
+                // Until the next scan is due. A changed session file, or the Agents tab
+                // being looked at, ends the wait early.
                 for _ in 0..<Self.restingInterval {
-                    try? await Task.sleep(for: .seconds(1))
+                    if await signal.wait(upTo: .seconds(1)) { break }
                     if Task.isCancelled || self.isWatching() { break }
                 }
             }
@@ -55,6 +71,10 @@ final class AgentSessionCoordinator {
     func stop() {
         task?.cancel()
         task = nil
+        watchers.forEach { $0.stop() }
+        watchers = []
+        // Ends a wait at once, so that the cancelled loop returns now.
+        signal.fire()
     }
 
     /// Runs off the main actor: it reads files and the process list.

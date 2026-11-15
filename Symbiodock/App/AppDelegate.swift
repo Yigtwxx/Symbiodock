@@ -87,6 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startAgents() {
         let agents = AgentSessionCoordinator(
             providers: AgentProviders.all(),
+            wakeFolders: AgentProviders.wakeFolders(),
             isWatching: { [weak self] in
                 self.map { $0.state.phase == .expanded && $0.state.selectedTab == .agents } ?? false
             },
