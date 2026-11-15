@@ -54,6 +54,8 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 | Anında temizleme | `~/.claude/sessions` FSEvents ile izlenir; dosya değişince tarama hemen başlar (iki tarama arası en az 0,25 sn). Ölçüm: dosya yazılınca 0,22 sn, silinince 0,015 sn (2026-11-15) | Sahibi: "soruya cevap verdikten 1 2 sn sonra soru efekti gidiyor"; Claude Code durumu 0,1 sn'de yazıyordu, ada 3 sn'de bir bakıyordu |
 | Çentikteki ışık efektleri | Kenar ışığına, çentiğin altından geçen çizgiye ve sağdaki noktanın efektine dokunulmaz (2026-11-15) | Sahibi: "çentikteki ışık efektlerine karışma şimdilik"; ne istediğini sonra ayrıntılı anlatacak |
 | Pet parlaklığı | Gölgelendirme tabanı yükseltildi (en soluk ton %36), renkler biraz daha parlak (2026-11-15) | Sahibi: "renkleri bi tık daha parlatalım ama çok abartmadan" |
+| Bitiş efekti | Biten oturumun pet'i kapalı adada iPhone Face ID onayı gibi mühürlenir (köşe parantezleri kapanır, daireye döner, pet söner, nane yeşili ✓; 1,7 sn), sonra ada bırakır: kanatlar kapanır, kenar ışığı biter; listede `Done ✓` sekme açılana kadar kalır. Biten oturum, çalışan başka bir oturum olsa da efekt süresince yüzü alır. Müzik yüzünde sağdaki ✓ aynı süre görünür (2026-11-15) | Sahibi: "agentın işi bittiği zaman sol tarafta gözüken petin orada iphone face id onaylama efekti olsun ve öyle kapansın"; liste için B seçeneği ("öneriyi yap") (spec: `2026-11-15-finish-seal-and-compacting-design.md`) |
+| Compact göstergesi | Claude Code `/compact` yaparken adanın kenarında mor (`#BF5AF2`) kesikli çizgi saat yönünde döner, sağdaki işaret mor kesikli halka olur ve döner, pet'in dalgası yukarıdan aşağı akar; compact bitince hepsi gider, bitiş sayılmaz. Hook yok: transcript'in sonundaki başlangıç izi (mesajı henüz yazılmamış `file-history-snapshot`; eski sürümlerde düz `/compact` kaydı) ve oturum dosyasındaki `busy` okunur. Otomatik compact ve Codex algılanmaz (2026-11-15) | Sahibi: "mor bir şekilde kesikli çizgilerle loop şeklinde compact bitene kadar dönsün", "hem adanın etrafında gezsin kesikli çizgi hem sağdaki halka yerine gelsin compact bitince de gitsin"; aynı Mac'teki Vibe Island bunu `PreCompact` hook'uyla yapıyor, bu proje hook kullanmıyor |
 | Mimari | Spec bölüm 4-5 | Sahibi onayladı |
 | Proje üretimi | XcodeGen (`project.yml`), `.xcodeproj` commit edilmez | Komut satırından üretilebilir ve diff'i okunur |
 | Kod yerleşimi | Saf mantık `Packages/SymbiodockCore` paketinde, AppKit/SwiftUI app hedefinde | Mantık uygulama açılmadan `swift test` ile test edilir |
@@ -121,6 +123,14 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
   soru cevaplama istenmedi ("şimdilik hayır"). Açıkça teyit edilmeyenler: titreşimin hissi,
   bitişte `Done ✓`, Codex alt ajanları. Elle kontrol listesi
   `docs/superpowers/plans/2026-11-15-subagent-branches.md` sonunda (18 madde).
+- **Faz 9 (Face ID bitiş efekti, compact göstergesi): kod tamam ve `main`'de (2026-11-16).** 391
+  çekirdek testi geçiyor. Ekran dışı görüntülerde doğrulananlar: mor kesikli halka
+  (`status-marks.png`), aşağı akan pet dalgası (`pets.png`), adanın etrafındaki kesikli çizgi
+  ve üstte olmaması (`collapsed-faces.png`), bitiş efektinin aşamaları (`finish-seal.png`).
+  CPU (Debug, `top`): compact demosunda %0; bitiş efekti oynarken ~%2, bittikten sonra %0.
+  Canlı ekranda görülemedi: ekran görüntüleri tamamen siyah geldi (ekran kapalıydı ya da ekran
+  kaydı izni yok); canlı görünüm sahibinin elle kontrolüne kaldı. Elle kontrol listesi
+  `docs/superpowers/plans/2026-11-15-finish-seal-and-compacting.md` sonunda (12 madde).
 - Xcode 27.2 ve XcodeGen 2.45.4 kurulu, `xcode-select` ile seçili.
 
 ## "Yapılacakları yap" denince
@@ -194,6 +204,9 @@ v1 bunlarla biter.
 - [x] **Faz 8 — Alt ajan dalları, büyük ada, amber soru, anında temizleme.** Kod tamam, elle
       kontrol bekliyor. Spec: `docs/superpowers/specs/2026-11-15-subagent-branches-design.md`.
       Plan: `docs/superpowers/plans/2026-11-15-subagent-branches.md` (elle kontrol listesi sonunda).
+- [x] **Faz 9 — Face ID bitiş efekti ve compact göstergesi.** Kod tamam, elle kontrol bekliyor.
+      Spec: `docs/superpowers/specs/2026-11-15-finish-seal-and-compacting-design.md`.
+      Plan: `docs/superpowers/plans/2026-11-15-finish-seal-and-compacting.md` (elle kontrol listesi sonunda).
 
 Sonrası (başka widget'lar, kişiselleştirme, dil desteği, imzalama, site) için sahibi ayrıca
 yön verecek; kendiliğinden başlama.
@@ -233,6 +246,15 @@ spec'te yazılı.
   olmalı ve dosyanın son yazımından en geç 2 sn sonra başlamış olmalı). Çok uzun süre hiç
   durum değiştirmeyen canlı bir oturumun dosyası başka nedenle yeniden yazılmıyorsa bu kural
   onu düşürmez (dosya süreçten sonra yazılmıştır); tersi durum görülürse buraya yazılır.
+- Compact algılama (2026-11-15'te denendi, Claude Code 2.1.325): elle `/compact` başında
+  transcript'e mesajı henüz yazılmamış bir `file-history-snapshot` düşüyor, komut kaydı compact
+  bitince yazılıyor; oturum dosyası compact boyunca `busy` (18 sn'lik canlı denemede). İki
+  örnekte görüldü. 2.1.303–2.1.318'de başta düz `/compact` kaydı var (8 örnek). `/model`
+  penceresi açıkken transcript'e bir şey yazılmıyor, durum `waiting`/`dialog open`. Claude Code
+  güncellenip iz değişirse oturum compact sırasında "çalışıyor" görünür; okuyucu yeni ize
+  göre güncellenir.
+- Claude Code `status: "shell"`: tur bitmiş, arka planda kabuk komutu sürüyor (bir oturumda iki
+  kez görüldü). Boşta sayılıyor; başka anlamı çıkarsa buraya yazılır.
 
 ## Doğrulama
 
