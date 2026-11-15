@@ -141,6 +141,13 @@ on after its parent's turn has ended.
   the row labels, 10 pt monospaced digits, white 50 %); finished → `Done` and an 8 pt
   `checkmark`, mint.
 - `more(N)`: `+N more`, 11 pt, white 45 %, no trailing text.
+- Colour (owner, 2026-11-15: "her bir forka farklı renkler de verelim"; chose the parent
+  pet's tones): each subagent line's tick and a 4 pt dot at its end take one of three tones
+  of the parent tool's pet colours (`AgentPalette.tint(for:across:)` at 0, 0.5 and 1;
+  Claude: peach, orange, brick). A subagent's tone comes from a stable hash of its id
+  (FNV-1a, the same in every run); a tone a line above already took passes to the next free
+  one, so up to three lines never share a colour. Working: 90 %; finished: 45 %. The vertical
+  stays white 22 %; `+N more` has a white tick and no dot. Names stay white.
 - The branches belong to the row's button: a click anywhere in the block brings the
   session's app forward.
 - Accessibility: each branch line is labelled `Subagent <name>, working 2m`,

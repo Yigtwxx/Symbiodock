@@ -2123,6 +2123,208 @@ git push origin main
 
 ---
 
+### Task 10: A colour for each branch
+
+Added on 2026-11-15 at the owner's request ("her bir forka farklı renkler de verelim"); spec 6.2, last bullet.
+
+**Files:**
+- Modify: `Packages/SymbiodockCore/Sources/SymbiodockCore/Agents/AgentBranches.swift`
+- Modify: `Packages/SymbiodockCore/Tests/SymbiodockCoreTests/AgentBranchesTests.swift`
+- Modify: `Symbiodock/Island/Agents/AgentsContent.swift` (`AgentRowView.block`, `AgentBranchLines`, `Connector`)
+
+**Interfaces:**
+- Consumes: `AgentBranch`, `AgentBranches.lines` (Task 4); `AgentPalette.tint(for:strength:across:)` (exists).
+- Produces: `AgentBranches.tone(of: String, count: Int) -> Int`, `AgentBranches.tones(for: [AgentBranch], count: Int) -> [Int?]`.
+
+- [ ] **Step 1: Write the failing tests**
+
+Append inside `AgentBranchesTests`:
+
+```swift
+    @Test func aToneIsTheSameInEveryRun() {
+        // FNV-1a, not `hashValue`, which changes from one launch to the next.
+        #expect(AgentBranches.tone(of: "a", count: 3) == 1)
+        #expect(AgentBranches.tone(of: "c", count: 3) == 0)
+        #expect(AgentBranches.tone(of: "x", count: 3) == 2)
+        #expect(AgentBranches.tone(of: "anything", count: 1) == 0)
+    }
+
+    @Test func linesNeverShareATone() {
+        // "a" and "b" both hash to tone 1; "b" passes to the next free one.
+        let lines = [AgentBranch.subagent(sub("a", at: 1)), .subagent(sub("b", at: 2)), .subagent(sub("c", at: 3))]
+        #expect(AgentBranches.tones(for: lines, count: 3) == [1, 2, 0])
+    }
+
+    @Test func aSubagentKeepsItsToneWhenOthersJoinBelow() {
+        let a = AgentBranch.subagent(sub("a", at: 1))
+        #expect(AgentBranches.tones(for: [a], count: 3) == [1])
+        #expect(AgentBranches.tones(for: [a, .subagent(sub("x", at: 2))], count: 3) == [1, 2])
+    }
+
+    @Test func theCountLineHasNoTone() {
+        let lines = [AgentBranch.subagent(sub("c", at: 1)), .more(4)]
+        #expect(AgentBranches.tones(for: lines, count: 3) == [0, nil])
+    }
+```
+
+- [ ] **Step 2: Run them to see them fail**
+
+Run: `swift test --package-path Packages/SymbiodockCore --filter AgentBranchesTests`
+Expected: FAIL to compile, `type 'AgentBranches' has no member 'tone'`.
+
+- [ ] **Step 3: Add the tones**
+
+Inside `enum AgentBranches`:
+
+```swift
+    /// A subagent's own tone among `count`, from its id: FNV-1a, so the same in every run.
+    public static func tone(of id: String, count: Int) -> Int {
+        guard count > 1 else { return 0 }
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in id.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 0x0000_0100_0000_01b3
+        }
+        return Int(hash % UInt64(count))
+    }
+
+    /// The tone of each line's dot. A subagent takes its own tone unless a line above has
+    /// it; then the next free one, so that up to `count` lines never share a colour. The
+    /// count line has none.
+    public static func tones(for lines: [AgentBranch], count: Int) -> [Int?] {
+        guard count > 0 else { return lines.map { _ in nil } }
+        var taken = Set<Int>()
+        return lines.map { line in
+            guard case .subagent(let subagent) = line else { return nil }
+            var pick = Self.tone(of: subagent.id, count: count)
+            if taken.count < count {
+                while taken.contains(pick) { pick = (pick + 1) % count }
+            }
+            taken.insert(pick)
+            return pick
+        }
+    }
+```
+
+- [ ] **Step 4: Run the core tests**
+
+Run: `swift test --package-path Packages/SymbiodockCore`
+Expected: PASS.
+
+- [ ] **Step 5: Colour the ticks and dots**
+
+In `AgentsContent.swift`:
+
+`AgentRowView.block` passes the tool:
+
+```swift
+            if !row.branches.isEmpty {
+                AgentBranchLines(branches: row.branches, tool: row.session.tool, now: now)
+            }
+```
+
+In `AgentBranchLines`, add below `trailingInset`:
+
+```swift
+    /// The parent pet's colours the dots take: its first, middle and last.
+    private static let toneCount = 3
+    private static let dotSize: CGFloat = 4
+```
+
+add `let tool: AgentTool` between `branches` and `now`, and replace `body` and `line(_:isLast:)` with:
+
+```swift
+    var body: some View {
+        let tones = AgentBranches.tones(for: branches, count: Self.toneCount)
+        VStack(spacing: 0) {
+            ForEach(Array(zip(branches, tones)), id: \.0.id) { branch, tone in
+                line(branch, tone: tone, isLast: branch.id == branches.last?.id)
+            }
+        }
+        .padding(.bottom, Self.bottomPadding)
+    }
+
+    private func line(_ branch: AgentBranch, tone: Int?, isLast: Bool) -> some View {
+        HStack(spacing: 6) {
+            ZStack(alignment: .topLeading) {
+                Connector(x: Self.connectorX, isLast: isLast)
+                    .stroke(.white.opacity(0.22), lineWidth: 1)
+                Tick(x: Self.connectorX, length: Self.tick)
+                    .stroke(tickColor(branch, tone: tone), lineWidth: 1)
+                if let tone, case .subagent(let subagent) = branch {
+                    Circle()
+                        .fill(tint(tone, finished: subagent.isFinished))
+                        .frame(width: Self.dotSize, height: Self.dotSize)
+                        .position(x: Self.connectorX + Self.tick, y: Self.lineHeight / 2)
+                }
+            }
+            .frame(width: Self.connectorX + Self.tick + Self.dotSize / 2, height: Self.lineHeight)
+            label(branch)
+        }
+        .padding(.trailing, Self.trailingInset)
+        .frame(height: Self.lineHeight)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(AgentLabels.branchDescription(branch, now: now))
+    }
+
+    /// A tone of the parent pet's colours; dimmer once the subagent is done.
+    private func tint(_ tone: Int, finished: Bool) -> Color {
+        let position = Double(tone) / Double(Self.toneCount - 1)
+        return AgentPalette.tint(for: tool, across: position).opacity(finished ? 0.45 : 0.9)
+    }
+
+    private func tickColor(_ branch: AgentBranch, tone: Int?) -> Color {
+        guard let tone, case .subagent(let subagent) = branch else { return .white.opacity(0.22) }
+        return tint(tone, finished: subagent.isFinished)
+    }
+```
+
+`Connector` loses its tick and a `Tick` shape joins it:
+
+```swift
+/// The vertical under the pet: on through a line with more below it, ending at the last
+/// line's middle (`└`).
+private struct Connector: Shape {
+    let x: CGFloat
+    let isLast: Bool
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: x, y: rect.minY))
+        path.addLine(to: CGPoint(x: x, y: isLast ? rect.midY : rect.maxY))
+        return path
+    }
+}
+
+/// The short line from the vertical into a branch (`─`).
+private struct Tick: Shape {
+    let x: CGFloat
+    let length: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: x, y: rect.midY))
+        path.addLine(to: CGPoint(x: x + length, y: rect.midY))
+        return path
+    }
+}
+```
+
+- [ ] **Step 6: Build, render, look**
+
+Run the build command and the render command (Task 1 Step 6). Read `build/render/expanded-agents.png` (Claude: three dots in peach, orange and brick, the done one dimmer) and `build/render/expanded-agents-branches.png` (Codex: two blue-to-purple dots, `+2 more` with a white tick and no dot). Names stay white; nothing else in the island changes.
+
+- [ ] **Step 7: Commit and push**
+
+```bash
+git add Packages/SymbiodockCore Symbiodock/Island/Agents/AgentsContent.swift
+git commit -m "feat(agents): give each subagent branch a tone of its pet's colours" -m "The owner wanted each fork in its own colour; tones of the parent pet keep them tied to their session and clear of amber and mint."
+git push origin main
+```
+
+---
+
 ## Hand checklist (owner)
 
 1. Hover the island at the notch: it opens at 600 × 150 and closes cleanly; no flicker at its edges.
@@ -2141,3 +2343,5 @@ git push origin main
 14. Click a branch line: the session's app comes forward, as a click on the row does.
 15. If Codex is used with subagents: branches with names like `notch market research`.
 16. CPU with the island at rest and an agent working: `top` shows about 0 %.
+17. Each branch has its own dot colour from its session's pet (Claude: peach, orange, brick); a subagent keeps its colour while it runs; the done one is dimmer.
+18. Drag the island off the notch and let its strands catch an edge, then let go: a firm tick on catching and another on sticking; a free release also ticks.
