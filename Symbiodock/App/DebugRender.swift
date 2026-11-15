@@ -36,7 +36,7 @@ enum DebugRender {
         write(
             ExpandedPreview(state: branches), size: CGSize(width: 640, height: 190),
             named: "expanded-agents-branches", to: directory)
-        write(CollapsedGallery(), size: CGSize(width: 620, height: 480), named: "collapsed-faces", to: directory)
+        write(CollapsedGallery(), size: CGSize(width: 620, height: 540), named: "collapsed-faces", to: directory)
         exit(0)
     }
 
@@ -196,6 +196,18 @@ private struct CollapsedGallery: View {
             .clipShape(shape)
     }
 
+    private func compactingNotch(at time: TimeInterval) -> some View {
+        let radii = IslandLayout.cornerRadii(anchor: .notch, radius: IslandLayout.collapsedCornerRadius)
+        let shape = UnevenRoundedRectangle(
+            bottomLeadingRadius: radii.bottomLeading, bottomTrailingRadius: radii.bottomTrailing,
+            style: .continuous)
+        return shape.fill(.black)
+            .overlay { AgentNotchFace(row: row(.compacting), notchWidth: 200) }
+            .overlay { CompactingRim(radii: radii, dockedEdges: [.top], frozenAt: time) }
+            .frame(width: 272, height: 32)
+            .clipShape(shape)
+    }
+
     private func capsule(_ state: AgentRowState, _ attention: AgentAttention, at time: TimeInterval) -> some View {
         let anchor = IslandAnchor.edge(.bottom, fraction: 0.5)
         let radii = IslandLayout.cornerRadii(anchor: anchor, radius: IslandLayout.collapsedCornerRadius)
@@ -236,6 +248,7 @@ private struct CollapsedGallery: View {
         HStack(alignment: .top, spacing: 24) {
             VStack(alignment: .leading, spacing: 14) {
                 notch(.working, .none, at: 0)
+                compactingNotch(at: 0.1)
                 notch(.needsInput(prompt: nil), .needsInput, at: 0.45)
                 notch(.needsInput(prompt: nil), .needsInput, at: 1.4)
                 notch(.finished, .finished, at: 0.45)

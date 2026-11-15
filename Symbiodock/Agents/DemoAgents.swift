@@ -4,7 +4,7 @@ import SymbiodockCore
 
 /// A fixed set of sessions for looking at the Agents tab without running an agent:
 /// `open --env SYMBIODOCK_DEMO_AGENTS=1 build/Build/Products/Debug/Symbiodock.app`.
-/// The value picks the set: `1` all states, `working`, `finished`, `quiet`, `branches`.
+/// The value picks the set: `1` all states, `working`, `finished`, `quiet`, `branches`, `compacting`.
 @MainActor
 enum DemoAgents {
     static var requested: String? {
@@ -54,6 +54,10 @@ enum DemoAgents {
             state.setAgentSessions([work])
         case "quiet":
             state.setAgentSessions([open, idle])
+        case "compacting":
+            state.setAgentSessions([
+                session("c", .claudeCode, "api-refactor", "backend", .compacting, minutes: 0.5), idle,
+            ])
         default:
             // `c` is seen working first, so that it shows as finished.
             state.setAgentSessions([

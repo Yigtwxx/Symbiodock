@@ -51,6 +51,12 @@ struct IslandView: View {
                         isVertical: IslandLayout.isSideDocked(state.anchor))
                 }
             }
+            .overlay {
+                if state.showsCompactingRim {
+                    CompactingRim(
+                        radii: radii, dockedEdges: IslandLayout.dockedEdges(anchor: state.anchor))
+                }
+            }
             .frame(width: frame.width, height: frame.height)
             // Content must not draw outside the shape while it springs between sizes.
             .clipShape(shape)
