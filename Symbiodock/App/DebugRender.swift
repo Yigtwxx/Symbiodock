@@ -14,6 +14,7 @@ enum DebugRender {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         write(StatusMarkGallery(), size: CGSize(width: 640, height: 150), named: "status-marks", to: directory)
         write(PetGallery(), size: CGSize(width: 800, height: 460), named: "pets", to: directory)
+        write(SealGallery(), size: CGSize(width: 640, height: 150), named: "finish-seal", to: directory)
         for (name, tab) in [("expanded-agents", IslandTab.agents), ("expanded-media", .media)] {
             let state = IslandState()
             DemoAgents.apply("1", to: state)
@@ -266,4 +267,26 @@ private struct CollapsedGallery: View {
         .padding(16)
     }
 }
+
+/// The finish seal at moments of its run.
+private struct SealGallery: View {
+    private static let times: [TimeInterval] = [0, 0.2, 0.45, 0.6, 0.75, 0.95, 1.5]
+
+    var body: some View {
+        HStack(spacing: 22) {
+            ForEach(Self.times, id: \.self) { time in
+                VStack(spacing: 10) {
+                    FinishSeal(tool: .claudeCode, size: 48, frozenAt: time)
+                        .frame(width: 64, height: 64)
+                    FinishSeal(tool: .codex, size: 24, frozenAt: time)
+                    Text(String(format: "%.2f s", time))
+                        .font(.system(size: 9)).foregroundStyle(.white.opacity(0.6))
+                }
+            }
+        }
+        .padding(16)
+        .background(.black, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
 #endif

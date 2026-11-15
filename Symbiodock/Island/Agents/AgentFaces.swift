@@ -9,7 +9,7 @@ struct AgentNotchFace: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            AgentPet(tool: row.session.tool, state: row.state, size: 24)
+            AgentFacePet(row: row)
                 .frame(maxWidth: .infinity)
             Color.clear
                 .frame(width: notchWidth)
@@ -29,7 +29,7 @@ struct AgentFloatingFace: View {
     var body: some View {
         HStack(spacing: 8) {
             if let row {
-                AgentPet(tool: row.session.tool, state: row.state, size: 24)
+                AgentFacePet(row: row)
                 Text(row.session.title)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.white)
@@ -59,7 +59,7 @@ struct AgentSideFace: View {
     var body: some View {
         VStack(spacing: 8) {
             if let row {
-                AgentPet(tool: row.session.tool, state: row.state, size: 24)
+                AgentFacePet(row: row)
                 RotatedLine(text: row.session.title)
                     .foregroundStyle(.white)
                 AgentStatusMark(state: row.state)
@@ -92,5 +92,20 @@ private enum AgentFaceLabel {
         case .idle: "Idle"
         }
         return "\(row.session.tool.displayName), \(row.session.title), \(state)"
+    }
+}
+
+/// The pet on a collapsed face. A finish that has not settled shows its seal in its place;
+/// a new finish starts a new seal.
+private struct AgentFacePet: View {
+    let row: AgentRow
+
+    var body: some View {
+        if row.state == .finished, !row.isSettled {
+            FinishSeal(tool: row.session.tool, size: 24)
+                .id(row.id)
+        } else {
+            AgentPet(tool: row.session.tool, state: row.state, size: 24)
+        }
     }
 }

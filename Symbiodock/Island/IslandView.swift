@@ -8,6 +8,8 @@ struct IslandView: View {
     let onCommand: (PlaybackCommand) -> Void
     let onOpenSession: (AgentSession) -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private static let spring = Animation.spring(response: 0.35, dampingFraction: 0.8)
 
     var body: some View {
@@ -21,6 +23,16 @@ struct IslandView: View {
             }
         }
         .ignoresSafeArea()
+        // A finish on the collapsed island plays its seal, then lets go: the session settles
+        // and the island closes. Opening the island or a question in the meantime cancels
+        // the wait, and the seal plays again from the start the next time.
+        .task(id: state.sealingID) {
+            guard let id = state.sealingID else { return }
+            let wait = reduceMotion ? AgentSealTiming.stillDuration : AgentSealTiming.duration
+            try? await Task.sleep(for: .seconds(wait))
+            guard !Task.isCancelled else { return }
+            state.settleFinished(id)
+        }
     }
 
     private var resting: some View {
