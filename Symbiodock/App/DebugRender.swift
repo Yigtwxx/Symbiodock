@@ -29,6 +29,13 @@ enum DebugRender {
         write(
             ExpandedPreview(state: empty), size: CGSize(width: 640, height: 190),
             named: "expanded-agents-empty", to: directory)
+        let branches = IslandState()
+        DemoAgents.apply("branches", to: branches)
+        branches.setHovering(true)
+        branches.selectTab(.agents)
+        write(
+            ExpandedPreview(state: branches), size: CGSize(width: 640, height: 190),
+            named: "expanded-agents-branches", to: directory)
         write(CollapsedGallery(), size: CGSize(width: 620, height: 480), named: "collapsed-faces", to: directory)
         exit(0)
     }

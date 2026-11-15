@@ -2,26 +2,31 @@ import SwiftUI
 import SymbiodockCore
 
 /// The Agents tab: the sessions one under the other, two at a time, or an idle message.
+/// A session's subagents hang below its row as branches.
 struct AgentsContent: View {
     let rows: [AgentRow]
     /// Height of the header band; nothing can be shown behind it.
     let topInset: CGFloat
     let onOpen: (AgentSession) -> Void
 
-    /// How many sessions are visible at once; the rest are reached by scrolling.
+    /// How many sessions the viewport is sized for; the rest are reached by scrolling.
     private static let visibleRows = 2
     private static let rowSpacing: CGFloat = 4
+    /// Kept free below the list.
+    private static let bottomMargin: CGFloat = 6
 
     var body: some View {
-        Group {
-            if rows.isEmpty {
-                idle
-            } else {
-                list
+        GeometryReader { proxy in
+            Group {
+                if rows.isEmpty {
+                    idle
+                } else {
+                    list(available: proxy.size.height - Self.bottomMargin)
+                }
             }
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .padding(.top, topInset)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var idle: some View {
@@ -35,15 +40,19 @@ struct AgentsContent: View {
         }
     }
 
-    /// As tall as the rows it shows, so one or two rows sit centred below the header.
-    private var viewportHeight: CGFloat {
-        let shown = CGFloat(min(rows.count, Self.visibleRows))
-        return shown * AgentRowView.height + (shown - 1) * Self.rowSpacing
+    /// The blocks' heights with the spacing between them.
+    private func height(of rows: some Collection<AgentRow>) -> CGFloat {
+        let blocks = rows.reduce(0) { $0 + AgentRowView.height(of: $1) }
+        return blocks + CGFloat(max(rows.count - 1, 0)) * Self.rowSpacing
     }
 
-    private var list: some View {
+    /// As tall as the first two blocks, but never taller than the room below the header,
+    /// so one or two blocks sit centred and a tall block is scrolled.
+    private func list(available: CGFloat) -> some View {
+        let viewport = min(height(of: rows.prefix(Self.visibleRows)), max(available, AgentRowView.rowHeight))
+        let overflows = height(of: rows) > viewport + 0.5
         // The labels count minutes; they are redrawn on their own now and then.
-        TimelineView(.periodic(from: .now, by: 20)) { context in
+        return TimelineView(.periodic(from: .now, by: 20)) { context in
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: Self.rowSpacing) {
                     ForEach(rows) { row in
@@ -52,12 +61,12 @@ struct AgentsContent: View {
                 }
                 .scrollTargetLayout()
             }
-            // The list comes to rest on a row, never between two.
+            // The list comes to rest on a session, never between two.
             .scrollTargetBehavior(.viewAligned)
-            .frame(height: viewportHeight)
+            .frame(height: viewport)
             .mask {
                 // Fading out at the lower edge says that the list goes on.
-                if rows.count > Self.visibleRows {
+                if overflows {
                     LinearGradient(
                         stops: [
                             .init(color: .black, location: 0),
@@ -75,7 +84,12 @@ struct AgentsContent: View {
 }
 
 private struct AgentRowView: View {
-    static let height: CGFloat = 46
+    static let rowHeight: CGFloat = 46
+
+    /// The row and the branches below it.
+    static func height(of row: AgentRow) -> CGFloat {
+        rowHeight + AgentBranchLines.height(of: row.branches)
+    }
 
     let row: AgentRow
     let now: Date
@@ -86,13 +100,24 @@ private struct AgentRowView: View {
             Button {
                 onOpen(row.session)
             } label: {
-                content
+                block
             }
             .buttonStyle(RowButtonStyle())
             .accessibilityHint("Brings its app to the front")
         } else {
-            content
+            block
         }
+    }
+
+    /// One scroll target: the row and its branches.
+    private var block: some View {
+        VStack(spacing: 0) {
+            content
+            if !row.branches.isEmpty {
+                AgentBranchLines(branches: row.branches, now: now)
+            }
+        }
+        .contentShape(Rectangle())
     }
 
     private var prompt: String? {
@@ -144,7 +169,7 @@ private struct AgentRowView: View {
                 .accessibilityHidden(true)
         }
         .padding(.horizontal, 10)
-        .frame(height: Self.height)
+        .frame(height: Self.rowHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             if needsInput {
@@ -159,6 +184,98 @@ private struct AgentRowView: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// A session's subagents below its row, joined to its pet by a thin line, like a fork.
+/// Nothing in it moves: the times change with the list's periodic redraw.
+private struct AgentBranchLines: View {
+    static let lineHeight: CGFloat = 16
+    /// Below the last line, so that the next row does not touch it.
+    static let bottomPadding: CGFloat = 4
+    /// The connector runs under the pet's centre: the row's padding and half the pet.
+    private static let connectorX: CGFloat = 10 + 18
+    private static let tick: CGFloat = 8
+    /// The trailing text ends where the row's label ends: the row's padding, the status
+    /// mark and the spacing before it.
+    private static let trailingInset: CGFloat = 10 + 14 + 10
+
+    static func height(of branches: [AgentBranch]) -> CGFloat {
+        branches.isEmpty ? 0 : CGFloat(branches.count) * lineHeight + bottomPadding
+    }
+
+    let branches: [AgentBranch]
+    let now: Date
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(branches) { branch in
+                line(branch, isLast: branch.id == branches.last?.id)
+            }
+        }
+        .padding(.bottom, Self.bottomPadding)
+    }
+
+    private func line(_ branch: AgentBranch, isLast: Bool) -> some View {
+        HStack(spacing: 6) {
+            Connector(x: Self.connectorX, tick: Self.tick, isLast: isLast)
+                .stroke(.white.opacity(0.22), lineWidth: 1)
+                .frame(width: Self.connectorX + Self.tick, height: Self.lineHeight)
+            label(branch)
+        }
+        .padding(.trailing, Self.trailingInset)
+        .frame(height: Self.lineHeight)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(AgentLabels.branchDescription(branch, now: now))
+    }
+
+    @ViewBuilder
+    private func label(_ branch: AgentBranch) -> some View {
+        switch branch {
+        case .subagent(let subagent):
+            Text(subagent.title)
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(subagent.isFinished ? 0.4 : 0.7))
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 8)
+            if subagent.isFinished {
+                HStack(spacing: 3) {
+                    Text(AgentLabels.branchStatus(subagent, now: now))
+                    Image(systemName: "checkmark").font(.system(size: 8, weight: .bold))
+                }
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(AgentPalette.mint)
+                .fixedSize()
+            } else {
+                Text(AgentLabels.branchStatus(subagent, now: now))
+                    .font(.system(size: 10, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.5))
+                    .fixedSize()
+            }
+        case .more(let count):
+            Text("+\(count) more")
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.45))
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+/// `├─` for a line with more below it, `└─` for the last.
+private struct Connector: Shape {
+    let x: CGFloat
+    let tick: CGFloat
+    let isLast: Bool
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: x, y: rect.minY))
+        path.addLine(to: CGPoint(x: x, y: isLast ? rect.midY : rect.maxY))
+        path.move(to: CGPoint(x: x, y: rect.midY))
+        path.addLine(to: CGPoint(x: x + tick, y: rect.midY))
+        return path
     }
 }
 
