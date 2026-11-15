@@ -123,8 +123,10 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
   soru cevaplama istenmedi ("şimdilik hayır"). Açıkça teyit edilmeyenler: titreşimin hissi,
   bitişte `Done ✓`, Codex alt ajanları. Elle kontrol listesi
   `docs/superpowers/plans/2026-11-15-subagent-branches.md` sonunda (18 madde).
-- **Faz 9 (Face ID bitiş efekti, compact göstergesi): kod tamam ve `main`'de (2026-11-16).** 391
-  çekirdek testi geçiyor. Ekran dışı görüntülerde doğrulananlar: mor kesikli halka
+- **Faz 9 (Face ID bitiş efekti, compact göstergesi): kod tamam ve `main`'de (2026-11-16).** 398
+  çekirdek testi geçiyor. Son incelemeden sonra düzeltilenler: compact bitişi artık hiç "bitti"
+  sayılmıyor (sınırdan sonraki 5 sn ve 1 MB'lık okuma; ölçüm: sınırdan sonra 312–441 KB kayıt),
+  yanaşık adada yerleşmiş bitiş sakin görünüyor, sekmedeki nokta `Agents` açılana kadar kalıyor. Ekran dışı görüntülerde doğrulananlar: mor kesikli halka
   (`status-marks.png`), aşağı akan pet dalgası (`pets.png`), adanın etrafındaki kesikli çizgi
   ve üstte olmaması (`collapsed-faces.png`), bitiş efektinin aşamaları (`finish-seal.png`).
   CPU (Debug, `top`): compact demosunda %0; bitiş efekti oynarken ~%2, bittikten sonra %0.
