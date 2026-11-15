@@ -183,7 +183,8 @@ amber.
   once every 2 s (Core Animation rotation, like `SpinningArc`). With Reduce Motion it
   stands still.
 - **Pet.** The wave runs from top to bottom: all lines rest at 82 % (`waveRest`); a soft
-  horizontal band travels from the top to the bottom over one `wavePeriod` (2.4 s), and
+  horizontal band travels from the top to the bottom in `waveTravel` (1.3 s) once every
+  `wavePeriod` (2.4 s), at the pace of the wave across, and
   inside it the lines show at full color and 10 % wider (`waveGrowth`). Nothing moves up
   or down and no white is added. Done with two copies of the figure, the crest copy
   revealed by a moving gradient mask; the band position is a tested core formula. With
