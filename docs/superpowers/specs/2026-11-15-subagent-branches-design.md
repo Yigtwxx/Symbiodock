@@ -148,7 +148,9 @@ on after its parent's turn has ended.
   Claude: peach, orange, brick). A subagent's tone comes from a stable hash of its id
   (FNV-1a, the same in every run); a tone a line above already took passes to the next free
   one, so up to three lines never share a colour. Working: 90 %; finished: 45 %. The vertical
-  stays white 22 %; `+N more` has a white tick and no dot. Names stay white.
+  is one line from under the pet whose colour runs through the lines' tones top to bottom, so
+  it meets each tick in that tick's colour (owner: "direkt ana çizgi de renkli olsun"); at a
+  `+N more` line it fades to white 22 %, that line's tick, with no dot. Names stay white.
 - The branches belong to the row's button: a click anywhere in the block brings the
   session's app forward.
 - Accessibility: each branch line is labelled `Subagent <name>, working 2m`,

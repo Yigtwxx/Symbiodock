@@ -218,19 +218,33 @@ private struct AgentBranchLines: View {
         let tones = AgentBranches.tones(for: branches, count: Self.toneCount)
         VStack(spacing: 0) {
             ForEach(Array(zip(branches, tones)), id: \.0.id) { branch, tone in
-                line(
-                    branch, tone: tone, isFirst: branch.id == branches.first?.id,
-                    isLast: branch.id == branches.last?.id)
+                line(branch, tone: tone)
             }
         }
+        .overlay(alignment: .topLeading) { trunk(tones: tones) }
         .padding(.bottom, Self.bottomPadding)
     }
 
-    private func line(_ branch: AgentBranch, tone: Int?, isFirst: Bool, isLast: Bool) -> some View {
+    /// The vertical from under the pet down to the last line's middle (`└`). Its colour runs
+    /// through the lines' tones, so it meets each tick in the tick's own colour; it fades to
+    /// the plain line where `+N more` closes the list.
+    private func trunk(tones: [Int?]) -> some View {
+        let length = Self.petGap + CGFloat(branches.count - 1) * Self.lineHeight + Self.lineHeight / 2
+        let stops = zip(branches, tones).enumerated().map { index, pair in
+            Gradient.Stop(
+                color: tickColor(pair.0, tone: pair.1),
+                location: (Self.petGap + (CGFloat(index) + 0.5) * Self.lineHeight) / length)
+        }
+        return Rectangle()
+            .fill(LinearGradient(stops: stops, startPoint: .top, endPoint: .bottom))
+            .frame(width: 1, height: length)
+            .offset(x: Self.connectorX - 0.5, y: -Self.petGap)
+            .accessibilityHidden(true)
+    }
+
+    private func line(_ branch: AgentBranch, tone: Int?) -> some View {
         HStack(spacing: 6) {
             ZStack(alignment: .topLeading) {
-                Connector(x: Self.connectorX, isLast: isLast, reach: isFirst ? Self.petGap : 0)
-                    .stroke(.white.opacity(0.22), lineWidth: 1)
                 Tick(x: Self.connectorX, length: Self.tick)
                     .stroke(tickColor(branch, tone: tone), lineWidth: 1)
                 if let tone, case .subagent(let subagent) = branch {
@@ -291,22 +305,6 @@ private struct AgentBranchLines: View {
                 .foregroundStyle(.white.opacity(0.45))
             Spacer(minLength: 0)
         }
-    }
-}
-
-/// The vertical under the pet: on through a line with more below it, ending at the last
-/// line's middle (`└`).
-private struct Connector: Shape {
-    let x: CGFloat
-    let isLast: Bool
-    /// How far above the line's rect the vertical starts (up to the pet, for the first).
-    let reach: CGFloat
-
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: x, y: rect.minY - reach))
-        path.addLine(to: CGPoint(x: x, y: isLast ? rect.midY : rect.maxY))
-        return path
     }
 }
 
