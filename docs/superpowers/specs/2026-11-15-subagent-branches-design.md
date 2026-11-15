@@ -143,8 +143,8 @@ on after its parent's turn has ended.
 - `more(N)`: `+N more`, 11 pt, white 45 %, no trailing text.
 - The branches belong to the row's button: a click anywhere in the block brings the
   session's app forward.
-- Accessibility: each branch line is an element of its own, read as
-  `Subagent <name>, working 2m` or `Subagent <name>, done`.
+- Accessibility: each branch line is labelled `Subagent <name>, working 2m`,
+  `Subagent <name>, done` or `<N> more subagents`, and is read as part of its row.
 
 ### 6.3 List
 
