@@ -21,6 +21,23 @@ public enum AgentLabels {
         }
     }
 
+    /// A subagent's trailing text: how long it has run, or `Done`.
+    public static func branchStatus(_ subagent: AgentSubagent, now: Date) -> String {
+        subagent.isFinished ? "Done" : duration(now.timeIntervalSince(subagent.since))
+    }
+
+    /// What VoiceOver reads for a line below a row.
+    public static func branchDescription(_ branch: AgentBranch, now: Date) -> String {
+        switch branch {
+        case .subagent(let subagent):
+            subagent.isFinished
+                ? "Subagent \(subagent.title), done"
+                : "Subagent \(subagent.title), working \(branchStatus(subagent, now: now))"
+        case .more(let count):
+            "\(count) more subagents"
+        }
+    }
+
     /// "1 needs input · 2 working"; nil when both counts are zero.
     public static func summary(needsInput: Int, working: Int) -> String? {
         var parts: [String] = []

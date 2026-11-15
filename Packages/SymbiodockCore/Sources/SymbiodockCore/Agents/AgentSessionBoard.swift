@@ -32,6 +32,8 @@ public enum AgentRowState: Equatable, Sendable {
 public struct AgentRow: Identifiable, Equatable, Sendable {
     public let session: AgentSession
     public let state: AgentRowState
+    /// The lines below the row: its subagents.
+    public let branches: [AgentBranch]
     public var id: String { session.id }
 }
 
@@ -44,6 +46,9 @@ public struct AgentSessionBoard: Equatable, Sendable {
     private var activeIDs: Set<String> = []
     /// Sessions seen going from active to idle and not looked at since.
     private var finishedIDs: Set<String> = []
+    /// When each active session's current turn began: its `since` on the update where it
+    /// became active. A question in the middle of the turn does not move it.
+    private var turnStarts: [String: Date] = [:]
 
     public init() {}
 
@@ -58,6 +63,9 @@ public struct AgentSessionBoard: Equatable, Sendable {
             case .working, .needsInput:
                 active.insert(session.id)
                 finishedIDs.remove(session.id)
+                if !activeIDs.contains(session.id) || turnStarts[session.id] == nil {
+                    turnStarts[session.id] = session.since
+                }
             case .idle:
                 if activeIDs.contains(session.id) { finishedIDs.insert(session.id) }
             case .running:
@@ -65,6 +73,7 @@ public struct AgentSessionBoard: Equatable, Sendable {
             }
         }
         finishedIDs.formIntersection(seen)
+        turnStarts = turnStarts.filter { active.contains($0.key) }
         activeIDs = active
         rebuild(from: unique)
     }
@@ -120,7 +129,13 @@ public struct AgentSessionBoard: Equatable, Sendable {
 
     private mutating func rebuild(from sessions: [AgentSession]) {
         rows = sessions
-            .map { AgentRow(session: $0, state: state(of: $0)) }
+            .map { session in
+                let state = state(of: session)
+                return AgentRow(
+                    session: session, state: state,
+                    branches: AgentBranches.lines(
+                        for: session.subagents, state: state, turnStart: turnStarts[session.id]))
+            }
             .sorted { lhs, rhs in
                 if lhs.state.rank != rhs.state.rank { return lhs.state.rank < rhs.state.rank }
                 if lhs.session.since != rhs.session.since {

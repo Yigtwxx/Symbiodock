@@ -36,4 +36,15 @@ struct AgentLabelsTests {
         #expect(AgentTool.copilotCLI.displayName == "Copilot CLI")
         #expect(AgentTool.allCases.count == 7)
     }
+
+    @Test func aBranchSaysHowLongItRunsOrThatItIsDone() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let working = AgentSubagent(id: "w", title: "Map the views", isFinished: false, since: now.addingTimeInterval(-125))
+        let done = AgentSubagent(id: "d", title: "Read the spec", isFinished: true, since: now.addingTimeInterval(-30))
+        #expect(AgentLabels.branchStatus(working, now: now) == "2m")
+        #expect(AgentLabels.branchStatus(done, now: now) == "Done")
+        #expect(AgentLabels.branchDescription(.subagent(working), now: now) == "Subagent Map the views, working 2m")
+        #expect(AgentLabels.branchDescription(.subagent(done), now: now) == "Subagent Read the spec, done")
+        #expect(AgentLabels.branchDescription(.more(3), now: now) == "3 more subagents")
+    }
 }

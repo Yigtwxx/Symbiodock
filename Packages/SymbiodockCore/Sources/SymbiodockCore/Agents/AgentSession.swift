@@ -43,10 +43,13 @@ public struct AgentSession: Identifiable, Equatable, Sendable {
     public let pid: Int32?
     /// The regular app that hosts the session (a terminal, an editor), when one was found.
     public var hostAppPID: Int32?
+    /// Its subagents that are still worth showing; empty for a tool that has none.
+    public var subagents: [AgentSubagent]
 
     public init(
         id: String, tool: AgentTool, title: String, projectPath: String?,
-        activity: AgentActivity, since: Date, pid: Int32?, hostAppPID: Int32? = nil
+        activity: AgentActivity, since: Date, pid: Int32?, hostAppPID: Int32? = nil,
+        subagents: [AgentSubagent] = []
     ) {
         self.id = id
         self.tool = tool
@@ -56,6 +59,7 @@ public struct AgentSession: Identifiable, Equatable, Sendable {
         self.since = since
         self.pid = pid
         self.hostAppPID = hostAppPID
+        self.subagents = subagents
     }
 
     /// The project folder's name, for display.

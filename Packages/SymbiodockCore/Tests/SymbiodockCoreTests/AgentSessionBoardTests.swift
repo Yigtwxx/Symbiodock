@@ -6,11 +6,26 @@ struct AgentSessionBoardTests {
     private let base = Date(timeIntervalSince1970: 1_000_000)
 
     private func session(
-        _ id: String, _ activity: AgentActivity, since offset: TimeInterval = 0
+        _ id: String, _ activity: AgentActivity, since offset: TimeInterval = 0,
+        subagents: [AgentSubagent] = []
     ) -> AgentSession {
         AgentSession(
             id: id, tool: .claudeCode, title: id, projectPath: "/work/\(id)",
-            activity: activity, since: base.addingTimeInterval(offset), pid: nil)
+            activity: activity, since: base.addingTimeInterval(offset), pid: nil,
+            subagents: subagents)
+    }
+
+    private func sub(_ id: String, finished: Bool = false, at offset: TimeInterval) -> AgentSubagent {
+        AgentSubagent(id: id, title: id, isFinished: finished, since: base.addingTimeInterval(offset))
+    }
+
+    private func branchIDs(_ board: AgentSessionBoard) -> [String] {
+        (board.rows.first?.branches ?? []).map { line in
+            switch line {
+            case .subagent(let subagent): subagent.id
+            case .more(let count): "+\(count)"
+            }
+        }
     }
 
     @Test func startsEmptyAndQuiet() {
@@ -156,5 +171,58 @@ struct AgentSessionBoardTests {
         board.update([session("idle", .idle), session("work", .working)])
         #expect(board.spokesperson?.id == "work")
         #expect(board.spokesperson?.id == board.lead?.id)
+    }
+
+    @Test func theTurnStartSurvivesAQuestion() {
+        let done = sub("done", finished: true, at: 5)
+        var board = AgentSessionBoard()
+        board.update([session("a", .working, since: 0, subagents: [done])])
+        #expect(branchIDs(board) == ["done"])
+        board.update([session("a", .needsInput(prompt: nil), since: 10, subagents: [done])])
+        #expect(branchIDs(board) == ["done"])
+        board.update([session("a", .working, since: 20, subagents: [done])])
+        #expect(branchIDs(board) == ["done"])
+    }
+
+    @Test func subagentsFinishedBeforeTheTurnAreLeftOut() {
+        var board = AgentSessionBoard()
+        board.update([
+            session("a", .working, since: 10, subagents: [
+                sub("early", finished: true, at: 5), sub("late", finished: true, at: 12),
+            ]),
+        ])
+        #expect(branchIDs(board) == ["late"])
+    }
+
+    @Test func finishedSubagentsGoWhenTheParentIdles() {
+        let done = sub("done", finished: true, at: 5)
+        var board = AgentSessionBoard()
+        board.update([session("a", .working, since: 0, subagents: [done])])
+        board.update([session("a", .idle, since: 30, subagents: [done])])
+        #expect(board.rows.map(\.state) == [.finished])
+        #expect(branchIDs(board).isEmpty)
+    }
+
+    @Test func aNewTurnStartsAfresh() {
+        let done = sub("done", finished: true, at: 5)
+        var board = AgentSessionBoard()
+        board.update([session("a", .working, since: 0, subagents: [done])])
+        board.update([session("a", .idle, since: 30, subagents: [done])])
+        board.update([session("a", .working, since: 100, subagents: [done])])
+        #expect(branchIDs(board).isEmpty)
+    }
+
+    @Test func aBackgroundSubagentShowsUnderAnIdleParent() {
+        var board = AgentSessionBoard()
+        board.update([session("a", .idle, since: 0, subagents: [sub("w", at: 3)])])
+        #expect(branchIDs(board) == ["w"])
+    }
+
+    @Test func markSeenKeepsTheBranches() {
+        var board = AgentSessionBoard()
+        board.update([session("a", .working, subagents: [sub("w", at: 1)])])
+        board.update([session("a", .idle, since: 5, subagents: [sub("w", at: 1)])])
+        board.markSeen()
+        #expect(branchIDs(board) == ["w"])
     }
 }
