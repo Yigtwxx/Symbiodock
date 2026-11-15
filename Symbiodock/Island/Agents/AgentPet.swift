@@ -5,7 +5,8 @@ import SymbiodockCore
 /// figure shows as the lines growing brighter and dimmer along their length, the way light
 /// falls on a form. It moves with its session: while the session works a wave runs across
 /// it from left to right, in depth (each line comes forward, a little larger and brighter,
-/// and goes back); otherwise it stands still.
+/// and goes back); while it compacts the wave runs from top to bottom; otherwise it stands
+/// still.
 struct AgentPet: View {
     let tool: AgentTool
     var state: AgentRowState = .finished
@@ -17,7 +18,7 @@ struct AgentPet: View {
 
     /// Whether the wave is playing: the pet is then made of layers, not drawn.
     private var waves: Bool {
-        frozenAt == nil && state == .working && !reduceMotion
+        frozenAt == nil && (state == .working || state == .compacting) && !reduceMotion
     }
 
     var body: some View {
@@ -25,10 +26,15 @@ struct AgentPet: View {
             if waves {
                 // Smooth motion that never rests: Core Animation plays it, the app draws nothing.
                 // Like the drawn pet, it reaches past the pet by the most a line can grow.
-                AgentPetWave(tool: tool, strength: strength, side: size)
+                AgentPetWave(
+                    tool: tool, strength: strength, side: size,
+                    direction: state == .compacting ? .down : .across)
                     .frame(
                         width: size * (1 + AgentPetMotion.waveGrowth),
                         height: size * (1 + AgentPetMotion.waveGrowth))
+                    .transition(.opacity)
+            } else if state == .compacting, let frozenAt {
+                downFigure(at: frozenAt)
                     .transition(.opacity)
             } else {
                 figure(waveAt: state == .working ? frozenAt : nil)
@@ -56,7 +62,7 @@ struct AgentPet: View {
     /// that moment: larger about its centre and in full colour, the others a little
     /// weaker. The canvas reaches past
     /// the pet by the most a line can grow, so that nothing is cut.
-    private func figure(waveAt time: TimeInterval?) -> some View {
+    private func figure(waveAt time: TimeInterval?, widened: Bool = false) -> some View {
         let art = AgentPetArt.art(for: tool, strength: strength)
         let lines = art.lines
         let grounds = art.grounds
@@ -76,7 +82,7 @@ struct AgentPet: View {
                 let scale = 1 + AgentPetMotion.waveGrowth * forward
                 let centre = CGPoint(x: x + bar / 2, y: margin + side / 2)
                 line.translateBy(x: centre.x, y: centre.y)
-                line.scaleBy(x: scale, y: scale)
+                line.scaleBy(x: scale * (widened ? 1 + AgentPetMotion.waveGrowth : 1), y: scale)
                 line.translateBy(x: -centre.x, y: -centre.y)
                 let whole = CGRect(x: x, y: margin + inset, width: bar, height: side - 2 * inset)
                 line.fill(Path(roundedRect: whole, cornerRadius: bar / 2), with: .color(grounds[column]))
@@ -96,6 +102,30 @@ struct AgentPet: View {
             }
         }
         .frame(width: size + 2 * margin, height: size + 2 * margin)
+    }
+
+    /// A compacting pet at one moment of its downward wave, drawn still; for renders. The
+    /// lines stand back, and inside the crest's band they show in full and a touch wider.
+    private func downFigure(at time: TimeInterval) -> some View {
+        let margin = size * AgentPetMotion.waveGrowth / 2
+        return ZStack {
+            figure(waveAt: nil).opacity(AgentPetMotion.waveRest)
+            if let crest = AgentPetMotion.downCrest(at: time) {
+                figure(waveAt: nil, widened: true)
+                    .mask {
+                        LinearGradient(
+                            stops: (0...12).map { step in
+                                let distance = abs(Double(step) / 12 - 0.5)
+                                return Gradient.Stop(
+                                    color: .black.opacity(0.5 * (1 + cos(2 * .pi * distance))),
+                                    location: CGFloat(step) / 12)
+                            },
+                            startPoint: .top, endPoint: .bottom)
+                            .frame(height: size * AgentPetMotion.downBand)
+                            .position(x: size / 2 + margin, y: margin + size * crest)
+                    }
+            }
+        }
     }
 }
 
