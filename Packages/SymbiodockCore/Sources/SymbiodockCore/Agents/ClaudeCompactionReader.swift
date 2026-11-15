@@ -1,5 +1,14 @@
 import Foundation
 
+/// What the transcript's end says about a manual compaction.
+public enum CompactionMark: Equatable, Sendable {
+    /// One is under way since this moment (its start mark).
+    case started(Date)
+    /// One ended at this moment (its boundary); the session file still says `busy` for a
+    /// moment after it.
+    case ended(Date)
+}
+
 /// Tells from the end of a Claude Code transcript whether a manual `/compact` is under way.
 /// Claude Code writes the records that describe a compaction when it ends; its start leaves
 /// one mark: a file snapshot whose message is not written yet (2.1.325), or a plain
@@ -18,14 +27,30 @@ public enum ClaudeCompactionReader {
         "user", "assistant", "system", "attachment", "file-history-snapshot",
     ]
 
-    /// When the compaction under way started; nil when the tail shows none. Walks the lines
+    /// How long after a manual compaction's boundary a busy session still counts as
+    /// compacting: long enough to cover the moment before the session file turns idle, so
+    /// that the end of a compaction is never taken for a finish.
+    public static let endGrace: TimeInterval = 5
+
+    /// What the tail shows about a manual compaction; nil when it shows none. Walks the lines
     /// from the end; lines that are cut off or are not JSON are skipped.
-    public static func compactionStart(inTail data: Data) -> Date? {
+    public static func compactionMark(inTail data: Data) -> CompactionMark? {
         for line in data.split(separator: UInt8(ascii: "\n")).reversed() {
             guard let object = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
                   let type = object["type"] as? String, telling.contains(type)
             else { continue }
             switch type {
+            case "attachment":
+                // Attachments follow both prompts and compactions.
+                continue
+            case "system":
+                guard object["subtype"] as? String == "compact_boundary",
+                      let metadata = object["compactMetadata"] as? [String: Any],
+                      metadata["trigger"] as? String == "manual",
+                      let stamp = object["timestamp"] as? String,
+                      let date = timestamp(stamp)
+                else { return nil }
+                return .ended(date)
             case "file-history-snapshot":
                 // An update rewrites an older snapshot; it says nothing about a new message.
                 if object["isSnapshotUpdate"] as? Bool == true { continue }
@@ -35,16 +60,19 @@ public enum ClaudeCompactionReader {
                 // Its message is already written: an ordinary snapshot.
                 if mentions(uuid: messageID, in: data) { continue }
                 guard let snapshot = object["snapshot"] as? [String: Any],
-                      let stamp = snapshot["timestamp"] as? String
+                      let stamp = snapshot["timestamp"] as? String,
+                      let date = timestamp(stamp)
                 else { return nil }
-                return timestamp(stamp)
+                return .started(date)
             case "user":
+                if isBookkeeping(object) { continue }
                 guard let message = object["message"] as? [String: Any],
                       let content = message["content"] as? String,
                       content.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("/compact"),
-                      let stamp = object["timestamp"] as? String
+                      let stamp = object["timestamp"] as? String,
+                      let date = timestamp(stamp)
                 else { return nil }
-                return timestamp(stamp)
+                return .started(date)
             default:
                 return nil
             }
@@ -52,9 +80,24 @@ public enum ClaudeCompactionReader {
         return nil
     }
 
-    /// Whether a compaction that started at `start` counts at `now`.
-    public static func isCompacting(start: Date, now: Date) -> Bool {
-        now.timeIntervalSince(start) >= settleTime
+    /// Whether the mark counts at `now`: a start once it has settled, an end for a short
+    /// while after its boundary.
+    public static func isCompacting(_ mark: CompactionMark, now: Date) -> Bool {
+        switch mark {
+        case .started(let start): now.timeIntervalSince(start) >= settleTime
+        case .ended(let end): now.timeIntervalSince(end) < endGrace
+        }
+    }
+
+    /// A user record Claude Code writes around a compaction, not something the user typed.
+    private static func isBookkeeping(_ object: [String: Any]) -> Bool {
+        if object["isMeta"] as? Bool == true || object["isCompactSummary"] as? Bool == true {
+            return true
+        }
+        guard let message = object["message"] as? [String: Any],
+              let content = message["content"] as? String
+        else { return false }
+        return content.hasPrefix("<local-command-stdout>") || content.hasPrefix("<command-name>/compact")
     }
 
     /// Whether a record in the tail has this uuid. Claude Code writes compact JSON, so the

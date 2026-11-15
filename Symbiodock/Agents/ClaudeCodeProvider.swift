@@ -29,12 +29,12 @@ actor ClaudeCodeProvider: AgentSessionProvider {
         let ended: Set<String>
     }
 
-    /// When a busy session's transcript showed its compaction starting, as of the
-    /// transcript's stamp. The start is kept, not the verdict: the transcript does not
-    /// change while a compaction runs, and a start counts only once it has settled.
+    /// What a busy session's transcript showed about a compaction, as of the transcript's
+    /// stamp. The mark is kept, not the verdict: the transcript does not change while a
+    /// compaction runs, and the verdict depends on the clock.
     private struct Compaction {
         let stamp: FileStamp
-        let start: Date?
+        let mark: CompactionMark?
     }
 
     /// What one scan read or kept; whatever belongs to sessions that are gone is dropped.
@@ -197,15 +197,17 @@ actor ClaudeCodeProvider: AgentSessionProvider {
         else { return false }
         let url = home.appendingPathComponent(path)
         guard let stamp = FileReading.stamp(of: url) else { return false }
-        let start: Date?
+        let mark: CompactionMark?
         if let known = compactions[path], known.stamp == stamp {
-            start = known.start
+            mark = known.mark
         } else {
-            start = FileReading.tail(of: url, maxBytes: ClaudeCompactionReader.tailSize)
-                .flatMap(ClaudeCompactionReader.compactionStart(inTail:))
+            // A failed read is not remembered, so that it is tried again at the next scan.
+            guard let tail = FileReading.tail(of: url, maxBytes: ClaudeCompactionReader.tailSize)
+            else { return false }
+            mark = ClaudeCompactionReader.compactionMark(inTail: tail)
         }
-        kept[path] = Compaction(stamp: stamp, start: start)
-        return start.map { ClaudeCompactionReader.isCompacting(start: $0, now: now) } ?? false
+        kept[path] = Compaction(stamp: stamp, mark: mark)
+        return mark.map { ClaudeCompactionReader.isCompacting($0, now: now) } ?? false
     }
 
     /// A session file can outlive its process, and its pid can then belong to anything.
