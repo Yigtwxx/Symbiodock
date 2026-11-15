@@ -128,14 +128,90 @@ struct AgentSessionBoardTests {
         #expect(board.attentionRow?.id == "ask")
     }
 
-    @Test func aFinishedRowIsFoundBehindAWorkingOne() {
+    @Test func anUnsettledFinishLeadsBeforeAWorkingOne() {
         var board = AgentSessionBoard()
         board.update([session("done", .working), session("busy", .working, since: 5)])
         board.update([session("done", .idle), session("busy", .working, since: 5)])
-        #expect(board.lead?.id == "busy")
+        #expect(board.rows.map(\.id) == ["done", "busy"])
+        #expect(board.lead?.id == "done")
         #expect(board.attention == .finished)
         #expect(board.attentionRow?.id == "done")
         #expect(board.attentionRow?.state == .finished)
+    }
+
+    @Test func aSettledFinishStepsBehindTheWorkingOnes() {
+        var board = AgentSessionBoard()
+        board.update([session("done", .working), session("busy", .working, since: 5)])
+        board.update([session("done", .idle), session("busy", .working, since: 5)])
+        board.settle("done")
+        #expect(board.rows.map(\.id) == ["busy", "done"])
+        #expect(board.lead?.id == "busy")
+        #expect(board.attention == .none)
+        #expect(board.attentionRow == nil)
+    }
+
+    @Test func aSettledFinishStaysDoneButNoLongerSpeaks() {
+        var board = AgentSessionBoard()
+        board.update([session("a", .working)])
+        board.update([session("a", .idle, since: 5)])
+        board.settle("a")
+        #expect(board.rows.map(\.state) == [.finished])
+        #expect(board.rows.first?.isSettled == true)
+        #expect(board.lead == nil)
+        #expect(board.attention == .none)
+        #expect(!board.hasFace)
+    }
+
+    @Test func settlingWhatIsNotFinishedDoesNothing() {
+        var board = AgentSessionBoard()
+        board.update([session("a", .working)])
+        let before = board
+        board.settle("a")
+        board.settle("nobody")
+        #expect(board == before)
+    }
+
+    @Test func markSeenForgetsSettledFinishes() {
+        var board = AgentSessionBoard()
+        board.update([session("a", .working)])
+        board.update([session("a", .idle, since: 5)])
+        board.settle("a")
+        board.markSeen()
+        #expect(board.rows.map(\.state) == [.idle])
+        #expect(board.rows.first?.isSettled == false)
+    }
+
+    @Test func workingAgainForgetsTheSettledMark() {
+        var board = AgentSessionBoard()
+        board.update([session("a", .working)])
+        board.update([session("a", .idle, since: 5)])
+        board.settle("a")
+        board.update([session("a", .working, since: 9)])
+        board.update([session("a", .idle, since: 12)])
+        #expect(board.rows.map(\.state) == [.finished])
+        #expect(board.rows.first?.isSettled == false)
+        #expect(board.lead?.id == "a")
+    }
+
+    @Test func finishesSettleOneAfterAnother() {
+        var board = AgentSessionBoard()
+        board.update([session("a", .working), session("b", .working)])
+        board.update([session("a", .idle, since: 5), session("b", .idle, since: 9)])
+        #expect(board.attentionRow?.id == "b")
+        board.settle("b")
+        #expect(board.attentionRow?.id == "a")
+        board.settle("a")
+        #expect(board.attentionRow == nil)
+        #expect(board.rows.map(\.state) == [.finished, .finished])
+    }
+
+    @Test func aFinishOutranksACompaction() {
+        var board = AgentSessionBoard()
+        board.update([session("a", .working), session("c", .compacting)])
+        board.update([session("a", .idle, since: 5), session("c", .compacting)])
+        #expect(board.lead?.id == "a")
+        board.settle("a")
+        #expect(board.lead?.id == "c")
     }
 
     @Test func noAttentionRowWhenNothingWantsAttention() {

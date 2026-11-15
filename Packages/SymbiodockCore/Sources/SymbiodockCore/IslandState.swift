@@ -175,6 +175,28 @@ public final class IslandState {
         if next != board { board = next }
     }
 
+    /// The seal of a finished session has played: it stops leading the collapsed island.
+    public func settleFinished(_ id: String) {
+        var next = board
+        next.settle(id)
+        // Assign only on change: every assignment redraws the island.
+        if next != board { board = next }
+    }
+
+    /// The finished session whose seal the collapsed island plays, if any: while the island
+    /// is collapsed and a finish is the most urgent thing it shows. On the media face the
+    /// seal is the mark's check alone.
+    public var sealingID: String? {
+        guard phase == .collapsed, board.attention == .finished else { return nil }
+        return board.attentionRow?.id
+    }
+
+    /// Whether the collapsed island draws the dashed compacting line around itself: the
+    /// session the agents face speaks for is compacting.
+    public var showsCompactingRim: Bool {
+        phase == .collapsed && face == .agents && board.lead?.state == .compacting
+    }
+
     /// Applies a tab order, repaired if it is damaged. A collapsed island will open on it.
     public func setTabOrder(_ order: [IslandTab]) {
         let repaired = TabOrder.repaired(TabOrder.encode(order))

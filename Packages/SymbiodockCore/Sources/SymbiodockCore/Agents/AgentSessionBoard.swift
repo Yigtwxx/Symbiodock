@@ -18,14 +18,15 @@ public enum AgentRowState: Equatable, Sendable {
     case running
     case idle
 
-    /// Lower sorts first.
-    var rank: Int {
+    /// Lower sorts first. A finish leads until it has played its seal (`settled`), then it
+    /// steps back behind the sessions that are still at work.
+    func rank(settled: Bool) -> Int {
         switch self {
         case .needsInput: 0
-        case .working, .compacting: 1
-        case .finished: 2
-        case .running: 3
-        case .idle: 4
+        case .finished: settled ? 3 : 1
+        case .working, .compacting: 2
+        case .running: 4
+        case .idle: 5
         }
     }
 }
@@ -33,6 +34,9 @@ public enum AgentRowState: Equatable, Sendable {
 public struct AgentRow: Identifiable, Equatable, Sendable {
     public let session: AgentSession
     public let state: AgentRowState
+    /// A finish that has played its seal: still `Done ✓` in the list, but it no longer
+    /// leads the collapsed island or draws attention. Always false for other states.
+    public let isSettled: Bool
     /// The lines below the row: its subagents.
     public let branches: [AgentBranch]
     public var id: String { session.id }
@@ -47,6 +51,8 @@ public struct AgentSessionBoard: Equatable, Sendable {
     private var activeIDs: Set<String> = []
     /// Sessions seen going from active to idle and not looked at since.
     private var finishedIDs: Set<String> = []
+    /// Finished sessions whose seal has played; always a subset of `finishedIDs`.
+    private var settledIDs: Set<String> = []
     /// When each active session's current turn began: its `since` on the update where it
     /// became active. A question in the middle of the turn does not move it.
     private var turnStarts: [String: Date] = [:]
@@ -64,19 +70,23 @@ public struct AgentSessionBoard: Equatable, Sendable {
             case .working, .needsInput:
                 active.insert(session.id)
                 finishedIDs.remove(session.id)
+                settledIDs.remove(session.id)
                 if !activeIDs.contains(session.id) || turnStarts[session.id] == nil {
                     turnStarts[session.id] = session.since
                 }
             case .compacting:
                 // Not a turn: what showed as finished is not, and its end will not be.
                 finishedIDs.remove(session.id)
+                settledIDs.remove(session.id)
             case .idle:
                 if activeIDs.contains(session.id) { finishedIDs.insert(session.id) }
             case .running:
                 finishedIDs.remove(session.id)
+                settledIDs.remove(session.id)
             }
         }
         finishedIDs.formIntersection(seen)
+        settledIDs.formIntersection(finishedIDs)
         turnStarts = turnStarts.filter { active.contains($0.key) }
         activeIDs = active
         rebuild(from: unique)
@@ -86,6 +96,15 @@ public struct AgentSessionBoard: Equatable, Sendable {
     public mutating func markSeen() {
         guard !finishedIDs.isEmpty else { return }
         finishedIDs.removeAll()
+        settledIDs.removeAll()
+        rebuild(from: rows.map(\.session))
+    }
+
+    /// A finished session has played its seal: it stays `Done ✓` in the list until
+    /// `markSeen`, but no longer leads, draws attention or gives the island a face.
+    /// Ignored for a session that is not finished, or already settled.
+    public mutating func settle(_ id: String) {
+        guard finishedIDs.contains(id), settledIDs.insert(id).inserted else { return }
         rebuild(from: rows.map(\.session))
     }
 
@@ -94,8 +113,8 @@ public struct AgentSessionBoard: Equatable, Sendable {
         for row in rows {
             switch row.state {
             case .needsInput: return .needsInput
-            case .finished: result = .finished
-            case .working, .compacting, .running, .idle: break
+            case .finished where !row.isSettled: result = .finished
+            case .working, .compacting, .finished, .running, .idle: break
             }
         }
         return result
@@ -105,7 +124,8 @@ public struct AgentSessionBoard: Equatable, Sendable {
     public var lead: AgentRow? {
         guard let first = rows.first else { return nil }
         switch first.state {
-        case .needsInput, .working, .compacting, .finished: return first
+        case .needsInput, .working, .compacting: return first
+        case .finished: return first.isSettled ? nil : first
         case .running, .idle: return nil
         }
     }
@@ -115,11 +135,10 @@ public struct AgentSessionBoard: Equatable, Sendable {
     /// list is empty.
     public var spokesperson: AgentRow? { lead ?? rows.first }
 
-    /// The session behind `attention`: the first that needs input, else the first that has
-    /// finished. It can lie behind a working row, which `lead` would show instead.
+    /// The session behind `attention`: the first that needs input, else the first finish that has not settled.
     public var attentionRow: AgentRow? {
         rows.first { if case .needsInput = $0.state { true } else { false } }
-            ?? rows.first { $0.state == .finished }
+            ?? rows.first { $0.state == .finished && !$0.isSettled }
     }
 
     /// Whether the collapsed island has something to show for the agents.
@@ -137,11 +156,14 @@ public struct AgentSessionBoard: Equatable, Sendable {
                 let state = state(of: session)
                 return AgentRow(
                     session: session, state: state,
+                    isSettled: state == .finished && settledIDs.contains(session.id),
                     branches: AgentBranches.lines(
                         for: session.subagents, state: state, turnStart: turnStarts[session.id]))
             }
             .sorted { lhs, rhs in
-                if lhs.state.rank != rhs.state.rank { return lhs.state.rank < rhs.state.rank }
+                let left = lhs.state.rank(settled: lhs.isSettled)
+                let right = rhs.state.rank(settled: rhs.isSettled)
+                if left != right { return left < right }
                 if lhs.session.since != rhs.session.since {
                     return lhs.session.since > rhs.session.since
                 }

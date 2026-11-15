@@ -295,6 +295,65 @@ struct IslandStateTests {
         #expect(state.phase == .stretching)
     }
 
+    @Test func settlingAFinishClosesTheWings() {
+        let state = IslandState()
+        state.setAgentSessions([agent("a", .working)])
+        state.setAgentSessions([agent("a", .idle)])
+        #expect(state.sealingID == "a")
+        #expect(state.showsWings)
+        state.settleFinished("a")
+        #expect(state.sealingID == nil)
+        #expect(!state.showsWings)
+        #expect(state.board.rows.first?.state == .finished)
+    }
+
+    @Test func noSealPlaysWhileTheIslandIsOpen() {
+        let state = IslandState()
+        state.setAgentSessions([agent("a", .working)])
+        state.setAgentSessions([agent("a", .idle)])
+        state.setHovering(true)
+        #expect(state.sealingID == nil)
+    }
+
+    @Test func theMediaFaceAlsoSealsAFinish() {
+        let state = IslandState()
+        state.setTabOrder([.media, .agents])
+        state.setNowPlaying(track(playing: true))
+        state.setAgentSessions([agent("a", .working)])
+        state.setAgentSessions([agent("a", .idle)])
+        #expect(state.face == .media)
+        #expect(state.sealingID == "a")
+    }
+
+    @Test func theCompactingRimShowsWhileTheAgentsFaceCompacts() {
+        let state = IslandState()
+        state.setAgentSessions([agent("a", .compacting)])
+        #expect(state.showsCompactingRim)
+        state.setHovering(true)
+        #expect(!state.showsCompactingRim)
+        state.setHovering(false)
+        state.setAgentSessions([agent("a", .idle)])
+        #expect(!state.showsCompactingRim)
+    }
+
+    @Test func theCompactingRimWaitsBehindAFinish() {
+        let state = IslandState()
+        state.setAgentSessions([agent("a", .working), agent("b", .compacting)])
+        state.setAgentSessions([agent("a", .idle), agent("b", .compacting)])
+        #expect(!state.showsCompactingRim)
+        state.settleFinished("a")
+        #expect(state.showsCompactingRim)
+    }
+
+    @Test func theMediaFaceShowsNoCompactingRim() {
+        let state = IslandState()
+        state.setTabOrder([.media, .agents])
+        state.setNowPlaying(track(playing: true))
+        state.setAgentSessions([agent("a", .compacting)])
+        #expect(state.face == .media)
+        #expect(!state.showsCompactingRim)
+    }
+
     private func agent(_ id: String, _ activity: AgentActivity) -> AgentSession {
         AgentSession(
             id: id, tool: .claudeCode, title: id, projectPath: nil, activity: activity,
