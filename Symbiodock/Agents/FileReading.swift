@@ -1,10 +1,12 @@
 import Darwin
 import Foundation
 
-/// A file's size and modification time: enough to tell whether it has to be read again.
+/// A file's size and times: enough to tell whether it has to be read again.
 struct FileStamp: Equatable, Sendable {
     let size: Int
     let modified: Date
+    /// When the file was created. A file replaced by a rename gets a new one.
+    let created: Date
 }
 
 /// Reads of other tools' files. Every read is bounded and read-only; a failure is nil.
@@ -14,9 +16,11 @@ enum FileReading {
     static func stamp(of url: URL) -> FileStamp? {
         var info = stat()
         guard stat(url.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return nil }
-        let seconds = TimeInterval(info.st_mtimespec.tv_sec)
-        let fraction = TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000
-        return FileStamp(size: Int(info.st_size), modified: Date(timeIntervalSince1970: seconds + fraction))
+        func date(_ time: timespec) -> Date {
+            Date(timeIntervalSince1970: TimeInterval(time.tv_sec) + TimeInterval(time.tv_nsec) / 1_000_000_000)
+        }
+        return FileStamp(
+            size: Int(info.st_size), modified: date(info.st_mtimespec), created: date(info.st_birthtimespec))
     }
 
     /// The whole file, or nil if it is larger than `maxBytes`.

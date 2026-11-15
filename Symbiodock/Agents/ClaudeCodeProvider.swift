@@ -3,7 +3,8 @@ import Foundation
 import SymbiodockCore
 
 /// Claude Code keeps one small JSON file per running session in `~/.claude/sessions`,
-/// with its name, folder and whether it is busy, idle or waiting for the user.
+/// with its name, folder and whether it is busy, idle or waiting for the user. Beside each
+/// session's transcript, a `subagents` folder holds a small meta file per subagent.
 actor ClaudeCodeProvider: AgentSessionProvider {
     nonisolated let tool = AgentTool.claudeCode
     /// `~/.claude`
@@ -15,7 +16,28 @@ actor ClaudeCodeProvider: AgentSessionProvider {
         let question: String?
     }
 
+    /// What was read from a subagent's meta file, until the file changes.
+    private struct MetaEntry {
+        let stamp: FileStamp
+        let meta: ClaudeSubagentMeta?
+    }
+
+    /// The subagents a parent's transcript showed as ended, as of the transcript's stamp.
+    private struct Ends {
+        let stamp: FileStamp
+        let ended: Set<String>
+    }
+
+    /// What one scan read or kept; whatever belongs to sessions that are gone is dropped.
+    private struct Kept {
+        var asked: [String: Asked] = [:]
+        var metas: [String: MetaEntry] = [:]
+        var ends: [String: Ends] = [:]
+    }
+
     private var asked: [String: Asked] = [:]
+    private var metas: [String: MetaEntry] = [:]
+    private var ends: [String: Ends] = [:]
 
     init(home: URL) {
         self.home = home
@@ -27,23 +49,104 @@ actor ClaudeCodeProvider: AgentSessionProvider {
             at: directory, includingPropertiesForKeys: nil)
         else {
             asked.removeAll()
+            metas.removeAll()
+            ends.removeAll()
             return []
         }
 
-        var stillAsking: [String: Asked] = [:]
-        defer { asked = stillAsking }
+        var kept = Kept()
+        defer {
+            asked = kept.asked
+            metas = kept.metas
+            ends = kept.ends
+        }
         return files.compactMap { url in
             guard url.pathExtension == "json",
                   let stamp = FileReading.stamp(of: url),
                   let data = FileReading.whole(url, maxBytes: ClaudeSessionParser.maximumFileSize),
                   let record = ClaudeSessionParser.record(from: data),
-                  Self.isLive(record.pid, modified: stamp.modified, among: context.processes)
+                  Self.isLive(record.pid, modified: stamp.modified, among: context.processes),
+                  var session = ClaudeSessionParser.session(
+                      from: record,
+                      prompt: record.status == "waiting"
+                          ? question(of: record, remembering: &kept.asked) : nil,
+                      fallbackSince: stamp.modified)
             else { return nil }
-            return ClaudeSessionParser.session(
-                from: record,
-                prompt: record.status == "waiting" ? question(of: record, remembering: &stillAsking) : nil,
-                fallbackSince: stamp.modified)
+            session.subagents = subagents(of: record, now: context.now, remembering: &kept)
+            return session
         }
+    }
+
+    /// The session's subagents still worth showing. A meta file is parsed again only when
+    /// it changed. The parent's transcript is searched only while a subagent has not
+    /// finished, and again only when the transcript changed.
+    private func subagents(
+        of record: ClaudeSessionRecord, now: Date, remembering kept: inout Kept
+    ) -> [AgentSubagent] {
+        guard let cwd = record.cwd, let sessionID = record.sessionID,
+              let folderPath = ClaudeSubagentParser.folderRelativePath(cwd: cwd, sessionID: sessionID),
+              let transcriptPath = ClaudeSessionParser.transcriptRelativePath(cwd: cwd, sessionID: sessionID)
+        else { return [] }
+        let folder = home.appendingPathComponent(folderPath, isDirectory: true)
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else {
+            return []
+        }
+
+        var found: [(id: String, meta: ClaudeSubagentMeta, stamp: FileStamp)] = []
+        for name in names {
+            guard let id = ClaudeSubagentParser.agentID(metaFileName: name) else { continue }
+            let url = folder.appendingPathComponent(name)
+            guard let stamp = FileReading.stamp(of: url) else { continue }
+            let entry = metas[url.path].flatMap { $0.stamp == stamp ? $0 : nil }
+                ?? MetaEntry(
+                    stamp: stamp,
+                    meta: FileReading.whole(url, maxBytes: ClaudeSubagentParser.maximumMetaSize)
+                        .flatMap(ClaudeSubagentParser.meta(from:)))
+            kept.metas[url.path] = entry
+            guard let meta = entry.meta else { continue }
+            found.append((id, meta, stamp))
+        }
+
+        let open = found.filter { !$0.meta.isFinished }.map { (id: $0.id, meta: $0.meta) }
+        let ended = open.isEmpty
+            ? []
+            : endedIDs(
+                among: open, transcript: home.appendingPathComponent(transcriptPath),
+                remembering: &kept.ends)
+
+        return found.compactMap { item in
+            // A finished subagent's times come from its meta file alone.
+            let written = item.meta.isFinished
+                ? nil : FileReading.stamp(of: folder.appendingPathComponent("agent-\(item.id).jsonl"))
+            return ClaudeSubagentParser.subagent(
+                id: item.id, meta: item.meta,
+                started: written?.created ?? item.stamp.created,
+                lastWrite: written?.modified ?? item.stamp.modified,
+                metaModified: item.stamp.modified,
+                hasEnded: ended.contains(item.id), now: now)
+        }
+    }
+
+    /// Which open subagents the parent's transcript shows as ended. Once seen ended, a
+    /// subagent stays ended though the sign scrolls out of the transcript's tail.
+    private func endedIDs(
+        among open: [(id: String, meta: ClaudeSubagentMeta)], transcript url: URL,
+        remembering kept: inout [String: Ends]
+    ) -> Set<String> {
+        let openIDs = Set(open.map(\.id))
+        let known = ends[url.path]
+        guard let stamp = FileReading.stamp(of: url) else {
+            return (known?.ended ?? []).intersection(openIDs)
+        }
+        if let known, known.stamp == stamp {
+            kept[url.path] = known
+            return known.ended.intersection(openIDs)
+        }
+        let seen = FileReading.tail(of: url, maxBytes: ClaudeTranscriptPromptReader.tailSize)
+            .map { ClaudeSubagentParser.endedIDs(open, inTail: $0) } ?? []
+        let ended = (known?.ended ?? []).intersection(openIDs).union(seen)
+        kept[url.path] = Ends(stamp: stamp, ended: ended)
+        return ended
     }
 
     /// The question the session is waiting on, if its transcript shows one. The transcript
