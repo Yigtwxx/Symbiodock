@@ -147,4 +147,71 @@ struct CodexRolloutParserTests {
             ]))
         #expect(titles == ["t1": "New name", "t2": "Other"])
     }
+
+    private let namedChildMeta = """
+        {"timestamp":"2026-11-14T13:40:00.000Z","type":"session_meta","payload":{"session_id":"t-root","id":"t-named","timestamp":"2026-11-14T13:40:00.000Z","parent_thread_id":"t-root","cwd":"/Users/me","originator":"Codex Desktop","source":{"subagent":{"thread_spawn":{"parent_thread_id":"t-root","depth":1,"agent_path":"/root/notch_market_research","agent_nickname":"Carson","agent_role":"research-analyst"}}}}}
+        """
+
+    @Test func aSubagentKnowsItsParentNameAndStart() throws {
+        let meta = try #require(CodexRolloutParser.meta(fromHead: data([namedChildMeta])))
+        #expect(meta.parentID == "t-root")
+        #expect(meta.subagentTitle == "notch market research")
+        #expect(meta.started == Date(timeIntervalSince1970: 1_794_663_600))
+        let unnamed = try #require(CodexRolloutParser.meta(fromHead: data([childMeta])))
+        #expect(unnamed.parentID == "t-root")
+        #expect(unnamed.subagentTitle == nil)
+        let root = try #require(CodexRolloutParser.meta(fromHead: data([rootMeta])))
+        #expect(root.parentID == nil)
+    }
+
+    @Test func aSubagentWithoutAPathIsNamedByItsNickname() throws {
+        let line = namedChildMeta.replacingOccurrences(of: "\"agent_path\":\"/root/notch_market_research\",", with: "")
+        let meta = try #require(CodexRolloutParser.meta(fromHead: data([line])))
+        #expect(meta.subagentTitle == "Carson")
+    }
+
+    @Test func anAbortedTurnSaysSo() throws {
+        let state = try #require(
+            CodexRolloutParser.turnState(
+                inTail: data([
+                    event("task_started", at: "2026-11-14T18:00:00.000Z"),
+                    event("turn_aborted", at: "2026-11-14T18:01:00.000Z"),
+                ])))
+        #expect(!state.isWorking)
+        #expect(state.wasAborted)
+    }
+
+    @Test func aSubagentShowsWhileItWorksAndAfterItCompletes() throws {
+        let meta = try #require(CodexRolloutParser.meta(fromHead: data([namedChildMeta])))
+        let started = Date(timeIntervalSince1970: 1_794_663_600)
+        let now = started.addingTimeInterval(600)
+        let working = CodexRolloutParser.subagent(
+            meta: meta, state: CodexTurnState(isWorking: true, since: started.addingTimeInterval(5)),
+            modified: now.addingTimeInterval(-30), now: now)
+        #expect(working == AgentSubagent(id: "t-named", title: "notch market research", isFinished: false, since: started))
+        let quiet = CodexRolloutParser.subagent(
+            meta: meta, state: CodexTurnState(isWorking: true, since: started),
+            modified: now.addingTimeInterval(-601), now: now)
+        #expect(quiet == nil)
+        let doneAt = now.addingTimeInterval(-60)
+        let done = CodexRolloutParser.subagent(
+            meta: meta, state: CodexTurnState(isWorking: false, since: doneAt),
+            modified: doneAt, now: now)
+        #expect(done == AgentSubagent(id: "t-named", title: "notch market research", isFinished: true, since: doneAt))
+        let aborted = CodexRolloutParser.subagent(
+            meta: meta, state: CodexTurnState(isWorking: false, since: doneAt, wasAborted: true),
+            modified: doneAt, now: now)
+        #expect(aborted == nil)
+        let root = try #require(CodexRolloutParser.meta(fromHead: data([rootMeta])))
+        #expect(CodexRolloutParser.subagent(
+            meta: root, state: CodexTurnState(isWorking: true, since: started), modified: now, now: now) == nil)
+    }
+
+    @Test func aSubagentHangsUnderTheListedThreadItDescendsFrom() {
+        let parents = ["c": "b", "b": "a", "x": "y", "y": "x"]
+        #expect(CodexRolloutParser.rootID(of: "c", parents: parents, listed: ["a"]) == "a")
+        #expect(CodexRolloutParser.rootID(of: "b", parents: parents, listed: ["a"]) == "a")
+        #expect(CodexRolloutParser.rootID(of: "c", parents: parents, listed: []) == nil)
+        #expect(CodexRolloutParser.rootID(of: "x", parents: parents, listed: ["a"]) == nil)
+    }
 }

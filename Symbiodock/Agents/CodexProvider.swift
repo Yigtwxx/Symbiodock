@@ -34,7 +34,9 @@ actor CodexProvider: AgentSessionProvider {
             return []
         }
 
-        var sessions: [AgentSession] = []
+        var listed: [(meta: CodexThreadMeta, session: AgentSession)] = []
+        var children: [(id: String, subagent: AgentSubagent)] = []
+        var parents: [String: String] = [:]
         var live: [String: Entry] = [:]
         for url in recentRollouts() {
             guard let stamp = FileReading.stamp(of: url),
@@ -42,16 +44,40 @@ actor CodexProvider: AgentSessionProvider {
             else { continue }
             let entry = entry(for: url, stamp: stamp)
             live[url.path] = entry
-            guard let meta = entry.meta, !meta.isSubagent, let state = entry.state,
-                  CodexRolloutParser.isListed(state, modified: stamp.modified, now: context.now)
+            guard let meta = entry.meta else { continue }
+            if let parent = meta.parentID { parents[meta.id] = parent }
+            guard let state = entry.state else { continue }
+            if meta.isSubagent {
+                if let subagent = CodexRolloutParser.subagent(
+                    meta: meta, state: state, modified: stamp.modified, now: context.now)
+                {
+                    children.append((meta.id, subagent))
+                }
+                continue
+            }
+            guard CodexRolloutParser.isListed(state, modified: stamp.modified, now: context.now)
             else { continue }
-            sessions.append(
+            listed.append((
+                meta,
                 CodexRolloutParser.session(
                     meta: meta, state: state, title: title(of: meta.id),
-                    pid: Self.process(for: meta, among: codex)))
+                    pid: Self.process(for: meta, among: codex))))
         }
         cache = live
-        return sessions
+
+        // Each subagent hangs under the listed thread it descends from.
+        let listedIDs = Set(listed.map(\.meta.id))
+        var branches: [String: [AgentSubagent]] = [:]
+        for child in children {
+            guard let root = CodexRolloutParser.rootID(of: child.id, parents: parents, listed: listedIDs)
+            else { continue }
+            branches[root, default: []].append(child.subagent)
+        }
+        return listed.map { item in
+            var session = item.session
+            session.subagents = branches[item.meta.id] ?? []
+            return session
+        }
     }
 
     /// Parses a rollout again only if it changed; the first line never changes.

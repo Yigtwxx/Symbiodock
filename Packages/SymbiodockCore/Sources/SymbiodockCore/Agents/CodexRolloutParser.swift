@@ -4,16 +4,28 @@ import Foundation
 public struct CodexThreadMeta: Equatable, Sendable {
     public let id: String
     public let cwd: String?
-    /// A thread spawned by another thread; it is not shown on its own.
+    /// A thread spawned by another thread; it is shown as a branch of its parent.
     public let isSubagent: Bool
     /// "Codex Desktop", ...
     public let originator: String?
+    /// The thread that spawned this one.
+    public let parentID: String?
+    /// A subagent's name, from its agent path or nickname.
+    public let subagentTitle: String?
+    /// When the thread was created.
+    public let started: Date?
 
-    public init(id: String, cwd: String?, isSubagent: Bool, originator: String?) {
+    public init(
+        id: String, cwd: String?, isSubagent: Bool, originator: String?,
+        parentID: String? = nil, subagentTitle: String? = nil, started: Date? = nil
+    ) {
         self.id = id
         self.cwd = cwd
         self.isSubagent = isSubagent
         self.originator = originator
+        self.parentID = parentID
+        self.subagentTitle = subagentTitle
+        self.started = started
     }
 }
 
@@ -21,10 +33,13 @@ public struct CodexThreadMeta: Equatable, Sendable {
 public struct CodexTurnState: Equatable, Sendable {
     public let isWorking: Bool
     public let since: Date
+    /// The last turn was stopped rather than completed.
+    public let wasAborted: Bool
 
-    public init(isWorking: Bool, since: Date) {
+    public init(isWorking: Bool, since: Date, wasAborted: Bool = false) {
         self.isWorking = isWorking
         self.since = since
+        self.wasAborted = wasAborted
     }
 }
 
@@ -37,6 +52,8 @@ public enum CodexRolloutParser {
     public static let idleListing: TimeInterval = 30 * 60
     /// A turn whose file has not changed for this long is taken for abandoned.
     public static let workingListing: TimeInterval = 2 * 60 * 60
+    /// A working subagent whose file has not changed for this long is taken for abandoned.
+    public static let subagentQuietLimit: TimeInterval = 10 * 60
 
     private static let turnEvents: Set<String> = ["task_started", "task_complete", "turn_aborted"]
     private static let turnMarkers = turnEvents.map { Data("\"\($0)\"".utf8) }
@@ -49,13 +66,34 @@ public enum CodexRolloutParser {
               let payload = object["payload"] as? [String: Any],
               let id = payload["id"] as? String, !id.isEmpty
         else { return nil }
-        let parent = payload["parent_thread_id"] as? String
         let source = payload["source"] as? [String: Any]
+        let spawn = (source?["subagent"] as? [String: Any])?["thread_spawn"] as? [String: Any]
+        let parent = [spawn?["parent_thread_id"], payload["parent_thread_id"]]
+            .compactMap { $0 as? String }
+            .first { !$0.isEmpty }
+        let stamp = (payload["timestamp"] as? String) ?? (object["timestamp"] as? String)
         return CodexThreadMeta(
             id: id,
             cwd: payload["cwd"] as? String,
-            isSubagent: !(parent ?? "").isEmpty || source?["subagent"] != nil,
-            originator: payload["originator"] as? String)
+            isSubagent: parent != nil || source?["subagent"] != nil,
+            originator: payload["originator"] as? String,
+            parentID: parent,
+            subagentTitle: subagentTitle(spawn),
+            started: stamp.flatMap(timestamp))
+    }
+
+    /// "/root/notch_market_research" -> "notch market research"; else the nickname.
+    static func subagentTitle(_ spawn: [String: Any]?) -> String? {
+        guard let spawn else { return nil }
+        if let path = spawn["agent_path"] as? String {
+            let name = (path as NSString).lastPathComponent
+                .replacingOccurrences(of: "_", with: " ")
+                .replacingOccurrences(of: "-", with: " ")
+                .trimmingCharacters(in: .whitespaces)
+            if !name.isEmpty && name != "/" { return name }
+        }
+        let nickname = (spawn["agent_nickname"] as? String)?.trimmingCharacters(in: .whitespaces)
+        return nickname?.isEmpty == false ? nickname : nil
     }
 
     /// The last turn event in the end of the file; nil if there is none with a readable time.
@@ -70,7 +108,8 @@ public enum CodexRolloutParser {
                   let type = payload["type"] as? String, turnEvents.contains(type),
                   let stamp = object["timestamp"] as? String, let date = timestamp(stamp)
             else { continue }
-            state = CodexTurnState(isWorking: type == "task_started", since: date)
+            state = CodexTurnState(
+                isWorking: type == "task_started", since: date, wasAborted: type == "turn_aborted")
         }
         return state
     }
@@ -94,6 +133,36 @@ public enum CodexRolloutParser {
             activity: state.isWorking ? .working : .idle,
             since: state.since,
             pid: pid)
+    }
+
+    /// A subagent as its parent's branch, or nil if it is not shown: it was stopped, it
+    /// went quiet in the middle of a turn, or it finished long ago.
+    public static func subagent(
+        meta: CodexThreadMeta, state: CodexTurnState, modified: Date, now: Date
+    ) -> AgentSubagent? {
+        guard meta.isSubagent, !state.wasAborted else { return nil }
+        let title = meta.subagentTitle ?? "Subagent"
+        if state.isWorking {
+            guard now.timeIntervalSince(modified) <= subagentQuietLimit else { return nil }
+            return AgentSubagent(id: meta.id, title: title, isFinished: false, since: meta.started ?? state.since)
+        }
+        guard now.timeIntervalSince(modified) <= idleListing else { return nil }
+        return AgentSubagent(id: meta.id, title: title, isFinished: true, since: state.since)
+    }
+
+    /// The listed thread a subagent descends from, following `parents` (thread id ->
+    /// parent id); nil if none of its ancestors is listed.
+    public static func rootID(
+        of id: String, parents: [String: String], listed: Set<String>
+    ) -> String? {
+        var current = id
+        var seen: Set<String> = [id]
+        while let parent = parents[current] {
+            if listed.contains(parent) { return parent }
+            guard seen.insert(parent).inserted else { return nil }
+            current = parent
+        }
+        return nil
     }
 
     /// "2026-11-14T18:45:26.561Z", with or without the fraction.
