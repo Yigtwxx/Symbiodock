@@ -219,6 +219,28 @@ final class OverlayController {
             showsWings: state.showsWings)
     }
 
+    /// While another app drags files with the island at the notch, the whole area the open
+    /// island will cover takes the drag. Waiting at the screen's top edge opens Mission
+    /// Control, so the person must be able to drop below the notch instead.
+    var fileApproachRect: CGRect? {
+        guard state.anchor == .notch, outgoing == nil, pressLocation == nil,
+              NSEvent.pressedMouseButtons & 1 != 0,
+              FileDropReader.canRead(NSPasteboard(name: .drag))
+        else { return nil }
+        // A band just around the closed island, not the open island's whole area: windows
+        // below it must still take files dropped on them (owner: "biraz daha yaklaşmam gereksin").
+        var band = IslandLayout.hitRect(
+            anchor: state.anchor, phase: .collapsed, notch: geometry.notch,
+            visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
+            showsWings: state.showsWings)
+        band = band.insetBy(dx: -Self.fileApproachMargin, dy: 0)
+        band.size.height += Self.fileApproachMargin
+        return band
+    }
+
+    /// How far around the closed island a file drag opens it.
+    static let fileApproachMargin: CGFloat = 36
+
     /// The bubble's hover area while there is a bubble.
     var bubbleHitRect: CGRect? {
         guard let tab = state.bubbleTab else { return nil }
@@ -285,6 +307,7 @@ final class OverlayController {
         let local = metrics.localPoint(fromGlobal: point)
         // A bubble takes clicks, hovers and file drops just as the island does.
         let inside = bubbleTab(at: local) != nil || hitRect.contains(local)
+            || fileApproachRect?.contains(local) == true
 
         // Assign only on change: this runs on every mouse move system-wide.
         setAcceptsMouse(inside)

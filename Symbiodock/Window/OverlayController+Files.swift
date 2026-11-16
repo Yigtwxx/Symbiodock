@@ -46,6 +46,7 @@ extension OverlayController {
         let onTarget = islandHitRect.contains(point)
             || bubbleHitRect?.contains(point) == true
             || filesBubbleHitRect?.contains(point) == true
+            || fileApproachRect?.contains(point) == true
         if entered {
             FileDropReader.log.notice(
                 "file drag entered at \(Int(point.x)),\(Int(point.y)); own: \(isOwn), readable: \(readable), resting: \(self.isIdle), on island: \(onTarget)")
