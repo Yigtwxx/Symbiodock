@@ -178,6 +178,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         scheduleWingsExpiry()
         // The collapsed hit rect depends on whether the wings are shown.
         overlayController?.refreshPointer()
+        // Which listed browser is asked for its site depends on the slots.
+        nowPlaying?.slotsChanged(state.mediaSlots)
     }
 
     /// Hides the collapsed wings, and a second source, a while after they pause, unless
@@ -196,6 +198,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.wingsExpiryOrigins = []
             self.state.pausedGraceElapsed()
             self.overlayController?.refreshPointer()
+            // A retired browser is no longer asked for its site.
+            self.nowPlaying?.slotsChanged(self.state.mediaSlots)
         }
     }
 

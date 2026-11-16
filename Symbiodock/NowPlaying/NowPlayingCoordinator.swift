@@ -77,11 +77,22 @@ final class NowPlayingCoordinator {
         if let mediaRemote {
             let clientSites = clientSites
             othersTask = Task {
-                for await clients in mediaRemote.clientUpdates { clientSites.publish(clients) }
+                // `stop()` cancels this task; a list still buffered must not reach the island.
+                for await clients in mediaRemote.clientUpdates {
+                    guard !Task.isCancelled else { return }
+                    clientSites.publish(clients)
+                }
+                guard !Task.isCancelled else { return }
                 // The helper gave up or cannot list the apps: back to the elected one alone.
                 clientSites.publish([])
             }
         }
+    }
+
+    /// The island's slots changed: a browser from the system's list is asked for its site
+    /// only while it holds one.
+    func slotsChanged(_ slots: [NowPlayingSlot]) {
+        clientSites.show(slots)
     }
 
     /// Cancelling ends the provider's stream, which terminates the helper process; that

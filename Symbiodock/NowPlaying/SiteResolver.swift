@@ -71,12 +71,15 @@ final class SiteResolver {
     }
 }
 
-/// The same for the other apps the system lists: the first browser among them that could
-/// be shown gets its site. A second browser keeps the browser's own icon.
+/// The same for the other apps the system lists: the first browser among them that holds a
+/// media slot gets its site. A browser that is not shown is never asked for its tabs (no
+/// AppleScript, no Automation prompt); a second shown browser keeps the browser's own icon.
 @MainActor
 final class ClientSiteResolver {
     private let onUpdate: @MainActor ([NowPlayingClient]) -> Void
     private var latest: [NowPlayingClient] = []
+    /// The processes of the listed apps that hold a media slot.
+    private var shownPIDs: Set<Int32> = []
     /// The client whose info goes through `resolver`.
     private var browserPID: Int32?
     private lazy var resolver = SiteResolver { [weak self] info in self?.resolved(info) }
@@ -87,10 +90,21 @@ final class ClientSiteResolver {
 
     func publish(_ clients: [NowPlayingClient]) {
         latest = clients
-        // Only a playing, non-elected app can take a slot; the elected one is named by the
-        // system source, whose resolver gives it its site.
-        let browser = clients.first { client in
-            client.info.isPlaying && !client.isElected
+        resolve()
+    }
+
+    /// The island's slots changed. They are built from what `publish` passed on, so a browser
+    /// that has just taken a slot is asked from here.
+    func show(_ slots: [NowPlayingSlot]) {
+        let pids = Set(slots.compactMap(\.origin.clientPID))
+        guard pids != shownPIDs else { return }
+        shownPIDs = pids
+        resolve()
+    }
+
+    private func resolve() {
+        let browser = latest.first { client in
+            shownPIDs.contains(client.pid)
                 && client.info.sourceBundleIdentifier.map(BrowserTabScript.supports) == true
         }
         browserPID = browser?.pid
