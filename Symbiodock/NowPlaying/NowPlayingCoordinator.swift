@@ -55,13 +55,13 @@ final class NowPlayingCoordinator {
         let service = service
         let commands = commands
         let companion = companion
+        let mediaRemote = mediaRemote
         commandTask = Task {
             for await (command, origin) in commands {
                 switch origin {
                 case .system: await service.send(command)
                 case .companion: await companion?.send(command)
-                // No client slot is fed yet, so there is nothing to route.
-                case .client: break
+                case .client(let pid): await mediaRemote?.send(command, toClient: pid)
                 }
             }
         }

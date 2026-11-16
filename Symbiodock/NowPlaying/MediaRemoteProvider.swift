@@ -85,15 +85,26 @@ struct MediaRemoteProvider: NowPlayingProvider {
     }
 
     func send(_ command: PlaybackCommand) async {
-        // Command IDs from the adapter's README.
-        let id = switch command {
+        _ = await Self.runToExit(helpers: helpers, arguments: [
+            paths.script.path, paths.framework.path, "send", Self.commandID(command),
+        ])
+    }
+
+    /// Sends the command to one of the apps `clientUpdates` lists, elected or not.
+    func send(_ command: PlaybackCommand, toClient pid: Int32) async {
+        _ = await Self.runToExit(helpers: helpers, arguments: [
+            paths.script.path, paths.framework.path, "send-to", Self.commandID(command),
+            String(pid),
+        ])
+    }
+
+    /// Command IDs from the adapter's README.
+    private static func commandID(_ command: PlaybackCommand) -> String {
+        switch command {
         case .togglePlayPause: "2"
         case .next: "4"
         case .previous: "5"
         }
-        _ = await Self.runToExit(helpers: helpers, arguments: [
-            paths.script.path, paths.framework.path, "send", id,
-        ])
     }
 
     /// Keeps a streaming helper running and hands each output line to `onLine`. Returns when
