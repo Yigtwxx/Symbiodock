@@ -16,6 +16,15 @@ Sonra: "dosya sekmesi hep gözüksün ama 3. sekme olarak"; "eğer oraya dosya k
 pdf mi olduğu renklerle belirtilsin (arka arkaya efekti uygulu bunu yaparken oynatıcılarda
 yaptığımız gibi)".
 
+Aynı gün, raf sayfası çıkınca: "dosya dönüştürme işlemi için birden fazla seçebilelim. Mesela 2
+docx 1 pptx pdfe çevirilecek hepsini çevirsin. Ayrıca bunları aynı yere koyunca da arka arkaya
+dosya çekmeceleri gibi gözüksün... öndeki tamamen gözüksün, arkadakinin üst kısmı gözüksün ama
+mouse ile üzerine gelince hafif yukarı kalksın." Sorulara cevapları: yığın hem birlikte
+bırakınca hem karoyu karoya sürükleyince oluşsun; dikey çekmece görünümü; PPTX için "olmuyorsa
+sıkıntı yok... ekstra bir şey kurmak zorunda kalmayalım, başka kullanıcılar indirdiğinde bir
+sürü bir şeyle uğraşmasınlar"; yığın gövdesinden tutulunca hepsi birlikte sürüklensin, "en
+öndekinin de üst kısmından tutarsa sadece en öndekini alsın".
+
 Seçtikleri: çevirme yalnızca yerleşik macOS araçlarıyla; çıktı orijinalin yanına yazılır ve
 orijinal kalır; dışarı bırakılan karo raftan çıkar; raf yeniden açılışta geri gelir.
 
@@ -23,6 +32,8 @@ orijinal kalır; dışarı bırakılan karo raftan çıkar; raf yeniden açılı
 
 - "Her format" tek araçla olmaz. Yerleşik araçların yapabildiği kadarı var: karmaşık DOCX düzeni
   PDF'te birebir olmayabilir (TextEdit'in çıktısı kadar); XLSX/PPTX, MP3 yazma, MKV/WebM yok.
+  PPTX ve XLSX için Keynote/Numbers ya da LibreOffice gerekir; sahibi ek kurulum istemedi. Bu
+  dosyalar rafta durur, yalnızca ZIP yapılır; toplu çevirmede atlanır ve bu söylenir.
 - Panel bütün ekranı kaplıyor ve yalnızca imleç adadayken tıklama alıyor. Dosya sürüklemesi de
   aynı kurala bağlı: imleç adaya girince panel bırakma hedefi olur (aşağıda "Doğrulanmamış").
 - Sistem, sürüklenen dosyanın bırakıldığı uygulamada kopyalanıp kopyalanmadığını ancak bırakma
@@ -47,6 +58,50 @@ orijinal kalır; dışarı bırakılan karo raftan çıkar; raf yeniden açılı
 - Boş raf: `tray.and.arrow.down` simgesi ve `Drop files here`. Başlığın sağında `3 items`.
 - Sağ tık menüsünde, raf doluyken `Clear Files`.
 
+### Yığınlar (dosya çekmecesi)
+
+- Rafın her yeri bir yığındır; tek dosya, tek kartlı yığındır ve bugünkü karo gibi görünür.
+- Yığın oluşur: (1) tek seferde birden fazla dosya bırakılınca (hepsi tek yığın, ilk dosya
+  önde); (2) dışarıdan sürüklenen dosya bir karonun ya da yığının üstüne bırakılınca (öne
+  eklenir); (3) raftaki bir karo ya da yığın başka birinin üstüne sürüklenince. Boş alana
+  bırakılan tek dosya ayrı karo olur.
+- Görünüm, dikey çekmece: öndeki kart tam görünür; arkadakilerin yalnızca üst şeridi, her biri
+  bir öncekinin üstünden 7 pt taşarak ve iki yandan 3 pt daralarak görünür. Dosya çoğaldıkça
+  şerit incelir (en az 3 pt, toplam taşma 21 pt'yi geçmez); en fazla 7 arka kart çizilir,
+  fazlası sayılır ama çizilmez. Yığının kutusu tek karodan 8 pt yüksektir (64 × 104) ve alta
+  hizalanır; öndeki kartın önizlemesi kalan yere göre küçülür. Öndeki kartın sağ üstünde adet.
+- İmleç bir arka kartın şeridine gelince o kart 6 pt yukarı kalkar (yay animasyonu) ve yığının
+  ad satırı o dosyanın adını gösterir. Öndeki kartın üst 12 pt'lik şeridi de aynı şekilde
+  davranır (yalnızca öndeki dosya). Gövdede beklerken yığının tamamı 3 pt kalkar.
+- Tıklama: şeride tıklamak o dosyayı tek başına seçer ve öne getirir; gövdeye tıklamak yığının
+  tamamını seçer.
+- Yığından çıkarma: bir dosyayı şeridinden tutup karo şeridinin boş yerine bırakmak onu ayrı
+  karo yapar. İşlem sütunundaki `Unstack` simgesi (tek bir yığının tamamı seçiliyken) yığını
+  ayrı karolara dağıtır.
+- Hover bilgisi SwiftUI'dan değil, pencere denetleyicisinin zaten izlediği imleç konumundan
+  gelir; durum yalnızca değişince atanır. İstirahatte hiçbir şey çizilmez.
+
+### Çoklu seçim ve toplu çevirme
+
+- ⌘-tıklama seçime ekler ya da çıkarır (şeritte tek dosya, gövdede bütün yığın). Düz tıklama
+  seçimi yeniden kurar. Seçili kartların zemini beyaz %10; yığının içinden tek dosya seçiliyse
+  o kartın 1 pt beyaz %40 çerçevesi olur.
+- Birden fazla dosya seçiliyken sütun: `3 files`, altında toplam boyut; `Show in Finder` hepsini
+  gösterir, `Remove` hepsini raftan çıkarır.
+- Ortak çipler: seçimdeki "çevrilebilir" dosyalar (ZIP dışında en az bir hedefi olanlar)
+  üzerinden hesaplanır. Bir hedef, her çevrilebilir dosya ya o hedefi sunuyorsa ya da zaten o
+  formattaysa ve en az biri sunuyorsa çıkar. Sıra, hedeflerin seçimde ilk göründüğü sıradır.
+  Sonda her zaman `ZIP`. Hepsi ZIP ise yalnızca `Unzip`.
+- Çipe basınca: o hedefi sunan her dosya çevrilir; zaten o formatta olan sessizce atlanır;
+  hiçbir hedefi olmayan (PPTX, MKV…) atlanır ve sütunda söylenir: `Slides.pptx can't become
+  PDF`, birden fazlaysa `2 files can't become PDF`. Başarısız olan olursa `Couldn't convert 1
+  file`. Örnek: 2 DOCX + 1 PPTX seçili → `PDF` çıkar; iki DOCX çevrilir, PPTX atlanır.
+- Toplu `ZIP`, Finder'ın `Compress`'i gibidir: hepsi tek `Archive.zip` olur (ilk dosyanın
+  klasörüne; ad doluysa `Archive 2.zip`). Orijinaller diskte kalır; rafta seçimin yerini tek
+  `Archive.zip` karosu alır.
+- Dosyalar sırayla çevrilir. Ayrı karolar kendi işi bitince açılır; bir yığının dosyaları
+  birlikte açılır (yığın tek koza olarak sarılır). `Cancel` hepsini iptal eder.
+
 ### İçeri bırakma
 
 - Bir dosya sürüklenirken imleç adaya ya da dosya baloncuğuna girince ada beklemeden `Files` ile
@@ -54,17 +109,25 @@ orijinal kalır; dışarı bırakılan karo raftan çıkar; raf yeniden açılı
 - Kabul edilenler: dosya ve klasör URL'leri; dosya sözleri (Safari'den görsel, Fotoğraflar, Mail
   eki); ham görsel verisi (PNG olarak yazılır). Söz verilen ve ham veriler
   `~/Library/Application Support/Symbiodock/Shelf/<uuid>/` altına alınır.
-- Raf dosyayı kopyalamaz, konumunu tutar. Aynı dosya ikinci kez eklenmez, öne gelir.
+- Raf dosyayı kopyalamaz, konumunu tutar. Aynı dosya ikinci kez eklenmez, öne gelir (bir
+  yığının üstüne bırakıldıysa o yığına geçer).
+- İmleç bir karonun ya da yığının üstündeyken o hedef kesikli beyaz çerçeveyle vurgulanır ve
+  baştaki boş yer tutucu gizlenir: bırakılanlar o yığına katılır.
 - Bırakma kabul edilince `.levelChange` titreşimi.
 
 ### Dışarı sürükleme
 
 - Karoya basıp 6 pt çekince dosya sürüklemesi başlar; ada kopmaz. Sütuna ve boş alana basıp
   çekmek bugünkü gibi adayı koparır. Karoya tıklamak onu seçer.
+- Yığında neyin sürükleneceğini basılan yer belirler, seçim değil: gövdeden tutulunca yığının
+  bütün dosyaları birlikte gider; bir arka kartın şeridinden ya da öndeki kartın üst şeridinden
+  tutulunca yalnızca o dosya gider.
+- Sürüklenen karo adanın içinde başka bir karoya bırakılırsa yığına katılır, karo şeridinin boş
+  yerine bırakılırsa (yığından geldiyse) ayrı karo olur; ikisinde de raftan çıkmaz.
 - Kopya mı taşıma mı olacağına hedef uygulama karar verir (Finder'daki gibi). Çöp Sepeti'ne
   bırakma sunulmaz.
-- Başarılı bırakmada karo raftan çıkar; iptal edilirse yerine döner. Adanın kendi üstüne
-  bırakmak iptaldir. Çevrilmekte olan karo sürüklenmez.
+- Başarılı bırakmada giden dosyalar raftan çıkar; iptal edilirse yerine döner. Adanın başka
+  bir yerine bırakmak iptaldir. İçinde çevrilen dosya olan yığın ve çevrilen karo sürüklenmez.
 - Sürükleme sırasında imleç adadan çıkınca ada her zamanki gibi kapanır ve panel tıklamaları
   bırakır; böylece bırakma alttaki uygulamaya gider.
 
@@ -115,7 +178,7 @@ Hata ve iptalde de aynı açılış oynar. Reduce Motion: 0,2 sn kararma, 0,2 sn
   (28 pt, kısa çentikte çentik boyu − 4), aynı 6 pt boşluk, çentik bandında dikey ortalı. Kanatlar
   varsa onların sağında.
 - İçinde en son eklenen dosyanın tür renginde disk (çapın 22/28'i) ve beyaz adet (99'dan çoksa
-  `99+`).
+  `99+`). Adet dosya sayısıdır, yığın sayısı değil.
 - Rafta başka türler de varsa en fazla 2 tane daha, arkada ve sağdan taşarak: her biri bir
   öncekinin %84'ü, çapın %36'sı kadar kayık, rengi %70 opak.
 - Tür renkleri: görsel `#32ADE6`, PDF `#FF453A`, belge `#0A84FF`, ses `#FF375F`, video
@@ -126,7 +189,8 @@ Hata ve iptalde de aynı açılış oynar. Reduce Motion: 0,2 sn kararma, 0,2 sn
 
 ### Kalıcılık
 
-- UserDefaults `shelfItems`: her öğe için kimlik, bookmark, klasör mü. Açılışta çözülür;
+- UserDefaults `shelfItems`: her öğe için kimlik, bookmark, klasör mü, yığın kimliği (eski
+  kayıtlarda yok: her dosya ayrı karo). Açılışta çözülür;
   bulunamayan öğe düşer. Taşınan ya da yeniden adlandırılan dosya bookmark ile bulunur.
 - Açılışta rafın klasöründe hiçbir karoya ait olmayan alt klasörler silinir. `Remove` ve
   `Clear Files` rafın kendi klasöründeki dosyayı hemen siler; başka yerdeki dosyaya dokunmaz.
@@ -159,6 +223,9 @@ Hata ve iptalde de aynı açılış oynar. Reduce Motion: 0,2 sn kararma, 0,2 sn
   - `IslandState`: `shelf`, `conversions`, `shelfNotice`, `isFileDragHovering`,
     `filesBubbleShown`.
   - `IslandLayout.filesBubbleFrame`, `filesBubbleHitRect`.
+  - Yığınlar: `ShelfStack`, `FileShelf.stacks/selection`, `Files/StackLayout.swift` (kart
+    çerçeveleri ve isabet), `ConversionCatalog.commonLabels/plan`, `IslandState.hoveredFile`,
+    `fileDropTarget`.
 - Uygulama (`Symbiodock/`):
   - `Files/`: `ShelfCoordinator`, `ShelfStorage`, `FilePreviews`, `ToolRunner`, `FileConverter`,
     `DocumentPDFWriter`, `DemoFiles`.
@@ -173,6 +240,7 @@ Hata ve iptalde de aynı açılış oynar. Reduce Motion: 0,2 sn kararma, 0,2 sn
 
 ## Kapsam dışı
 
-Çoklu seçim ve toplu sürükleme; karoları yeniden sıralama; metin ve bağlantı bırakma; XLSX/PPTX;
+Karoları yeniden sıralama; lastik bantla ya da ⇧ ile aralık seçimi; birbirinden ayrı seçili
+karoları tek sürüklemede taşıma (yığın birlikte sürüklenir); metin ve bağlantı bırakma; XLSX/PPTX;
 MP3 yazma; MKV/WebM; video → GIF; kenara yanaşık adada dosya baloncuğu; çevirme ayarları
 (kalite, boyut); adadan dosya açma.
