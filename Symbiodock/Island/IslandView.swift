@@ -6,6 +6,7 @@ struct IslandView: View {
     let geometry: IslandGeometry
     let session: DragSession
     let onCommand: (PlaybackCommand, NowPlayingOrigin) -> Void
+    let onVolume: (VolumeRequest) -> Void
     let onOpenSession: (AgentSession) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -27,6 +28,8 @@ struct IslandView: View {
             }
         }
         .ignoresSafeArea()
+        // Sliders report where a press must not drag the island.
+        .environment(geometry)
         // A finish on the collapsed island plays its seal, then lets go: the session settles
         // and the island closes. Opening the island or a question in the meantime cancels
         // the wait, and the seal plays again from the start the next time.
@@ -121,7 +124,7 @@ struct IslandView: View {
         case .expanded:
             ExpandedIsland(
                 state: state, metrics: headerMetrics(atNotch: atNotch, frame: frame),
-                onCommand: onCommand, onOpenSession: onOpenSession)
+                onCommand: onCommand, onVolume: onVolume, onOpenSession: onOpenSession)
                 .transition(.opacity)
         case .collapsed, .stretching, .detached, .settling:
             collapsedFace(atNotch: atNotch)

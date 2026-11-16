@@ -47,6 +47,10 @@ public final class IslandState {
     /// again, so a paused player does not sit behind the main track all day.
     private var retiredOrigin: NowPlayingOrigin?
 
+    /// How loud each player is that has a volume of its own, 0...1. A player is absent
+    /// until it has been asked, and when it cannot be asked.
+    public private(set) var volumes: [VolumeTarget: Double] = [:]
+
     /// Whether the media face is shown collapsed (artwork and level bars).
     /// True while something plays, and for a grace period after it pauses, so a
     /// paused player does not occupy the menu bar all day.
@@ -212,6 +216,13 @@ public final class IslandState {
             retiredOrigin = mediaSlots[1].origin
             refreshMediaSlots()
         }
+    }
+
+    /// A player reported its volume, or the user set it; nil when it cannot be asked.
+    public func setVolume(_ fraction: Double?, for target: VolumeTarget) {
+        let value = fraction.map { VolumeLevel.fraction(percent: VolumeLevel.percent($0)) }
+        // Assign only on change: every assignment redraws the island.
+        if volumes[target] != value { volumes[target] = value }
     }
 
     public func setAgentSessions(_ sessions: [AgentSession]) {

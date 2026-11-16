@@ -58,6 +58,7 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 | Compact göstergesi | Claude Code `/compact` yaparken adanın kenarında mor (`#BF5AF2`) kesikli çizgi saat yönünde döner, sağdaki işaret mor kesikli halka olur ve döner, pet'in dalgası yukarıdan aşağı akar; compact bitince hepsi gider, bitiş sayılmaz. Hook yok: transcript'in sonundaki başlangıç izi (mesajı henüz yazılmamış `file-history-snapshot`; eski sürümlerde düz `/compact` kaydı) ve oturum dosyasındaki `busy` okunur. Otomatik compact ve Codex algılanmaz (2026-11-15) | Sahibi: "mor bir şekilde kesikli çizgilerle loop şeklinde compact bitene kadar dönsün", "hem adanın etrafında gezsin kesikli çizgi hem sağdaki halka yerine gelsin compact bitince de gitsin"; aynı Mac'teki Vibe Island bunu `PreCompact` hook'uyla yapıyor, bu proje hook kullanmıyor |
 | İki kaynak aynı anda | Sistem kaynağının yanında Apple Music de çalıyorsa kapalı adada ikinci kapak ana kapağın arkasından sola taşar; açık adada `Media` sekmesinde iki kaynak alt alta, her biri kendi tuşlarıyla. Kapaklar yuvarlatılmış kare kalır (daire denendi, küçük durdu). Duraklatılan ikinci kaynak 10 sn sonra gizlenir. İkinci kaynak yalnızca Apple Music olabilir: sistem tek kaynak bildiriyor (2026-11-16) | Sahibi: "kickin arkasında apple music de gözüksün", "adanın üstüne gelince alt alta ikisi de gözüksün"; daire için: "önceki gibi gözüksün daha büyük duruyordu" (spec: `2026-11-16-two-sources-design.md`) |
 | Yan baloncuk | Ada çentikte ve kapalıyken iki sekmenin de yüzü varsa (agent çalışıyor + müzik çalıyor) ilk sekme adada kalır, ikincisi adanın solunda 28 pt'lik siyah yuvarlak baloncuğa geçer (6 pt boşluk). Müzik baloncuğunda kapak dairedir; ikinci kaynak arkasında daha küçük bir daire olarak soldan taşar. Baloncuğun üstünde bekleyince ada o sekmeyle açılır. Kenara yanaşık adada baloncuk yok (2026-11-16) | Sahibi: "iphonelarda adada bir şey varsa 2. bir şey gelince yuvarlak olarak sağa veya sola geçiyor. Bizde de öyle olsun... arka arkaya efekti bozulmasın ama bu sefer yuvarlak olsun"; simetrik, kendi sekmesini açsın, şimdilik yalnızca çentikte, solda kalsın dedi (spec: `2026-11-16-side-bubble-design.md`) |
+| Oynatıcı sesi | Açık adada `Media` sekmesinde yalnızca Apple Music ve Spotify satırının en sağında dikey ses çubuğu; oynatıcının kendi sesini AppleScript ile ayarlar. Tarayıcı ve diğer kaynaklarda çubuk yok (2026-11-16) | Sahibi: "en sağ tarafa dikey bir şekilde"; tarayıcı için yalnızca Mac'in genel sesi ayarlanabildiğinden ve o müziği de yükselteceğinden: "sadece apple music ve spotify için ses ayarlanabilsin diğeri için o ses barı olmasın" (spec: `2026-11-16-player-volume-design.md`) |
 | Mimari | Spec bölüm 4-5 | Sahibi onayladı |
 | Proje üretimi | XcodeGen (`project.yml`), `.xcodeproj` commit edilmez | Komut satırından üretilebilir ve diff'i okunur |
 | Kod yerleşimi | Saf mantık `Packages/SymbiodockCore` paketinde, AppKit/SwiftUI app hedefinde | Mantık uygulama açılmadan `swift test` ile test edilir |
@@ -146,6 +147,11 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
   animasyonu, baloncuk hover'ı ve menülerle çakışma görülemedi (ekran görüntüsü pencereleri
   göstermiyor); sahibinin elle kontrolüne kaldı. Liste:
   `docs/superpowers/plans/2026-11-16-side-bubble.md` sonunda (10 madde).
+- **Oynatıcı sesi (2026-11-16): kod `main`'de.** 419 çekirdek testi geçiyor. Ekran dışı
+  görüntülerde doğrulandı (`expanded-media-volume.png`, `expanded-media-two.png`). Canlıda
+  denenmedi: gerçek Music/Spotify sesinin okunup ayarlanması, sürüklemenin hissi, çubuğa
+  basınca adanın sürüklenmemesi, Spotify'ın Automation izni penceresi. Sahibi yan baloncuğu
+  2026-11-16'da canlı denedi: "test ettim gayet güzel çalışıyor".
 - Xcode 27.2 ve XcodeGen 2.45.4 kurulu, `xcode-select` ile seçili.
 
 ## "Yapılacakları yap" denince

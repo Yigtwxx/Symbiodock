@@ -8,6 +8,18 @@ struct ExpandedContent: View {
     /// Height of the notch; nothing can be shown behind it.
     let topInset: CGFloat
     let onCommand: (PlaybackCommand, NowPlayingOrigin) -> Void
+    /// How loud the players are that have a volume of their own.
+    var volumes: [VolumeTarget: Double] = [:]
+    var onVolume: (VolumeRequest) -> Void = { _ in }
+
+    /// The players shown that have a volume of their own.
+    private var targets: [VolumeTarget] {
+        slots.compactMap { VolumeTarget.target(for: $0.info) }
+    }
+
+    private var showsAnyVolume: Bool {
+        targets.contains { volumes[$0] != nil }
+    }
 
     var body: some View {
         Group {
@@ -28,6 +40,18 @@ struct ExpandedContent: View {
         }
         .padding(.top, topInset)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Asked whenever the tab comes up: the volume may have changed in the player.
+        .task(id: targets) {
+            for target in targets { onVolume(.read(target)) }
+        }
+    }
+
+    /// The player's volume at the far right; nothing for a source without one of its own.
+    @ViewBuilder
+    private func volume(_ slot: NowPlayingSlot) -> some View {
+        if let target = VolumeTarget.target(for: slot.info), let value = volumes[target] {
+            VolumeSlider(target: target, value: value) { onVolume(.set(target, $0)) }
+        }
     }
 
     private var idle: some View {
@@ -44,6 +68,17 @@ struct ExpandedContent: View {
     /// Three rows that share whatever height the island has: at the notch that is little,
     /// floating at an edge it is more, and the rows spread out instead of leaving a gap.
     private func track(_ slot: NowPlayingSlot) -> some View {
+        let info = slot.info
+        return HStack(spacing: 16) {
+            trackRows(slot)
+            volume(slot)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 2)
+        .padding(.bottom, 8)
+    }
+
+    private func trackRows(_ slot: NowPlayingSlot) -> some View {
         let info = slot.info
         return VStack(spacing: 0) {
             HStack(spacing: 12) {
@@ -69,9 +104,6 @@ struct ExpandedContent: View {
                 controls(slot, glyph: 15, width: 40)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 2)
-        .padding(.bottom, 8)
     }
 
     /// One of two sources: everything of `track` on a single line, the position as a thin
@@ -98,6 +130,13 @@ struct ExpandedContent: View {
             }
             LevelBars(isPlaying: info.isPlaying)
                 .opacity(info.isPlaying ? 1 : 0.4)
+            if VolumeTarget.target(for: info).flatMap({ volumes[$0] }) != nil {
+                volume(slot)
+                    .padding(.vertical, 4)
+            } else if showsAnyVolume {
+                // The other row has a slider: keep the two rows' buttons in line.
+                Color.clear.frame(width: VolumeSlider.width)
+            }
         }
         .opacity(info.isPlaying ? 1 : 0.6)
         .accessibilityElement(children: .contain)

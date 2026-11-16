@@ -37,6 +37,13 @@ enum DebugRender {
         write(
             BubbleGallery(slots: twoSources.mediaSlots), size: CGSize(width: 380, height: 170),
             named: "collapsed-bubble", to: directory)
+        let oneSource = IslandState()
+        DemoMedia.apply(to: oneSource, twoSources: false)
+        oneSource.setHovering(true)
+        oneSource.selectTab(.media)
+        write(
+            ExpandedPreview(state: oneSource), size: CGSize(width: 640, height: 190),
+            named: "expanded-media-volume", to: directory)
         let empty = IslandState()
         empty.setHovering(true)
         empty.selectTab(.agents)

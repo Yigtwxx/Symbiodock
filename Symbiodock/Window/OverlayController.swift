@@ -19,6 +19,7 @@ final class OverlayController {
     private let session = DragSession()
     private let contextMenu: NSMenu
     private let onCommand: (PlaybackCommand, NowPlayingOrigin) -> Void
+    private let onVolume: (VolumeRequest) -> Void
     private let onOpenSession: (AgentSession) -> Void
     private var panel: OverlayPanel?
     private var metrics: ScreenMetrics?
@@ -31,6 +32,8 @@ final class OverlayController {
     private var dragMonitor: Any?
     /// Where the button went down on the island (panel-local), until it comes up again.
     private var pressLocation: CGPoint?
+    /// False when the press began on a control that is dragged itself (a slider).
+    private var pressAllowsDrag = true
     private var settleTask: Task<Void, Never>?
     /// When the current settle is due to end; the pointer poll enforces it if the timer is lost.
     private var settleDeadline: ContinuousClock.Instant?
@@ -42,11 +45,13 @@ final class OverlayController {
     init(
         state: IslandState, contextMenu: NSMenu,
         onCommand: @escaping (PlaybackCommand, NowPlayingOrigin) -> Void,
+        onVolume: @escaping (VolumeRequest) -> Void,
         onOpenSession: @escaping (AgentSession) -> Void
     ) {
         self.state = state
         self.contextMenu = contextMenu
         self.onCommand = onCommand
+        self.onVolume = onVolume
         self.onOpenSession = onOpenSession
         session.onCatch = {
             Self.dragLog.notice("strands caught a surface")
@@ -131,7 +136,7 @@ final class OverlayController {
         let panel = OverlayPanel(screenFrame: metrics.frame)
         let hostingView = IslandHostingView(rootView: IslandView(
             state: state, geometry: geometry, session: session, onCommand: onCommand,
-            onOpenSession: onOpenSession))
+            onVolume: onVolume, onOpenSession: onOpenSession))
         hostingView.contextMenu = contextMenu
         // A menu opened mid-drag would freeze the island where it is.
         hostingView.allowsContextMenu = { [weak self] in self?.isIdle ?? false }
@@ -292,10 +297,14 @@ final class OverlayController {
                 .contains(point)
             pressLocation =
                 windowNumber == panel.windowNumber && !isControlClick && isIdle && onIsland ? point : nil
+            // The press is still tracked, so the island stays open while a slider is dragged
+            // past its edge; it only never becomes a drag of the island.
+            pressAllowsDrag = !(state.phase == .expanded
+                && geometry.noDragRects.values.contains { $0.contains(point) })
         case .leftMouseDragged:
             if state.isDragging {
                 continueDrag(to: point)
-            } else if let press = pressLocation, isIdle,
+            } else if let press = pressLocation, pressAllowsDrag, isIdle,
                       hypot(point.x - press.x, point.y - press.y) > Self.dragThreshold {
                 // One press starts at most one drag: a drag event still queued after the
                 // release must not start a second one.

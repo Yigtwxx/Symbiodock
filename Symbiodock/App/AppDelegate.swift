@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onCommand: { [weak self] command, origin in
                 self?.nowPlaying?.send(command, to: origin)
             },
+            onVolume: { [weak self] request in self?.handleVolume(request) },
             onOpenSession: { session in
                 if let pid = session.hostAppPID { HostApp.bringForward(pid: pid) }
             })
@@ -104,6 +105,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             })
         agents.start()
         self.agents = agents
+    }
+
+    /// The players are asked on the main actor: AppleScript is not thread-safe.
+    private func handleVolume(_ request: VolumeRequest) {
+        #if DEBUG
+        // The demo's players are not running; keep the level the demo set.
+        if DemoMedia.requested, case .read = request { return }
+        #endif
+        switch request {
+        case .read(let target):
+            state.setVolume(PlayerVolumeScript.read(target), for: target)
+        case .set(let target, let fraction):
+            state.setVolume(fraction, for: target)
+            PlayerVolumeScript.set(target, to: fraction)
+        }
     }
 
     private func mediaDidChange() {

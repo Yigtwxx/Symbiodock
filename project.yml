@@ -43,7 +43,7 @@ targets:
         NSHumanReadableCopyright: "Copyright © 2026 Yigtwxx"
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        NSAppleEventsUsageDescription: Symbiodock reads the current track from Music, controls playback, and asks your browser which site is playing.
+        NSAppleEventsUsageDescription: Symbiodock reads the current track from Music, controls playback and volume in Music and Spotify, and asks your browser which site is playing.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yigtwxx.Symbiodock

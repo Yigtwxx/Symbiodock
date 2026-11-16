@@ -11,4 +11,7 @@ final class IslandGeometry {
     var screenSize: CGSize = .zero
     /// False on displays where the notch is only a stand-in drawn by us.
     var hasPhysicalNotch = false
+    /// Where a press must not start dragging the island (a slider), in panel-local
+    /// coordinates. Written during layout, so it is not observed.
+    @ObservationIgnored var noDragRects: [String: CGRect] = [:]
 }

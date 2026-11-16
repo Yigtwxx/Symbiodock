@@ -18,10 +18,12 @@ enum DemoMedia {
     }
 
     static func apply(to state: IslandState, twoSources: Bool = wantsTwoSources) {
+        state.setVolume(0.6, for: .appleMusic)
         guard twoSources else {
             state.setNowPlaying(
                 NowPlayingInfo(
-                    title: "Demo track", artist: "Demo", isPlaying: true, sourceName: "Music"))
+                    title: "Demo track", artist: "Demo", isPlaying: true, sourceName: "Music",
+                    sourceBundleIdentifier: "com.apple.Music"))
             return
         }
         state.setNowPlaying(

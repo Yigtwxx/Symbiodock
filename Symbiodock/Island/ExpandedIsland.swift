@@ -19,6 +19,7 @@ struct ExpandedIsland: View {
     let state: IslandState
     let metrics: ExpandedHeaderMetrics
     let onCommand: (PlaybackCommand, NowPlayingOrigin) -> Void
+    var onVolume: (VolumeRequest) -> Void = { _ in }
     let onOpenSession: (AgentSession) -> Void
 
     var body: some View {
@@ -27,7 +28,8 @@ struct ExpandedIsland: View {
                 switch state.selectedTab {
                 case .media:
                     ExpandedContent(
-                        slots: state.mediaSlots, topInset: metrics.height, onCommand: onCommand)
+                        slots: state.mediaSlots, topInset: metrics.height, onCommand: onCommand,
+                        volumes: state.volumes, onVolume: onVolume)
                 case .agents:
                     AgentsContent(
                         rows: state.board.rows, topInset: metrics.height, onOpen: onOpenSession)
