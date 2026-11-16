@@ -512,4 +512,185 @@ struct IslandStateTests {
         #expect(state.phase == .expanded)
         #expect(state.selectedTab == .media)
     }
+
+    // MARK: Files shelf
+
+    private func file(_ path: String) -> ShelfItem {
+        ShelfItem(url: URL(fileURLWithPath: path), isDirectory: false)
+    }
+
+    @Test func aShelfWithFilesMakesACollapsedIslandOpenOnFiles() {
+        let state = IslandState()
+        state.addShelfItems([file("/x/a.png")])
+        state.setHovering(true)
+        #expect(state.selectedTab == .files)
+    }
+
+    @Test func theFilesBubbleShowsOnlyCollapsedAtTheNotchWithFiles() {
+        let state = IslandState()
+        #expect(!state.filesBubbleShown)
+        state.addShelfItems([file("/x/a.png")])
+        #expect(state.filesBubbleShown)
+        state.setHovering(true)
+        #expect(!state.filesBubbleShown)
+        state.setHovering(false)
+        state.restoreAnchor(.edge(.bottom, fraction: 0.5))
+        #expect(!state.filesBubbleShown)
+        state.restoreAnchor(.notch)
+        state.clearShelf()
+        #expect(!state.filesBubbleShown)
+    }
+
+    @Test func aFileDragOverACollapsedIslandOpensItOnFiles() {
+        let state = IslandState()
+        state.setFileDragHovering(true)
+        #expect(state.phase == .expanded)
+        #expect(state.selectedTab == .files)
+        #expect(state.isFileDragHovering)
+        state.setFileDragHovering(false)
+        #expect(!state.isFileDragHovering)
+        #expect(state.phase == .expanded)
+    }
+
+    @Test func aFileDragOverAnOpenIslandSwitchesToFilesAndLeavesAgents() {
+        let state = IslandState()
+        state.setAgentSessions([agent("a", .working)])
+        state.setAgentSessions([agent("a", .idle)])
+        state.setHovering(true)
+        #expect(state.selectedTab == .agents)
+        #expect(state.board.attention == .finished)
+        state.setFileDragHovering(true)
+        #expect(state.selectedTab == .files)
+        #expect(state.board.attention == .none)
+    }
+
+    @Test func aFileDragWhileStretchingChangesNothing() {
+        let state = IslandState()
+        state.beginDrag(at: .zero, from: .zero)
+        state.setFileDragHovering(true)
+        #expect(state.phase == .stretching)
+        #expect(!state.isFileDragHovering)
+        #expect(state.selectedTab == TabOrder.default[0])
+    }
+
+    @Test func shelfChangesWorkInAnyPhase() {
+        let state = IslandState()
+        state.beginDrag(at: .zero, from: .zero)
+        let a = file("/x/a.png")
+        state.addShelfItems([a])
+        #expect(state.shelf.items == [a])
+        state.removeShelfItem(a.id)
+        #expect(state.shelf.isEmpty)
+    }
+
+    @Test func beginningAConversionRecordsItOnce() {
+        let state = IslandState()
+        let a = file("/x/a.png")
+        state.addShelfItems([a])
+        let start = Date(timeIntervalSince1970: 100)
+        state.beginConversion(a.id, label: "PDF", at: start)
+        #expect(state.conversions[a.id]?.label == "PDF")
+        #expect(state.conversions[a.id]?.revealStarted == nil)
+        state.beginConversion(a.id, label: "JPEG", at: Date(timeIntervalSince1970: 200))
+        #expect(state.conversions[a.id]?.label == "PDF")
+        #expect(state.conversions[a.id]?.started == start)
+        state.beginConversion(UUID(), label: "PDF", at: start)
+        #expect(state.conversions.count == 1)
+    }
+
+    @Test func aConvertedRevealReplacesTheItemOnce() {
+        let state = IslandState()
+        let a = file("/x/a.png")
+        state.addShelfItems([a])
+        state.beginConversion(a.id, label: "PDF", at: Date(timeIntervalSince1970: 1))
+        let out = URL(fileURLWithPath: "/x/a.pdf")
+        let at = Date(timeIntervalSince1970: 5)
+        state.revealConversion(a.id, result: .converted(url: out, isDirectory: false), at: at)
+        #expect(state.shelf.items[0].url == out)
+        #expect(state.shelf.items[0].id == a.id)
+        #expect(state.conversions[a.id]?.revealStarted == at)
+        state.revealConversion(
+            a.id,
+            result: .converted(url: URL(fileURLWithPath: "/x/other.pdf"), isDirectory: false),
+            at: Date(timeIntervalSince1970: 9))
+        #expect(state.shelf.items[0].url == out)
+        #expect(state.conversions[a.id]?.revealStarted == at)
+    }
+
+    @Test func aFailedRevealKeepsTheFileAndRaisesANotice() {
+        let state = IslandState()
+        let a = file("/x/a.png")
+        state.addShelfItems([a])
+        state.beginConversion(a.id, label: "PDF", at: Date(timeIntervalSince1970: 1))
+        state.revealConversion(
+            a.id, result: .failed("Couldn't convert to PDF"), at: Date(timeIntervalSince1970: 2))
+        #expect(state.shelf.items[0].url == a.url)
+        #expect(state.shelfNotice == ShelfNotice(id: a.id, text: "Couldn't convert to PDF"))
+        #expect(state.conversions[a.id]?.revealStarted != nil)
+    }
+
+    @Test func aCancelledRevealChangesNeitherFileNorNotice() {
+        let state = IslandState()
+        let a = file("/x/a.png")
+        state.addShelfItems([a])
+        state.beginConversion(a.id, label: "PDF", at: Date(timeIntervalSince1970: 1))
+        state.revealConversion(a.id, result: .cancelled, at: Date(timeIntervalSince1970: 2))
+        #expect(state.shelf.items[0].url == a.url)
+        #expect(state.shelfNotice == nil)
+        #expect(state.conversions[a.id]?.revealStarted != nil)
+    }
+
+    @Test func revealingWithoutAConversionIsIgnored() {
+        let state = IslandState()
+        let a = file("/x/a.png")
+        state.addShelfItems([a])
+        state.revealConversion(a.id, result: .failed("x"), at: Date(timeIntervalSince1970: 2))
+        #expect(state.shelfNotice == nil)
+        #expect(state.conversions.isEmpty)
+    }
+
+    @Test func removingAnItemDropsItsConversionAndNotice() {
+        let state = IslandState()
+        let a = file("/x/a.png")
+        state.addShelfItems([a])
+        state.beginConversion(a.id, label: "PDF", at: Date(timeIntervalSince1970: 1))
+        state.revealConversion(a.id, result: .failed("x"), at: Date(timeIntervalSince1970: 2))
+        state.removeShelfItem(a.id)
+        #expect(state.conversions[a.id] == nil)
+        #expect(state.shelfNotice == nil)
+    }
+
+    @Test func endingAConversionRemovesTheEntry() {
+        let state = IslandState()
+        let a = file("/x/a.png")
+        state.addShelfItems([a])
+        state.beginConversion(a.id, label: "PDF", at: Date(timeIntervalSince1970: 1))
+        state.endConversion(a.id)
+        #expect(state.conversions.isEmpty)
+    }
+
+    @Test func beginningAConversionClearsItsNoticeAndSelectingAnotherItemClearsOthers() {
+        let state = IslandState()
+        let (a, b) = (file("/x/a.png"), file("/x/b.png"))
+        state.addShelfItems([a, b])
+        state.beginConversion(a.id, label: "PDF", at: Date(timeIntervalSince1970: 1))
+        state.revealConversion(a.id, result: .failed("x"), at: Date(timeIntervalSince1970: 2))
+        state.endConversion(a.id)
+        state.beginConversion(a.id, label: "PDF", at: Date(timeIntervalSince1970: 3))
+        #expect(state.shelfNotice == nil)
+        state.revealConversion(a.id, result: .failed("y"), at: Date(timeIntervalSince1970: 4))
+        state.selectShelfItem(a.id)
+        #expect(state.shelfNotice != nil)
+        state.selectShelfItem(b.id)
+        #expect(state.shelfNotice == nil)
+        #expect(state.shelf.selectedID == b.id)
+    }
+
+    @Test func restoringTheShelfSelectsTheFirst() {
+        let state = IslandState()
+        let (a, b) = (file("/x/a.png"), file("/x/b.png"))
+        state.restoreShelf([a, b])
+        #expect(state.shelf.items == [a, b])
+        #expect(state.shelf.selectedID == a.id)
+    }
 }

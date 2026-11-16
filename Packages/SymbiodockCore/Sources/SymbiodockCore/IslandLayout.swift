@@ -237,6 +237,25 @@ extension IslandLayout {
         }
         return rect.insetBy(dx: -hitPadding, dy: -hitPadding)
     }
+
+    /// The files bubble: right of the island, centred in the notch band like the left one.
+    public static func filesBubbleFrame(notch: CGRect, screenSize: CGSize, showsWings: Bool) -> CGRect {
+        let island = frame(
+            phase: .collapsed, notch: notch, screenSize: screenSize, showsWings: showsWings)
+        let diameter = bubbleDiameter(notch: notch)
+        return CGRect(
+            x: island.maxX + bubbleGap, y: notch.minY + (notch.height - diameter) / 2,
+            width: diameter, height: diameter)
+    }
+
+    /// `behind`: discs showing past the bubble on the right (0...2), each `bubblePeek` further.
+    public static func filesBubbleHitRect(
+        notch: CGRect, screenSize: CGSize, showsWings: Bool, behind: Int
+    ) -> CGRect {
+        var rect = filesBubbleFrame(notch: notch, screenSize: screenSize, showsWings: showsWings)
+        rect.size.width += CGFloat(max(behind, 0)) * bubblePeek(diameter: rect.width)
+        return rect.insetBy(dx: -hitPadding, dy: -hitPadding)
+    }
 }
 
 /// Corner radii of the island's outline, in panel-local terms: leading is the left side.

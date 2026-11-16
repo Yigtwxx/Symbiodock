@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import Observation
 
 /// What the island is doing right now.
@@ -63,6 +64,20 @@ public final class IslandState {
     /// The tab the expanded island shows.
     public private(set) var selectedTab: IslandTab = TabOrder.default[0]
 
+    /// The files held on the shelf.
+    public private(set) var shelf = FileShelf()
+    /// Conversions in flight or being revealed, by item.
+    public private(set) var conversions: [UUID: FileConversion] = [:]
+    /// A message about one item, until the person moves on.
+    public private(set) var shelfNotice: ShelfNotice?
+    /// A file is being dragged over the island.
+    public private(set) var isFileDragHovering = false
+
+    /// The count bubble right of the island: only at the notch, only collapsed, only with files.
+    public var filesBubbleShown: Bool {
+        anchor == .notch && phase == .collapsed && !shelf.isEmpty
+    }
+
     /// Whether the collapsed island at the notch is widened by its wings.
     public var showsWings: Bool { mediaWings || board.hasFace }
 
@@ -113,7 +128,7 @@ public final class IslandState {
             selectedTab = tab ?? TabSelection.tabToOpen(
                 order: tabOrder, attention: board.attention,
                 mediaHasContent: nowPlaying != nil, agentsHasContent: !board.rows.isEmpty,
-                filesHasContent: false)
+                filesHasContent: !shelf.isEmpty)
         }
         if !hovering, phase == .expanded { leaveSelectedTab() }
         phase = hovering ? .expanded : .collapsed
@@ -267,6 +282,92 @@ public final class IslandState {
         guard tab != selectedTab else { return }
         leaveSelectedTab()
         selectedTab = tab
+    }
+
+    // MARK: Files shelf
+
+    /// Puts back the files saved at launch.
+    public func restoreShelf(_ items: [ShelfItem]) {
+        setShelf(FileShelf(items: items))
+    }
+
+    public func addShelfItems(_ items: [ShelfItem]) {
+        var next = shelf
+        next.add(items)
+        setShelf(next)
+    }
+
+    /// Takes the item off the shelf and drops whatever hung on it.
+    public func removeShelfItem(_ id: UUID) {
+        var next = shelf
+        next.remove(id)
+        setShelf(next)
+        if conversions[id] != nil { conversions[id] = nil }
+        if shelfNotice?.id == id { shelfNotice = nil }
+    }
+
+    /// A notice about another item goes away with the look at this one.
+    public func selectShelfItem(_ id: UUID) {
+        var next = shelf
+        next.select(id)
+        setShelf(next)
+        if let notice = shelfNotice, notice.id != id { shelfNotice = nil }
+    }
+
+    public func clearShelf() {
+        setShelf(FileShelf())
+        if !conversions.isEmpty { conversions = [:] }
+        if shelfNotice != nil { shelfNotice = nil }
+    }
+
+    /// A file drag is over the island: it opens on Files at once (or switches to it).
+    public func setFileDragHovering(_ hovering: Bool) {
+        if !hovering {
+            if isFileDragHovering { isFileDragHovering = false }
+            return
+        }
+        switch phase {
+        case .collapsed:
+            if !isFileDragHovering { isFileDragHovering = true }
+            setHovering(true, opening: .files)
+        case .expanded:
+            if !isFileDragHovering { isFileDragHovering = true }
+            selectTab(.files)
+        case .stretching, .detached, .settling:
+            break
+        }
+    }
+
+    public func beginConversion(_ id: UUID, label: String, at date: Date) {
+        guard conversions[id] == nil, shelf.items.contains(where: { $0.id == id }) else { return }
+        conversions[id] = FileConversion(label: label, started: date)
+        if shelfNotice?.id == id { shelfNotice = nil }
+    }
+
+    /// The cocoon is closed and the work is over: the tile changes under it and the reveal starts.
+    public func revealConversion(_ id: UUID, result: ConversionResult, at date: Date) {
+        guard var conversion = conversions[id], conversion.revealStarted == nil else { return }
+        switch result {
+        case .converted(let url, let isDirectory):
+            var next = shelf
+            next.replace(id, url: url, isDirectory: isDirectory)
+            setShelf(next)
+        case .failed(let text):
+            shelfNotice = ShelfNotice(id: id, text: text)
+        case .cancelled:
+            break
+        }
+        conversion.revealStarted = date
+        conversions[id] = conversion
+    }
+
+    public func endConversion(_ id: UUID) {
+        if conversions[id] != nil { conversions[id] = nil }
+    }
+
+    private func setShelf(_ next: FileShelf) {
+        // Assign only on change: every assignment redraws the island.
+        if next != shelf { shelf = next }
     }
 
     /// Once the Agents tab has been looked at, what finished is no longer news.

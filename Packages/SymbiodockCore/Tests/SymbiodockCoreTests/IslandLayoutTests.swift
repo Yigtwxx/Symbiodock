@@ -344,4 +344,27 @@ struct IslandLayoutTests {
         #expect(IslandLayout.bubbleHitRect(notch: notch, screenSize: screen, hasBehind: true)
             == CGRect(x: 578, y: -2, width: 46, height: 36))
     }
+
+    @Test func theFilesBubbleSitsRightOfTheIslandWithOrWithoutWings() {
+        let notch = CGRect(x: 656, y: 0, width: 200, height: 32)
+        for wings in [false, true] {
+            let island = IslandLayout.frame(
+                phase: .collapsed, notch: notch, screenSize: screen, showsWings: wings)
+            let bubble = IslandLayout.filesBubbleFrame(
+                notch: notch, screenSize: screen, showsWings: wings)
+            #expect(bubble.minX == island.maxX + IslandLayout.bubbleGap)
+            #expect(bubble.size == CGSize(width: 28, height: 28))
+            #expect(bubble.midY == notch.midY)
+        }
+    }
+
+    @Test func theFilesBubbleHitRectGrowsRightByEachDiscBehind() {
+        let notch = CGRect(x: 656, y: 0, width: 200, height: 32)
+        let plain = IslandLayout.filesBubbleHitRect(
+            notch: notch, screenSize: screen, showsWings: false, behind: 0)
+        let two = IslandLayout.filesBubbleHitRect(
+            notch: notch, screenSize: screen, showsWings: false, behind: 2)
+        #expect(two.minX == plain.minX)
+        #expect(two.maxX == plain.maxX + 2 * IslandLayout.bubblePeek(diameter: 28))
+    }
 }
