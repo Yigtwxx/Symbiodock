@@ -74,6 +74,36 @@ struct ConversionBatchTests {
         #expect(!batch.holds(any: []))
     }
 
+    @Test func itHoldsOnlyFilesStillWaitingForAResult() {
+        let (a, b) = (item("a.png"), item("b.png"))
+        var batch = batch("JPEG", [a, b])
+        _ = batch.record(a.id, converted)
+        #expect(!batch.holds(any: [a.id]))
+        #expect(batch.holds(any: [b.id]))
+        #expect(batch.holds(any: [a.id, b.id]))
+        _ = batch.record(b.id, .cancelled)
+        #expect(!batch.holds(any: [a.id, b.id]))
+    }
+
+    @Test func removingADecidedFileLeavesTheBatchRunning() {
+        // quick.wav is converted and opened; dragging it out must not stop slow.wav.
+        let (quick, slow) = (item("quick.wav"), item("slow.wav"))
+        var batch = batch("M4A", [quick, slow])
+        _ = batch.record(quick.id, converted)
+        let cancelsOnRemoval = batch.holds(any: [quick.id])
+        #expect(!cancelsOnRemoval)
+        #expect(!batch.isDecided)
+        #expect(batch.record(slow.id, converted) == [[.reveal(slow.id, converted)]])
+    }
+
+    @Test func aMadeArchiveHoldsNothing() {
+        let (a, b) = (item("a.png"), item("b.png"))
+        var batch = batch("ZIP", [a, b])
+        #expect(batch.holds(any: [a.id]))
+        _ = batch.recordArchive(converted)
+        #expect(!batch.holds(any: [a.id, b.id]))
+    }
+
     // MARK: When tiles open
 
     @Test func aLoneTileOpensAsSoonAsItsOwnFileIsDone() {
@@ -103,6 +133,30 @@ struct ConversionBatchTests {
             label: "PDF", ids: [a.id, b.id, c.id], shelf: shelf(stacked: [a, b, c]), busy: [])
         #expect(batch.record(a.id, converted).isEmpty)
         #expect(batch.record(b.id, converted) == [[.reveal(a.id, converted), .reveal(b.id, converted)]])
+    }
+
+    @Test func twoStacksSideBySideOpenEachOnItsOwn() {
+        let (left, right) = (UUID(), UUID())
+        let (a, b) = (item("a.docx", stack: left), item("b.docx", stack: left))
+        let (c, d) = (item("c.docx", stack: right), item("d.docx", stack: right))
+        var batch = ConversionBatch(
+            label: "PDF", ids: [a.id, b.id, c.id, d.id], shelf: shelf(stacked: [a, b, c, d]), busy: [])
+        #expect(batch.record(a.id, converted).isEmpty)
+        #expect(batch.record(b.id, converted) == [[.reveal(a.id, converted), .reveal(b.id, converted)]])
+        #expect(batch.record(c.id, converted).isEmpty)
+        #expect(batch.record(d.id, .cancelled) == [[.reveal(c.id, converted), .reveal(d.id, .cancelled)]])
+    }
+
+    @Test func aBusyFileInTheMiddleOfAStackIsLeftToItsOwnBatch() {
+        let drawer = UUID()
+        let (a, b, c) = (item("a.docx", stack: drawer), item("b.docx", stack: drawer), item("c.docx", stack: drawer))
+        var batch = ConversionBatch(
+            label: "PDF", ids: [a.id, b.id, c.id], shelf: shelf(stacked: [a, b, c]), busy: [b.id])
+        #expect(batch.files == [a.id, c.id])
+        #expect(!batch.holds(any: [b.id]))
+        #expect(batch.record(b.id, converted).isEmpty)
+        #expect(batch.record(a.id, converted).isEmpty)
+        #expect(batch.record(c.id, converted) == [[.reveal(a.id, converted), .reveal(c.id, converted)]])
     }
 
     @Test func aFileKeepsItsFirstResultAndUnknownFilesAreIgnored() {
@@ -166,6 +220,44 @@ struct ConversionBatchTests {
         let (a, b) = (item("a.docx"), item("b.png"))
         var batch = batch("ZIP", [a, b])
         #expect(batch.cancelRemaining() == [[.reveal(a.id, .cancelled), .reveal(b.id, .cancelled)]])
+    }
+
+    // MARK: Opening against the shelf as it is now
+
+    private let zip = ConversionResult.converted(url: URL(fileURLWithPath: "/x/Archive.zip"), isDirectory: false)
+
+    @Test func whenTheArchivesFirstTileIsGoneTheNextStillCoveredTakesIt() {
+        let (a, b, c) = (UUID(), UUID(), UUID())
+        let group: [RevealStep] = [.reveal(a, zip), .leave(b), .leave(c)]
+        #expect(ConversionBatch.settle(group, covered: [a, b, c]) == group)
+        #expect(ConversionBatch.settle(group, covered: [b, c]) == [.reveal(b, zip), .leave(c)])
+        #expect(ConversionBatch.settle(group, covered: [c]) == [.reveal(c, zip)])
+        #expect(ConversionBatch.settle(group, covered: []).isEmpty)
+    }
+
+    @Test func aFileNoLongerCoveredHasNoTileToOpen() {
+        let (a, b) = (UUID(), UUID())
+        let group: [RevealStep] = [.reveal(a, .cancelled), .reveal(b, .failed("x"))]
+        #expect(ConversionBatch.settle(group, covered: [b]) == [.reveal(b, .failed("x"))])
+        // An archive that was not made has no file to hand on.
+        let unmade: [RevealStep] = [.reveal(a, .failed("x")), .reveal(b, .cancelled)]
+        #expect(ConversionBatch.settle(unmade, covered: [b]) == [.reveal(b, .cancelled)])
+    }
+
+    // MARK: What quitting keeps
+
+    @Test func everyKnownOutcomeIsKeptWhetherOrNotItsStackCanOpen() {
+        let drawer = UUID()
+        let (a, b) = (item("a.docx", stack: drawer), item("b.docx", stack: drawer))
+        var batch = ConversionBatch(
+            label: "PDF", ids: [a.id, b.id], shelf: shelf(stacked: [a, b]), busy: [])
+        #expect(batch.decidedSteps.isEmpty)
+        _ = batch.record(a.id, converted)
+        #expect(batch.decidedSteps == [.reveal(a.id, converted)])
+        var archive = self.batch("ZIP", [a, b])
+        #expect(archive.decidedSteps.isEmpty)
+        _ = archive.recordArchive(zip)
+        #expect(archive.decidedSteps == [.reveal(a.id, zip), .leave(b.id)])
     }
 
     @Test func oneFilesRecordIsNotAnArchivesAndTheOtherWayRound() {
@@ -250,7 +342,11 @@ struct ConversionBatchTests {
     }
 
     @Test func theColumnSaysWhatIsConverting() {
-        #expect(ConversionBatch.progressText(label: "PDF", files: 1) == "Converting to PDF…")
-        #expect(ConversionBatch.progressText(label: "PDF", files: 3) == "Converting 3 files to PDF…")
+        #expect(ConversionBatch.progressText(labels: ["PDF"]) == "Converting to PDF…")
+        #expect(ConversionBatch.progressText(labels: ["PDF", "PDF", "PDF"]) == "Converting 3 files to PDF…")
+    }
+
+    @Test func filesBecomingDifferentFormatsAreOnlyCounted() {
+        #expect(ConversionBatch.progressText(labels: ["PDF", "JPEG", "PDF"]) == "Converting 3 files…")
     }
 }

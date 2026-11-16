@@ -147,16 +147,15 @@ final class ShelfCoordinator {
     }
 
     /// Quitting: the work stops and its tools are terminated before this returns. A file
-    /// already converted keeps its result in the saved shelf; no tile is left covered.
+    /// already converted keeps its result in the saved shelf, even while the rest of its stack
+    /// was still converting; no tile is left covered.
     func stop() {
         let running = Array(batches.values)
         batches = [:]
         running.forEach { $0.work?.cancel() }
         followUps.values.forEach { $0.cancel() }
         followUps = [:]
-        for batch in running {
-            batch.pending.values.forEach { _ = open($0) }
-        }
+        for batch in running { _ = open(batch.plan.decidedSteps) }
         for id in state.conversions.keys { state.endConversion(id) }
         converter.runner.helpers.terminateAll()
         save()
@@ -279,11 +278,11 @@ final class ShelfCoordinator {
         guard var batch = batches[batchID], let group = batch.pending.removeValue(forKey: token)
         else { return [] }
         batches[batchID] = batch
+        let before = state.shelf
         let opened = open(group)
-        if !opened.isEmpty {
-            Haptics.tick()
-            changed()
-        }
+        if !opened.isEmpty { Haptics.tick() }
+        // Tiles that open unchanged (cancelled, failed) leave nothing to save or to preview.
+        if state.shelf != before { changed() }
         if batch.plan.isDecided, batch.pending.isEmpty {
             batches[batchID] = nil
             if let notice = batch.plan.notice(held: Set(state.shelf.items.map(\.id))) {
@@ -293,32 +292,24 @@ final class ShelfCoordinator {
         return opened
     }
 
-    /// The tiles change under their closed covers; returns the files revealed. An archive's
-    /// other files leave the shelf; they stay on disk, and a copy in the shelf's storage goes at
-    /// the next launch, like a file dragged out. A file no longer on the shelf has no tile.
+    /// The tiles change under their closed covers; returns the files revealed. Only files still
+    /// covered take part (see `ConversionBatch.settle`). An archive's other files leave the
+    /// shelf; they stay on disk, and a copy in the shelf's storage goes at the next launch, like
+    /// a file dragged out.
     private func open(_ group: [RevealStep]) -> [UUID] {
         let now = Date()
         var opened: [UUID] = []
         var leaving: [UUID] = []
-        for step in group {
+        for step in ConversionBatch.settle(group, covered: Set(state.conversions.keys)) {
             switch step {
             case .reveal(let id, let result):
-                guard state.conversions[id] != nil else { continue }
                 state.revealConversion(id, result: result, at: now)
                 opened.append(id)
             case .leave(let id):
                 leaving.append(id)
             }
         }
-        if opened.isEmpty {
-            // The archive's tile left the shelf as the archive was made: its other files stay.
-            for id in leaving where state.conversions[id] != nil {
-                state.revealConversion(id, result: .cancelled, at: now)
-                opened.append(id)
-            }
-        } else if !leaving.isEmpty {
-            state.removeShelfItems(leaving)
-        }
+        if !leaving.isEmpty { state.removeShelfItems(leaving) }
         return opened
     }
 
@@ -330,7 +321,9 @@ final class ShelfCoordinator {
         }
     }
 
-    /// The batches holding any of these files stop; what they already converted is kept.
+    /// The batches in which any of these files still waits stop; what they already converted
+    /// is kept. A file already decided stops nothing: dragging out a converted tile must not
+    /// cancel the files still converting after it.
     private func cancelBatches(holding ids: [UUID]) {
         for batch in batches.values where batch.plan.holds(any: ids) { batch.work?.cancel() }
     }

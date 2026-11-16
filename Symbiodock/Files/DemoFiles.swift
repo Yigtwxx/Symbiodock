@@ -274,7 +274,8 @@ enum ConvertHook {
 /// island would show, with seconds since the press: `begin <name>`, `reveal <name> -> <name
 /// the tile shows now>`, `leave <name>`, `notice <text>`, `end <name>`; once no conversion is
 /// left, `shelf: <names>`, and exit 0. `SYMBIODOCK_FLOW_CANCEL_AFTER=<seconds>` presses Cancel;
-/// `SYMBIODOCK_FLOW_APART=1` puts each file on a tile of its own (the last one given in front).
+/// `SYMBIODOCK_FLOW_APART=1` puts each file on a tile of its own (the last one given in front);
+/// `SYMBIODOCK_FLOW_REMOVE_AFTER=<seconds>` presses `Remove` on the shelf's first file then.
 /// `SYMBIODOCK_FLOW=demo` plays the `converting` demo instead, without a chip.
 @MainActor
 enum FlowHook {
@@ -316,6 +317,12 @@ enum FlowHook {
             Task {
                 try? await Task.sleep(for: .seconds(after))
                 shelf.handle(.cancel(state.shelf.items.map(\.id)))
+            }
+        }
+        if let after = environment["SYMBIODOCK_FLOW_REMOVE_AFTER"].flatMap(Double.init) {
+            Task {
+                try? await Task.sleep(for: .seconds(after))
+                if let first = state.shelf.items.first { shelf.handle(.remove([first.id])) }
             }
         }
         return true

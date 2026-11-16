@@ -6,6 +6,10 @@ public enum RevealStep: Equatable, Sendable {
     case reveal(UUID, ConversionResult)
     /// The file leaves the shelf as the cover opens: an archive's files after the first.
     case leave(UUID)
+
+    var isLeave: Bool {
+        if case .leave = self { true } else { false }
+    }
 }
 
 /// One press of a chip over the selected files: which tiles it covers, which of them open
@@ -65,7 +69,12 @@ public struct ConversionBatch: Equatable, Sendable {
     /// Every covered file has its result, so every group has been handed out to open.
     public var isDecided: Bool { files.allSatisfy { results[$0] != nil } }
 
-    public func holds(any ids: [UUID]) -> Bool { ids.contains(where: files.contains) }
+    /// Whether any of the files still waits for its result here: what a cancel or a removal
+    /// stops. A file already decided (converted, perhaps opened and dragged away) does not, so
+    /// taking it off the shelf leaves the rest of the batch running.
+    public func holds(any ids: [UUID]) -> Bool {
+        ids.contains { files.contains($0) && results[$0] == nil }
+    }
 
     /// The work on one file ended. Returns the groups this completes, each ready to open. A
     /// file keeps its first result.
@@ -101,6 +110,41 @@ public struct ConversionBatch: Equatable, Sendable {
         guard let text = ShelfNotice.batchText(label: label, unsupported: unsupported, failed: failed)
         else { return nil }
         return ShelfNotice(id: id, text: text)
+    }
+
+    /// Every outcome known so far, whether or not its group can open yet: what quitting keeps,
+    /// since a converted file is already on disk.
+    public var decidedSteps: [RevealStep] {
+        if isArchive { return results.isEmpty ? [] : steps(files) }
+        return files.compactMap { id in results[id].map { .reveal(id, $0) } }
+    }
+
+    /// The group's steps as they apply now, given the files still `covered` (on the shelf,
+    /// under their cover): a file that is gone has no tile to open. When a made archive's first
+    /// tile is gone, the first file still covered takes the archive and the others leave, so
+    /// the archive never lies on disk without a tile.
+    public static func settle(_ group: [RevealStep], covered: Set<UUID>) -> [RevealStep] {
+        var homeless: ConversionResult?
+        var settled: [RevealStep] = []
+        for step in group {
+            switch step {
+            case .reveal(let id, let result):
+                if covered.contains(id) {
+                    settled.append(step)
+                } else if case .converted = result, group.contains(where: \.isLeave) {
+                    homeless = result
+                }
+            case .leave(let id):
+                guard covered.contains(id) else { continue }
+                if let archive = homeless {
+                    settled.append(.reveal(id, archive))
+                    homeless = nil
+                } else {
+                    settled.append(step)
+                }
+            }
+        }
+        return settled
     }
 
     /// The groups touched by `ids` that now have every result.
@@ -141,8 +185,12 @@ extension ConversionBatch {
             isDirectory: false)
     }
 
-    /// The column while its files convert: "Converting to PDF…", "Converting 3 files to PDF…".
-    public static func progressText(label: String, files: Int) -> String {
-        files == 1 ? "Converting to \(label)…" : "Converting \(files) files to \(label)…"
+    /// The column while its files convert, one label each: "Converting to PDF…", "Converting 3
+    /// files to PDF…", or "Converting 3 files…" when they become different formats.
+    public static func progressText(labels: [String]) -> String {
+        let shared = labels.first.flatMap { first in labels.allSatisfy { $0 == first } ? first : nil }
+        guard let shared else { return "Converting \(labels.count) files…" }
+        return labels.count == 1
+            ? "Converting to \(shared)…" : "Converting \(labels.count) files to \(shared)…"
     }
 }

@@ -27,10 +27,10 @@ struct FileActionsColumn: View {
             titleRow
             infoLine
             let converting = ids.filter { conversions[$0] != nil }
-            if let first = converting.first, let label = conversions[first]?.label {
-                progress(label: label, ids: converting)
-            } else {
+            if converting.isEmpty {
                 chips
+            } else {
+                progress(labels: converting.compactMap { conversions[$0]?.label }, ids: converting)
             }
         }
         .padding(8)
@@ -154,10 +154,10 @@ struct FileActionsColumn: View {
     }
 
     /// In the chips' place while selected files convert; `ids` are those files, until each is
-    /// an ordinary tile again.
+    /// an ordinary tile again, and `labels` what each becomes.
     @ViewBuilder
-    private func progress(label: String, ids: [UUID]) -> some View {
-        Text(ConversionBatch.progressText(label: label, files: ids.count))
+    private func progress(labels: [String], ids: [UUID]) -> some View {
+        Text(ConversionBatch.progressText(labels: labels))
             .font(.system(size: 10, weight: .medium))
             .foregroundStyle(.white.opacity(0.7))
             .lineLimit(1)
