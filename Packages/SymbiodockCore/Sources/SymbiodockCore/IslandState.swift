@@ -204,11 +204,15 @@ public final class IslandState {
         mediaChanged(.companion, info)
     }
 
-    /// The system listed every app that plays, the one it elects included.
+    /// The system listed every app that plays, the one it elects included. A listed app that
+    /// is shown and pauses keeps its slot until the second-slot grace hides it.
     public func setOtherPlaying(_ clients: [NowPlayingClient]) {
         otherPlaying = clients
-        // Only playing apps make it into a slot, so a client slot is never the paused one
-        // that retires; nothing to clear here.
+        // Playing again, or gone: either way it is no longer the paused app that was hidden.
+        if let pid = retiredOrigin?.clientPID,
+           clients.first(where: { $0.pid == pid })?.info.isPlaying != false {
+            retiredOrigin = nil
+        }
         refreshMediaSlots()
     }
 
@@ -220,7 +224,8 @@ public final class IslandState {
 
     private func refreshMediaSlots() {
         var slots = NowPlayingLineup.slots(
-            system: systemPlaying, companion: companionPlaying, others: otherPlaying)
+            system: systemPlaying, companion: companionPlaying, others: otherPlaying,
+            shownClients: Set(mediaSlots.compactMap(\.origin.clientPID)))
         // Only a second slot retires; alone, a paused track stays for the open island.
         if slots.count == 2, slots[1].origin == retiredOrigin { slots.removeLast() }
         // Assign only on change: every assignment redraws the island.

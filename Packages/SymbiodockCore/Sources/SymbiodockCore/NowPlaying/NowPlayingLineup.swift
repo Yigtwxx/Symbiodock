@@ -6,6 +6,14 @@ public enum NowPlayingOrigin: Equatable, Hashable, Sendable {
     case companion
     /// A playing app the system knows about but does not currently elect.
     case client(pid: Int32)
+
+    /// The process of an app from the system's list; nil for the other origins.
+    public var clientPID: Int32? {
+        switch self {
+        case .client(let pid): pid
+        case .system, .companion: nil
+        }
+    }
 }
 
 /// An app the system knows plays something, whether or not it is the one it elects.
@@ -44,8 +52,12 @@ public struct NowPlayingSlot: Equatable, Sendable, Identifiable {
 public enum NowPlayingLineup {
     static let maximumSlots = 2
 
+    /// `shownClients` are the processes of the `.client` slots shown now: such an app keeps
+    /// its place while paused, so its pause button does not dismiss it. Hiding it a while
+    /// after it pauses is the caller's retire rule.
     public static func slots(
-        system: NowPlayingInfo?, companion: NowPlayingInfo?, others: [NowPlayingClient] = []
+        system: NowPlayingInfo?, companion: NowPlayingInfo?, others: [NowPlayingClient] = [],
+        shownClients: Set<Int32> = []
     ) -> [NowPlayingSlot] {
         var slots: [NowPlayingSlot] = []
         if let system { slots.append(NowPlayingSlot(info: system, origin: .system)) }
@@ -54,13 +66,15 @@ public enum NowPlayingLineup {
             slots.append(NowPlayingSlot(info: companion, origin: .companion))
         }
         // The companion comes first: Music is commanded over AppleScript, which is known to
-        // work. An app is not heard while paused. The elected app is left out because it is
-        // `system` already, not by its flag: the list and `system` come from two helpers and
-        // change at different moments, so the flag can be stale.
-        for other in others where slots.count < maximumSlots {
-            guard other.info.isPlaying,
-                  !slots.contains(where: { isSameSource($0.info, other.info) })
-            else { continue }
+        // work. Then the apps already shown keep their places, then the ones that play, in
+        // the list's order; an app that is not shown is not heard while paused. The elected
+        // app is left out because it is `system` already, not by its flag: the list and
+        // `system` come from two helpers and change at different moments, so the flag can
+        // be stale.
+        let shown = others.filter { shownClients.contains($0.pid) }
+        let playing = others.filter { !shownClients.contains($0.pid) && $0.info.isPlaying }
+        for other in shown + playing where slots.count < maximumSlots {
+            guard !slots.contains(where: { isSameSource($0.info, other.info) }) else { continue }
             slots.append(NowPlayingSlot(info: other.info, origin: .client(pid: other.pid)))
         }
         // What is heard goes in front; a paused track must not hide a playing one.

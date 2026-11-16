@@ -159,6 +159,47 @@ struct NowPlayingLineupTests {
         #expect(slots.map(\.origin) == [.client(pid: 1), .system])
     }
 
+    // MARK: - An app that is already shown
+
+    private var pausedSafari: NowPlayingInfo {
+        var paused = safari
+        paused.isPlaying = false
+        return paused
+    }
+
+    @Test func aShownAppThatPausesKeepsItsSlot() {
+        #expect(NowPlayingLineup.slots(
+            system: song, companion: nil, others: [client(pausedSafari, pid: 1)],
+            shownClients: [1])
+            == [
+                NowPlayingSlot(info: song, origin: .system),
+                NowPlayingSlot(info: pausedSafari, origin: .client(pid: 1)),
+            ])
+    }
+
+    @Test func aShownAppKeepsItsSlotWhenAnotherStartsPlaying() {
+        let slots = NowPlayingLineup.slots(
+            system: song, companion: nil,
+            others: [client(spotify, pid: 3), client(pausedSafari, pid: 1)], shownClients: [1])
+
+        #expect(slots.map(\.origin) == [.system, .client(pid: 1)])
+    }
+
+    @Test func aPausedShownAppInFrontYieldsToAPlayingOne() {
+        let slots = NowPlayingLineup.slots(
+            system: nil, companion: nil,
+            others: [client(pausedSafari, pid: 1), client(spotify, pid: 3)], shownClients: [1])
+
+        #expect(slots.map(\.origin) == [.client(pid: 3), .client(pid: 1)])
+    }
+
+    @Test func aShownAppThatTheSystemNamesIsNotShownTwice() {
+        let slots = NowPlayingLineup.slots(
+            system: safari, companion: nil, others: [client(safari, pid: 1)], shownClients: [1])
+
+        #expect(slots.map(\.origin) == [.system])
+    }
+
     // MARK: - In the island's state
 
     @Test func stateShowsBothSourcesAndSpeaksForTheFirst() {
@@ -232,6 +273,62 @@ struct NowPlayingLineupTests {
 
         state.setNowPlaying(song)
         #expect(state.mediaSlots.map(\.origin) == [.system, .client(pid: 1)])
+    }
+
+    @Test func aShownAppThatPausesStaysUntilTheGraceAndReturnsWhenItPlays() {
+        let state = IslandState()
+        state.setNowPlaying(song)
+        state.setOtherPlaying([client(safari, pid: 1)])
+
+        // Its pause button must not dismiss it: it can be resumed from the island.
+        state.setOtherPlaying([client(pausedSafari, pid: 1)])
+        #expect(state.mediaSlots == [
+            NowPlayingSlot(info: song, origin: .system),
+            NowPlayingSlot(info: pausedSafari, origin: .client(pid: 1)),
+        ])
+
+        state.pausedGraceElapsed()
+        #expect(state.mediaSlots.map(\.origin) == [.system])
+
+        // Another update of the paused app does not bring it back; playing again does.
+        state.setOtherPlaying([client(pausedSafari, pid: 1)])
+        #expect(state.mediaSlots.map(\.origin) == [.system])
+        state.setOtherPlaying([client(safari, pid: 1)])
+        #expect(state.mediaSlots.map(\.origin) == [.system, .client(pid: 1)])
+    }
+
+    @Test func aPausedAppThatWasNeverShownIsIgnored() {
+        let state = IslandState()
+        state.setNowPlaying(song)
+
+        state.setOtherPlaying([client(pausedSafari, pid: 1)])
+
+        #expect(state.mediaSlots.map(\.origin) == [.system])
+    }
+
+    @Test func aPausedAppThatLeavesTheListGoesAtOnce() {
+        let state = IslandState()
+        state.setNowPlaying(song)
+        state.setOtherPlaying([client(safari, pid: 1)])
+        state.setOtherPlaying([client(pausedSafari, pid: 1)])
+
+        state.setOtherPlaying([client(song, pid: 2, elected: true)])
+
+        #expect(state.mediaSlots.map(\.origin) == [.system])
+    }
+
+    @Test func aShownAppThatPausesAndPlaysAgainKeepsOneSlot() {
+        let state = IslandState()
+        state.setNowPlaying(song)
+        state.setOtherPlaying([client(safari, pid: 1)])
+        state.setOtherPlaying([client(pausedSafari, pid: 1)])
+
+        state.setOtherPlaying([client(safari, pid: 1)])
+
+        #expect(state.mediaSlots == [
+            NowPlayingSlot(info: song, origin: .system),
+            NowPlayingSlot(info: safari, origin: .client(pid: 1)),
+        ])
     }
 
     @Test func wingsFollowTheFrontSource() {
