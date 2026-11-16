@@ -12,9 +12,10 @@ kickin arkasında apple music de gözüksün". Sonra: "kare değil de yuvarlak d
 Sistem (MediaRemote) tek kaynağı "now playing" olarak seçer (elected); adaptörün `get` ve
 `stream` komutları yalnızca onu bildirir. Ama sistemden çalan her istemci de istenebilir
 (`MRMediaRemoteGetNowPlayingClients`; adaptöre Symbiodock yamasıyla eklenen `get-clients`,
-`stream-clients`, `send-to`). Bu yüzden ikinci kaynak yalnızca Apple Music değildir: sistemin
-seçmediği, çalan herhangi bir uygulama olabilir (Spotify + tarayıcı, Safari + Chrome). Apple
-Music ayrıca doğrudan sorulmaya devam eder (`AppleMusicProvider`, Automation izni ister).
+`stream-clients`, `send-to`; yalnızca macOS 27.0 ve sonrasında, aşağıya bakın). Bu yüzden
+ikinci kaynak yalnızca Apple Music değildir: sistemin seçmediği, çalan herhangi bir uygulama
+olabilir (Spotify + tarayıcı, Safari + Chrome). Apple Music ayrıca doğrudan sorulmaya devam
+eder (`AppleMusicProvider`, Automation izni ister).
 Aynı tarayıcıda çalan iki sekme denenmedi; tek istemci görünmesi beklenir.
 
 İlk sürümde bu bilinmiyordu ve şu hata çıktı (2026-11-16): Safari'de Kick, Apple Music de
@@ -34,25 +35,44 @@ sayıldı ve Safari, sahibi sayfada sesi kapatıp açana (Safari yeniden seçile
 - Sistem kaynağı zaten Apple Music ise tek kaynak sayılır (bundle kimliği, yoksa ad eşleşmesi).
 - Kalan yer (en fazla iki slot) önce Apple Music'indir (`.companion`): komutları AppleScript'le
   gider ve bunun çalıştığı biliniyor. Apple Music sistemin kaynağıyla aynıysa ya da bir şey
-  bildirmiyorsa yeri sistemin listesindeki ilk uygun uygulama alır (`.client(pid)`): çalan,
-  sistemin seçmediği ve henüz gösterilmeyen (aynı bundle kimliği) ilk uygulama, listedeki sırayla.
-  Duraklatılmış ya da seçilmiş liste girdileri yok sayılır; üç uygulama çalsa da iki slot olur.
-- Sistem kaynağı yokken de listedeki çalan bir uygulama slot alabilir.
+  bildirmiyorsa yeri sistemin listesindeki uygulamalar alır (`.client(pid)`): önce zaten
+  gösterilen uygulama yerini korur, sonra çalan ve henüz gösterilmeyen (aynı bundle kimliği) ilk
+  uygulama gelir, listedeki sırayla. Gösterilmemiş, duraklatılmış girdiler yok sayılır; üç
+  uygulama çalsa da iki slot olur.
+- Sistemin seçtiği uygulama zaten sistem kaynağıdır; listede aynı kaynak kuralıyla düşer.
+  Listedeki "seçilmiş" (`elected`) işaretine güvenilmez: liste ile sistem kaynağı iki ayrı
+  yardımcı süreçten gelir ve farklı anlarda güncellenir; işarete bakıldığında seçim değişirken
+  ikinci kapak 150–300 ms kayboluyordu.
+- Sistem kaynağı yokken de listedeki çalan bir uygulama (seçilmiş olsa bile) slot alabilir.
 - Duraklatılan ikinci kaynak `WingsTiming.pausedGrace` (10 sn) sonra gizlenir; yeniden çalınca
-  ya da tek kaynak kalınca geri gelir. Listeden gelen bir uygulama yalnızca çalarken alındığı
-  için duraklayınca hemen düşer.
+  geri gelir. Sistem kaynağı ve Apple Music tek kaynak kalınca da geri gelir.
+- Listeden gelen, adada gösterilen bir uygulama duraklayınca da yerinde kalır: duraklat tuşu
+  onu kapatmaz, adadan yeniden başlatılabilir. Aynı 10 sn kuralıyla gizlenir, yalnızca yeniden
+  çalınca geri gelir. Uygulama kapanıp listeden çıkarsa hemen düşer. Hiç gösterilmemiş,
+  duraklatılmış bir uygulama alınmaz.
+- Duraklatılmış Apple Music 10 sn dolana kadar yerini korur. Gizlendikten sonra yeri çalan
+  başka bir uygulamaya geçer (Safari seçili ve çalıyor, Music duraklatılmış, Spotify çalıyor →
+  10 sn sonra ikinci kapak Spotify). Music'in listedeki kendi girdisi bu yeri almaz; Music
+  yeniden çalınca yer yine onundur.
 - Tuşlar satırın kaynağına gider: `.system` → `NowPlayingService`, `.companion` → Apple Music,
   `.client(pid)` → adaptörün `send-to` komutu (o pid'deki istemciye `MRNowPlayingRequest` ile).
   Sistemin seçmediği bir istemciye komutun ulaştığı canlı denenmedi.
-- Listedeki ilk uygun tarayıcıya da site çözülür (YouTube/Kick/Twitch, sistem kaynağıyla aynı
-  yolla); ikinci bir tarayıcı kendi simgesiyle kalır. Ses çubuğu, simgeler ve görünümler
-  `.client` slotunu `.system` gibi gösterir.
+- Slot tutan ilk liste tarayıcısına da site çözülür (YouTube/Kick/Twitch, sistem kaynağıyla
+  aynı yolla); ikinci bir tarayıcı kendi simgesiyle kalır. Slot almayan bir tarayıcıya sekmeleri
+  sorulmaz (AppleScript çalışmaz, Automation izni penceresi çıkmaz). Ses çubuğu, simgeler ve
+  görünümler `.client` slotunu `.system` gibi gösterir.
+- Liste yalnızca macOS 27.0 ve sonrasında istenir: kullanılan özel çağrıların imzaları
+  (`MRMediaRemoteGetNowPlayingInfoForPlayer` 4 argüman, `…GetPlaybackStateForPlayer`) yalnızca
+  macOS 27.0.1'de doğrulandı; eski bir sistemde başka imzalı bir çağrı yardımcı süreci
+  çökertebilirdi. Daha eskide `get-clients`/`stream-clients` `[]` yazıp 0 ile, `send-to` 1 ile
+  çıkar; ikinci kaynak yine yalnızca Apple Music olabilir.
 - Liste komutu çalışmazsa (yardımcı süreç vazgeçerse ya da sistem bu çağrıları vermezse) liste
   boş sayılır ve ada eskisi gibi davranır. `SYMBIODOCK_PROVIDER=applemusic` ile liste de açılmaz.
 
 ## Yapı
 
-- Çekirdek: `NowPlayingLineup.slots(system:companion:others:)` (sıralama, saf), `NowPlayingSlot`,
+- Çekirdek: `NowPlayingLineup.slots(system:companion:others:shownClients:)` (sıralama, saf;
+  `shownClients` o an slot tutan liste uygulamalarının pid'leri), `NowPlayingSlot`,
   `NowPlayingOrigin` (`.client(pid:)` dahil), `NowPlayingClient`, `NowPlayingClientsParser`
   (`stream-clients` satırı; girdi alanlarını `MediaRemotePayloadParser` ile çözer);
   `IslandState.mediaSlots`, `setCompanionPlaying`, `setOtherPlaying`. `nowPlaying` ilk slotun
