@@ -248,21 +248,30 @@ public final class IslandState {
         // Paused: keep what is shown; `pausedGraceElapsed()` hides the wings later.
     }
 
-    /// What plays, with a retired companion left out before the listed apps are chosen, so
-    /// its place goes to an app that plays. Alone it is still shown, like any retired track.
+    /// What plays, with a retired system source, companion or listed app left out before the
+    /// places are filled, so its place goes to an app that plays. Alone it is still shown,
+    /// like any retired track.
     private func lineup() -> [NowPlayingSlot] {
+        // A retired app no longer keeps its place just because it holds one.
         let shownClients = Set(mediaSlots.compactMap(\.origin.clientPID))
+            .subtracting(retiredOrigins.compactMap(\.clientPID))
         let all = NowPlayingLineup.slots(
             system: systemPlaying, companion: companionPlaying, others: otherPlaying,
             shownClients: shownClients)
-        guard retiredOrigins.contains(.companion), let companion = companionPlaying else {
-            return all
+        let system = retiredOrigins.contains(.system) ? nil : systemPlaying
+        let companion = retiredOrigins.contains(.companion) ? nil : companionPlaying
+        guard system != systemPlaying || companion != companionPlaying else { return all }
+        // Music's own entry in the list is still the retired source, not another app.
+        let left = [
+            retiredOrigins.contains(.system) ? systemPlaying : nil,
+            retiredOrigins.contains(.companion) ? companionPlaying : nil,
+        ].compactMap { $0 }
+        let others = otherPlaying.filter { other in
+            !left.contains { NowPlayingLineup.isSameSource($0, other.info) }
         }
-        // Music's own entry in the list is still the companion, not another app.
-        let others = otherPlaying.filter { !NowPlayingLineup.isSameSource($0.info, companion) }
-        let withoutCompanion = NowPlayingLineup.slots(
-            system: systemPlaying, companion: nil, others: others, shownClients: shownClients)
-        return withoutCompanion.isEmpty ? all : withoutCompanion
+        let withoutRetired = NowPlayingLineup.slots(
+            system: system, companion: companion, others: others, shownClients: shownClients)
+        return withoutRetired.isEmpty ? all : withoutRetired
     }
 
     /// Called `WingsTiming.pausedGrace` after a paused update; ignored if playback resumed.

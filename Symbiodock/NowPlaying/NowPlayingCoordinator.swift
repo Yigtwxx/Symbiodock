@@ -73,8 +73,12 @@ final class NowPlayingCoordinator {
             }
         }
         // The system elects one app; this lists the others, so a second slot is not limited
-        // to Apple Music.
-        if let mediaRemote {
+        // to Apple Music. The list's private calls were verified on macOS 27.0.1 only, and the
+        // adapter refuses to run below 27.0 (it prints `[]` and exits at once), so the helper
+        // is not started on older systems.
+        if let mediaRemote, ProcessInfo.processInfo.isOperatingSystemAtLeast(
+            OperatingSystemVersion(majorVersion: 27, minorVersion: 0, patchVersion: 0))
+        {
             let clientSites = clientSites
             othersTask = Task {
                 // `stop()` cancels this task; a list still buffered must not reach the island.

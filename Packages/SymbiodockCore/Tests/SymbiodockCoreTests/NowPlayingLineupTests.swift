@@ -297,6 +297,32 @@ struct NowPlayingLineupTests {
         #expect(state.mediaSlots.map(\.origin) == [.system, .client(pid: 1)])
     }
 
+    @Test func aRetiredAppsPlaceGoesToAnotherPlayingApp() {
+        let state = IslandState()
+        let tune = spotify
+        state.setNowPlaying(song)
+        state.setOtherPlaying([client(safari, pid: 1), client(tune, pid: 3)])
+        #expect(state.mediaSlots.map(\.origin) == [.system, .client(pid: 1)])
+
+        state.setOtherPlaying([client(pausedSafari, pid: 1), client(tune, pid: 3)])
+        #expect(state.mediaSlots.map(\.origin) == [.system, .client(pid: 1)])
+
+        state.pausedGraceElapsed()
+        #expect(state.mediaSlots.map(\.origin) == [.system, .client(pid: 3)])
+    }
+
+    @Test func aRetiredSystemSourceDoesNotBlockPlayingListedApps() {
+        let state = IslandState()
+        var pausedSong = song
+        pausedSong.isPlaying = false
+        state.setNowPlaying(pausedSong)
+        state.setOtherPlaying([client(safari, pid: 1), client(spotify, pid: 3)])
+
+        state.pausedGraceElapsed()
+
+        #expect(state.mediaSlots.map(\.origin) == [.client(pid: 1), .client(pid: 3)])
+    }
+
     @Test func aPausedAppThatWasNeverShownIsIgnored() {
         let state = IslandState()
         state.setNowPlaying(song)
