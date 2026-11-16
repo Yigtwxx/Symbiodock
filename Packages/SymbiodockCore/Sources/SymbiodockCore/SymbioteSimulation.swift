@@ -97,8 +97,6 @@ public struct SymbioteSimulation: Sendable {
     static let reachStagger = 0.014
     /// How long a strand that has just landed takes to spread out on the surface.
     static let contactDuration = 0.14
-    /// Where the light comes from, for the sheen: up and to the left.
-    static let lightDirection = CGPoint(x: -0.6, y: -0.8)
 
     private struct Blueprint {
         var weight: CGFloat      // thickness relative to the main strand
@@ -381,7 +379,7 @@ public struct SymbioteSimulation: Sendable {
         let length = total * progress
         guard length > 0.5 else { return .gone }
         let (_, b) = attachments(index)
-        let tip = point(on: line, at: total - length)
+        let tip = SymbioteGeometry.point(on: line, at: total - length)
         let endRadius = configuration.endRadius * Self.blueprints[index].weight
         return .recoiling(elapsed: 0, Recoil(
             rootLength: 0, islandLength: length, rootDirection: CGPoint(x: 0, y: 1),
@@ -393,7 +391,7 @@ public struct SymbioteSimulation: Sendable {
         let line = centerline(strands[index].nodes.map(\.position))
         let total = line.lengths.last ?? 0
         let breakLength = total * blueprint.neck
-        let breakPoint = point(on: line, at: breakLength)
+        let breakPoint = SymbioteGeometry.point(on: line, at: breakLength)
         let (a, b) = attachments(index)
         let endRadius = configuration.endRadius * blueprint.weight
         let neck = Self.neckRadius(
@@ -479,7 +477,7 @@ public struct SymbioteSimulation: Sendable {
             radius *= smoothstep(0, 24, distance)
             return radius * thickness
         }
-        frame.ribbons.append(ribbon(line.points, radii, firstNormal: surfaceTangent))
+        frame.ribbons.append(SymbioteGeometry.ribbon(line.points, radii, firstNormal: surfaceTangent))
         appendFoot(to: &frame, at: line.points[0], radius: radii[0])
         if endRadius >= Self.texturedRadius {
             if let sheen = highlight(line.points, radii) { frame.highlights.append(sheen) }
@@ -504,7 +502,7 @@ public struct SymbioteSimulation: Sendable {
         let tipRadius = max(0.6 * neck, 0.8)
         let scale = smoothstep(0, 24, distance) * thickness
 
-        var points = [point(on: line, at: start)]
+        var points = [SymbioteGeometry.point(on: line, at: start)]
         var lengths = [start]
         for i in line.points.indices where line.lengths[i] > start + 0.5 {
             points.append(line.points[i])
@@ -515,7 +513,7 @@ public struct SymbioteSimulation: Sendable {
             let body = neck + (endRadius - neck) * min(exp(-(total - s) / flareLength), 1)
             return (tipRadius + (body - tipRadius) * smoothstep(0, 16, s - start)) * scale
         }
-        frame.ribbons.append(ribbon(points, radii))
+        frame.ribbons.append(SymbioteGeometry.ribbon(points, radii))
         if endRadius >= Self.texturedRadius, let sheen = highlight(points, radii) {
             frame.highlights.append(sheen)
         }
@@ -545,7 +543,7 @@ public struct SymbioteSimulation: Sendable {
             let taper = (1 - q) * (1 - q)
             radii.append((tipRadius + (endRadius - tipRadius) * taper) * fade * thickness)
         }
-        frame.ribbons.append(ribbon(points, radii, firstNormal: onSurface ? surfaceTangent : nil))
+        frame.ribbons.append(SymbioteGeometry.ribbon(points, radii, firstNormal: onSurface ? surfaceTangent : nil))
         if onSurface { appendFoot(to: &frame, at: anchor, radius: radii[0]) }
         if endRadius >= Self.texturedRadius, let sheen = highlight(points, radii) {
             frame.highlights.append(sheen)
@@ -555,7 +553,7 @@ public struct SymbioteSimulation: Sendable {
             frame.droplets.append(.init(center: tip, radius: radius))
             if radius >= 2 {
                 // A glint on the bead, on the lit side.
-                let center = tip + Self.lightDirection * (radius * 0.38)
+                let center = tip + SymbioteGeometry.lightDirection * (radius * 0.38)
                 frame.highlights.append((0..<8).map { step in
                     let angle = CGFloat(step) / 8 * 2 * .pi
                     return center + CGPoint(x: cos(angle), y: sin(angle)) * (radius * 0.26)
@@ -586,145 +584,24 @@ public struct SymbioteSimulation: Sendable {
         }
         // Ribbons all wind the same way; a shape wound the other way would punch a hole in
         // them under the nonzero fill rule.
-        if signedArea(polygon) > 0 { polygon.reverse() }
+        if SymbioteGeometry.signedArea(polygon) > 0 { polygon.reverse() }
         frame.ribbons.append(polygon)
-    }
-
-    /// Shoelace area; ribbons built by `ribbon` are negative.
-    private func signedArea(_ polygon: [CGPoint]) -> CGFloat {
-        var sum: CGFloat = 0
-        for i in polygon.indices {
-            let a = polygon[i]
-            let b = polygon[(i + 1) % polygon.count]
-            sum += a.x * b.y - b.x * a.y
-        }
-        return sum / 2
     }
 
     // MARK: Geometry
 
-    private struct Centerline {
-        var points: [CGPoint]
-        var lengths: [CGFloat]
+    /// The strand's curve through its nodes, sampled as finely as every strand is.
+    private func centerline(_ nodes: [CGPoint]) -> SymbioteGeometry.Centerline {
+        SymbioteGeometry.centerline(nodes, samples: Self.sampleCount)
     }
 
-    /// A smooth curve through the nodes (Catmull-Rom), with the arc length at each sample.
-    private func centerline(_ nodes: [CGPoint]) -> Centerline {
-        var points: [CGPoint] = []
-        let segments = nodes.count - 1
-        for sample in 0..<Self.sampleCount {
-            let t = CGFloat(sample) / CGFloat(Self.sampleCount - 1) * CGFloat(segments)
-            let segment = min(Int(t), segments - 1)
-            let local = t - CGFloat(segment)
-            let p0 = nodes[max(segment - 1, 0)]
-            let p1 = nodes[segment]
-            let p2 = nodes[segment + 1]
-            let p3 = nodes[min(segment + 2, segments)]
-            let t2 = local * local
-            let t3 = t2 * local
-            let a = p1 * 2
-            let b = (p2 - p0) * local
-            let c = (p0 * 2 - p1 * 5 + p2 * 4 - p3) * t2
-            let d = (p1 * 3 - p0 - p2 * 3 + p3) * t3
-            points.append((a + b + c + d) * 0.5)
-        }
-        var lengths: [CGFloat] = [0]
-        for i in 1..<points.count {
-            lengths.append(lengths[i - 1] + points[i - 1].distance(to: points[i]))
-        }
-        return Centerline(points: points, lengths: lengths)
-    }
-
-    private func point(on line: Centerline, at length: CGFloat) -> CGPoint {
-        for i in 1..<line.points.count where line.lengths[i] >= length {
-            let span = line.lengths[i] - line.lengths[i - 1]
-            let t = span > 0 ? (length - line.lengths[i - 1]) / span : 0
-            return line.points[i - 1] + (line.points[i] - line.points[i - 1]) * t
-        }
-        return line.points.last ?? .zero
-    }
-
-    /// A thin sliver along the lit side of a strand, fading out toward both ends.
+    /// The wet sheen on the lit side; it thins with the strands but never breaks up.
     private func highlight(_ points: [CGPoint], _ radii: [CGFloat]) -> [CGPoint]? {
-        sliver(points, radii, side: 1, inset: 0.42, width: 0.2)
+        SymbioteGeometry.sheen(points, radii, minimumWidth: 0.12 * min(thickness, 1))
     }
 
-    /// A fainter line along the far side, which makes the strand read as round.
+    /// The fainter line along the far side.
     private func rimLight(_ points: [CGPoint], _ radii: [CGFloat]) -> [CGPoint]? {
-        sliver(points, radii, side: -1, inset: 0.62, width: 0.07)
+        SymbioteGeometry.rimLight(points, radii, minimumWidth: 0.12 * min(thickness, 1))
     }
-
-    private func sliver(
-        _ points: [CGPoint], _ radii: [CGFloat], side: CGFloat, inset: CGFloat, width: CGFloat
-    ) -> [CGPoint]? {
-        let skip = points.count / 6
-        let range = skip..<(points.count - skip)
-        guard range.count >= 3 else { return nil }
-        var shifted: [CGPoint] = []
-        var widths: [CGFloat] = []
-        for i in range {
-            let tangent = (points[min(i + 1, points.count - 1)] - points[max(i - 1, 0)]).normalized
-            var normal = CGPoint(x: -tangent.y, y: tangent.x)
-            if normal.x * Self.lightDirection.x + normal.y * Self.lightDirection.y < 0 {
-                normal = normal * -1
-            }
-            normal = normal * side
-            let t = CGFloat(i - range.lowerBound) / CGFloat(range.count - 1)
-            shifted.append(points[i] + normal * (radii[i] * inset))
-            widths.append(max(radii[i] * width * sin(CGFloat.pi * t), 0.12 * min(thickness, 1)))
-        }
-        return ribbon(shifted, widths)
-    }
-
-    /// The outline of a curve with a radius at every point: one side forward, the other back.
-    /// - Parameter firstNormal: when set, the first end is cut along this unit vector instead
-    ///   of square to the curve, so a strand that meets a surface ends flat on it.
-    private func ribbon(
-        _ points: [CGPoint], _ radii: [CGFloat], firstNormal: CGPoint? = nil
-    ) -> [CGPoint] {
-        var left: [CGPoint] = []
-        var right: [CGPoint] = []
-        for i in points.indices {
-            let before = points[max(i - 1, 0)]
-            let after = points[min(i + 1, points.count - 1)]
-            let tangent = (after - before).normalized
-            var normal = CGPoint(x: -tangent.y, y: tangent.x)
-            if i == 0, let firstNormal {
-                // Keep the side the outline is already on.
-                let sameSide = normal.x * firstNormal.x + normal.y * firstNormal.y >= 0
-                normal = sameSide ? firstNormal : firstNormal * -1
-            }
-            left.append(points[i] + normal * radii[i])
-            right.append(points[i] - normal * radii[i])
-        }
-        var outline = left + right.reversed()
-        if let firstNormal, let base = points.first, let end = points.last {
-            // A strand that leaves the surface at a slant would bulge through it just past
-            // its base; whatever crosses the surface is laid back onto it.
-            var up = CGPoint(x: -firstNormal.y, y: firstNormal.x)
-            if up.x * (end.x - base.x) + up.y * (end.y - base.y) < 0 { up = up * -1 }
-            for i in outline.indices {
-                let height = (outline[i].x - base.x) * up.x + (outline[i].y - base.y) * up.y
-                if height < 0 { outline[i] = outline[i] - up * height }
-            }
-        }
-        return outline
-    }
-}
-
-private func smoothstep(_ edge0: CGFloat, _ edge1: CGFloat, _ x: CGFloat) -> CGFloat {
-    let t = min(max((x - edge0) / (edge1 - edge0), 0), 1)
-    return t * t * (3 - 2 * t)
-}
-
-private extension CGPoint {
-    static func + (a: CGPoint, b: CGPoint) -> CGPoint { CGPoint(x: a.x + b.x, y: a.y + b.y) }
-    static func - (a: CGPoint, b: CGPoint) -> CGPoint { CGPoint(x: a.x - b.x, y: a.y - b.y) }
-    static func * (a: CGPoint, k: CGFloat) -> CGPoint { CGPoint(x: a.x * k, y: a.y * k) }
-    var length: CGFloat { (x * x + y * y).squareRoot() }
-    var normalized: CGPoint {
-        let l = length
-        return l > 0.0001 ? self * (1 / l) : CGPoint(x: 0, y: 1)
-    }
-    func distance(to other: CGPoint) -> CGFloat { (self - other).length }
 }
