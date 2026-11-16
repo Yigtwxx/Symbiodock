@@ -58,6 +58,8 @@ actor CodexProvider: AgentSessionProvider {
                 }
                 continue
             }
+            // The desktop app rewrites its old threads as new files at launch; nobody works in them.
+            guard !CodexRolloutParser.isRestoredCopy(meta: meta, state: state) else { continue }
             guard CodexRolloutParser.isListed(state, modified: stamp.modified, now: context.now)
             else { continue }
             listed.append((

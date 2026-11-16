@@ -55,6 +55,11 @@ public enum CodexRolloutParser {
     /// A working subagent whose file has not changed for this long is taken for abandoned.
     public static let subagentQuietLimit: TimeInterval = 10 * 60
 
+    /// A real turn cannot finish this soon after its thread was created. Measured on
+    /// 2026-11-16: when the Codex desktop app started it wrote nine earlier threads again as
+    /// new rollout files, every record within about 40 ms of the thread's own start.
+    public static let restoredWindow: TimeInterval = 2
+
     private static let turnEvents: Set<String> = ["task_started", "task_complete", "turn_aborted"]
     private static let turnMarkers = turnEvents.map { Data("\"\($0)\"".utf8) }
 
@@ -117,6 +122,14 @@ public enum CodexRolloutParser {
     /// Whether a thread in this state, whose file last changed at `modified`, is still shown.
     public static func isListed(_ state: CodexTurnState, modified: Date, now: Date) -> Bool {
         now.timeIntervalSince(modified) <= (state.isWorking ? workingListing : idleListing)
+    }
+
+    /// A rollout whose last turn already ended within `restoredWindow` of the thread's start
+    /// was written in one go (a copy the app restored): nobody is working in it. A working
+    /// state is never one, since a new thread's first turn starts within milliseconds.
+    public static func isRestoredCopy(meta: CodexThreadMeta, state: CodexTurnState) -> Bool {
+        guard !state.isWorking, let started = meta.started else { return false }
+        return abs(state.since.timeIntervalSince(started)) < restoredWindow
     }
 
     public static func session(

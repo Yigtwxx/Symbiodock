@@ -221,6 +221,41 @@ struct CodexRolloutParserTests {
         #expect(finished(agoSeconds: 2 * 3600 + 1) == nil)
     }
 
+    private func restored(
+        started: String?, stateAt: String, working: Bool = false, aborted: Bool = false
+    ) -> Bool {
+        let meta = CodexThreadMeta(
+            id: "t", cwd: nil, isSubagent: false, originator: nil,
+            started: started.flatMap(CodexRolloutParser.timestamp))
+        let state = CodexTurnState(
+            isWorking: working, since: CodexRolloutParser.timestamp(stateAt)!, wasAborted: aborted)
+        return CodexRolloutParser.isRestoredCopy(meta: meta, state: state)
+    }
+
+    @Test func aTurnFinishedMomentsAfterTheStartIsARestoredCopy() {
+        #expect(restored(started: "2026-11-16T14:16:46.184Z", stateAt: "2026-11-16T14:16:46.219Z"))
+    }
+
+    @Test func anAbortedTurnMomentsAfterTheStartIsARestoredCopy() {
+        #expect(restored(started: "2026-11-16T14:16:46.000Z", stateAt: "2026-11-16T14:16:46.500Z", aborted: true))
+    }
+
+    @Test func aTurnFinishedMinutesAfterTheStartIsARealThread() {
+        #expect(!restored(started: "2026-11-16T14:18:23.319Z", stateAt: "2026-11-16T14:25:19.613Z"))
+    }
+
+    @Test func aTurnFinishedExactlyAtTheWindowIsARealThread() {
+        #expect(!restored(started: "2026-11-16T14:00:00.000Z", stateAt: "2026-11-16T14:00:02.000Z"))
+    }
+
+    @Test func aWorkingStateIsNeverARestoredCopy() {
+        #expect(!restored(started: "2026-11-16T14:00:00.000Z", stateAt: "2026-11-16T14:00:00.500Z", working: true))
+    }
+
+    @Test func aThreadWithUnknownStartIsNeverARestoredCopy() {
+        #expect(!restored(started: nil, stateAt: "2026-11-16T14:00:00.500Z"))
+    }
+
     @Test func aSubagentHangsUnderTheListedThreadItDescendsFrom() {
         let parents = ["c": "b", "b": "a", "x": "y", "y": "x"]
         #expect(CodexRolloutParser.rootID(of: "c", parents: parents, listed: ["a"]) == "a")
