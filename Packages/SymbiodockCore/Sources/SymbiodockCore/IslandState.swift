@@ -258,17 +258,19 @@ public final class IslandState {
         let all = NowPlayingLineup.slots(
             system: systemPlaying, companion: companionPlaying, others: otherPlaying,
             shownClients: shownClients)
-        let system = retiredOrigins.contains(.system) ? nil : systemPlaying
-        let companion = retiredOrigins.contains(.companion) ? nil : companionPlaying
-        guard system != systemPlaying || companion != companionPlaying else { return all }
-        // Music's own entry in the list is still the retired source, not another app.
-        let left = [
+        let retired = [
             retiredOrigins.contains(.system) ? systemPlaying : nil,
             retiredOrigins.contains(.companion) ? companionPlaying : nil,
         ].compactMap { $0 }
-        let others = otherPlaying.filter { other in
-            !left.contains { NowPlayingLineup.isSameSource($0, other.info) }
+        guard !retired.isEmpty else { return all }
+        // The retired app's other entries go too: Music is often the system source and the
+        // companion at once, and its own entry in the list is not another app.
+        func isRetired(_ info: NowPlayingInfo) -> Bool {
+            retired.contains { NowPlayingLineup.isSameSource($0, info) }
         }
+        let system = systemPlaying.flatMap { isRetired($0) ? nil : $0 }
+        let companion = companionPlaying.flatMap { isRetired($0) ? nil : $0 }
+        let others = otherPlaying.filter { !isRetired($0.info) }
         let withoutRetired = NowPlayingLineup.slots(
             system: system, companion: companion, others: others, shownClients: shownClients)
         return withoutRetired.isEmpty ? all : withoutRetired

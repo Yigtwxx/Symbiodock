@@ -309,6 +309,41 @@ struct NowPlayingLineupTests {
 
         state.pausedGraceElapsed()
         #expect(state.mediaSlots.map(\.origin) == [.system, .client(pid: 3)])
+
+        // The retired app playing again does not take a third place or push the other out.
+        state.setOtherPlaying([client(safari, pid: 1), client(tune, pid: 3)])
+        #expect(state.mediaSlots.map(\.origin) == [.system, .client(pid: 3)])
+    }
+
+    @Test func aRetiredMusicThatIsSystemAndCompanionDoesNotBlockPlayingApps() {
+        let state = IslandState()
+        var pausedSong = song
+        pausedSong.isPlaying = false
+        state.setNowPlaying(pausedSong)
+        state.setCompanionPlaying(pausedSong)
+        state.setOtherPlaying([client(safari, pid: 1), client(spotify, pid: 3)])
+
+        state.pausedGraceElapsed()
+        #expect(state.mediaSlots.map(\.origin) == [.client(pid: 1), .client(pid: 3)])
+
+        // Music plays again: one Music slot in front, one other app behind it.
+        state.setNowPlaying(song)
+        state.setCompanionPlaying(song)
+        #expect(state.mediaSlots.map(\.origin) == [.system, .client(pid: 1)])
+    }
+
+    @Test func aRetiredSystemSourceIsShownAgainWhenNothingElsePlays() {
+        let state = IslandState()
+        var pausedStream = stream
+        pausedStream.isPlaying = false
+        state.setNowPlaying(pausedStream)
+        state.setCompanionPlaying(song)
+        state.pausedGraceElapsed()
+        #expect(state.mediaSlots.map(\.origin) == [.companion])
+
+        state.setCompanionPlaying(nil)
+
+        #expect(state.mediaSlots == [NowPlayingSlot(info: pausedStream, origin: .system)])
     }
 
     @Test func aRetiredSystemSourceDoesNotBlockPlayingListedApps() {
