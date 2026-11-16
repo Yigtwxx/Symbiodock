@@ -331,6 +331,90 @@ struct NowPlayingLineupTests {
         ])
     }
 
+    // MARK: - A paused companion and the other apps
+
+    private var pausedSong: NowPlayingInfo {
+        var paused = song
+        paused.isPlaying = false
+        return paused
+    }
+
+    /// Safari is elected and plays, Apple Music is open but paused, Spotify plays.
+    private func stateWithAPausedCompanionAndSpotify() -> IslandState {
+        let state = IslandState()
+        state.setNowPlaying(safari)
+        state.setCompanionPlaying(pausedSong)
+        state.setOtherPlaying([
+            client(safari, pid: 1, elected: true), client(pausedSong, pid: 2),
+            client(spotify, pid: 3),
+        ])
+        return state
+    }
+
+    @Test func aPausedCompanionKeepsItsPlaceThroughItsGrace() {
+        let state = stateWithAPausedCompanionAndSpotify()
+
+        #expect(state.mediaSlots.map(\.origin) == [.system, .companion])
+    }
+
+    @Test func aRetiredPausedCompanionGivesItsPlaceToAnotherPlayingApp() {
+        let state = stateWithAPausedCompanionAndSpotify()
+
+        state.pausedGraceElapsed()
+        #expect(state.mediaSlots.map(\.origin) == [.system, .client(pid: 3)])
+
+        // Music plays again: the place is the companion's again.
+        state.setCompanionPlaying(song)
+        #expect(state.mediaSlots.map(\.origin) == [.system, .companion])
+    }
+
+    @Test func aRetiredCompanionStaysHiddenWhenTheAppInItsPlaceRetires() {
+        let state = stateWithAPausedCompanionAndSpotify()
+        state.pausedGraceElapsed()
+        var pausedSpotify = spotify
+        pausedSpotify.isPlaying = false
+        state.setOtherPlaying([
+            client(safari, pid: 1, elected: true), client(pausedSong, pid: 2),
+            client(pausedSpotify, pid: 3),
+        ])
+        #expect(state.mediaSlots.map(\.origin) == [.system, .client(pid: 3)])
+
+        state.pausedGraceElapsed()
+        #expect(state.mediaSlots.map(\.origin) == [.system])
+
+        state.setCompanionPlaying(pausedSong)
+        #expect(state.mediaSlots.map(\.origin) == [.system])
+    }
+
+    @Test func aRetiredCompanionsOwnAppInTheListDoesNotTakeItsPlace() {
+        let state = IslandState()
+        state.setNowPlaying(safari)
+        state.setCompanionPlaying(pausedSong)
+        state.setOtherPlaying([client(safari, pid: 1, elected: true), client(pausedSong, pid: 2)])
+        state.pausedGraceElapsed()
+        #expect(state.mediaSlots.map(\.origin) == [.system])
+
+        // The list hears Music play before Music is asked: still the companion's app.
+        state.setOtherPlaying([client(safari, pid: 1, elected: true), client(song, pid: 2)])
+        #expect(state.mediaSlots.map(\.origin) == [.system])
+
+        state.setCompanionPlaying(song)
+        #expect(state.mediaSlots.map(\.origin) == [.system, .companion])
+    }
+
+    @Test func aRetiredCompanionDoesNotComeBackInFrontWhenTheAppBeforeItPauses() {
+        let state = IslandState()
+        state.setCompanionPlaying(pausedSong)
+        state.setOtherPlaying([client(safari, pid: 1)])
+        #expect(state.mediaSlots.map(\.origin) == [.client(pid: 1), .companion])
+        state.pausedGraceElapsed()
+        #expect(state.mediaSlots.map(\.origin) == [.client(pid: 1)])
+
+        state.setOtherPlaying([client(pausedSafari, pid: 1)])
+
+        #expect(state.mediaSlots.map(\.origin) == [.client(pid: 1)])
+    }
+
     @Test func wingsFollowTheFrontSource() {
         let state = IslandState()
         var paused = stream

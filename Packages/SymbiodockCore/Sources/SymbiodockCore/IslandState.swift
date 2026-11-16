@@ -45,9 +45,10 @@ public final class IslandState {
     private var systemPlaying: NowPlayingInfo?
     private var companionPlaying: NowPlayingInfo?
     private var otherPlaying: [NowPlayingClient] = []
-    /// A second source that stayed paused through its grace period: hidden until it plays
-    /// again, so a paused player does not sit behind the main track all day.
-    private var retiredOrigin: NowPlayingOrigin?
+    /// Second sources that stayed paused through their grace period: hidden until they play
+    /// again, so a paused player does not sit behind the main track all day. More than one,
+    /// because the app that takes a retired companion's place can retire in turn.
+    private var retiredOrigins: Set<NowPlayingOrigin> = []
 
     /// How loud each player is that has a volume of its own, 0...1. A player is absent
     /// until it has been asked, and when it cannot be asked.
@@ -209,25 +210,26 @@ public final class IslandState {
     public func setOtherPlaying(_ clients: [NowPlayingClient]) {
         otherPlaying = clients
         // Playing again, or gone: either way it is no longer the paused app that was hidden.
-        if let pid = retiredOrigin?.clientPID,
-           clients.first(where: { $0.pid == pid })?.info.isPlaying != false {
-            retiredOrigin = nil
+        let stillRetired = retiredOrigins.filter { origin in
+            guard let pid = origin.clientPID else { return true }
+            return clients.first(where: { $0.pid == pid })?.info.isPlaying == false
         }
+        if stillRetired != retiredOrigins { retiredOrigins = stillRetired }
         refreshMediaSlots()
     }
 
     private func mediaChanged(_ origin: NowPlayingOrigin, _ info: NowPlayingInfo?) {
         // Playing again, or gone: either way it is no longer the paused track that was hidden.
-        if retiredOrigin == origin, info?.isPlaying != false { retiredOrigin = nil }
+        if info?.isPlaying != false, retiredOrigins.contains(origin) {
+            retiredOrigins.remove(origin)
+        }
         refreshMediaSlots()
     }
 
     private func refreshMediaSlots() {
-        var slots = NowPlayingLineup.slots(
-            system: systemPlaying, companion: companionPlaying, others: otherPlaying,
-            shownClients: Set(mediaSlots.compactMap(\.origin.clientPID)))
+        var slots = lineup()
         // Only a second slot retires; alone, a paused track stays for the open island.
-        if slots.count == 2, slots[1].origin == retiredOrigin { slots.removeLast() }
+        if slots.count == 2, retiredOrigins.contains(slots[1].origin) { slots.removeLast() }
         // Assign only on change: every assignment redraws the island.
         if slots != mediaSlots { mediaSlots = slots }
         if let front = slots.first {
@@ -238,13 +240,30 @@ public final class IslandState {
         // Paused: keep what is shown; `pausedGraceElapsed()` hides the wings later.
     }
 
+    /// What plays, with a retired companion left out before the listed apps are chosen, so
+    /// its place goes to an app that plays. Alone it is still shown, like any retired track.
+    private func lineup() -> [NowPlayingSlot] {
+        let shownClients = Set(mediaSlots.compactMap(\.origin.clientPID))
+        let all = NowPlayingLineup.slots(
+            system: systemPlaying, companion: companionPlaying, others: otherPlaying,
+            shownClients: shownClients)
+        guard retiredOrigins.contains(.companion), let companion = companionPlaying else {
+            return all
+        }
+        // Music's own entry in the list is still the companion, not another app.
+        let others = otherPlaying.filter { !NowPlayingLineup.isSameSource($0.info, companion) }
+        let withoutCompanion = NowPlayingLineup.slots(
+            system: systemPlaying, companion: nil, others: others, shownClients: shownClients)
+        return withoutCompanion.isEmpty ? all : withoutCompanion
+    }
+
     /// Called `WingsTiming.pausedGrace` after a paused update; ignored if playback resumed.
     public func pausedGraceElapsed() {
         if nowPlaying?.isPlaying != true {
             mediaWings = false
         }
         if mediaSlots.count == 2, !mediaSlots[1].info.isPlaying {
-            retiredOrigin = mediaSlots[1].origin
+            retiredOrigins.insert(mediaSlots[1].origin)
             refreshMediaSlots()
         }
     }
