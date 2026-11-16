@@ -17,7 +17,7 @@ struct CompactingRim: View {
 
     static let lineWidth: CGFloat = 1.5
     static let dash: CGFloat = 6
-    static let gap: CGFloat = 5
+    static let gap: CGFloat = 10
     /// How fast the dashes run along the rim, in points a second.
     static let speed: CGFloat = 40
 
