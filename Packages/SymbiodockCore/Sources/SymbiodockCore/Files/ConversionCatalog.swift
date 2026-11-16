@@ -12,6 +12,9 @@ public enum ConversionEngine: Equatable, Sendable {
     case avExport(audioOnly: Bool, container: String)
     case zip
     case unzip
+    /// Markdown rendered in-process from the system's parser; `format` is "docx", "rtf",
+    /// "txt", "html" or "odt".
+    case markdown(format: String)
 }
 
 /// One chip on the tile: what a file can become.
@@ -68,6 +71,14 @@ public enum ConversionCatalog {
             target($0, $0.lowercased(), .textutil(format: $0.lowercased()))
         }
 
+    /// Markdown keeps the document chips; all but PDF are written from the rendered text,
+    /// PDF prints it.
+    private static let markdownTargets =
+        [target("PDF", "pdf", .printPDF)]
+        + ["DOCX", "RTF", "TXT", "HTML", "ODT"].map {
+            target($0, $0.lowercased(), .markdown(format: $0.lowercased()))
+        }
+
     private static let pdfTargets = [
         target("PNG", "png", .pdfPages(jpeg: false)),
         target("JPEG", "jpg", .pdfPages(jpeg: true)),
@@ -108,6 +119,8 @@ public enum ConversionCatalog {
         let base: [ConversionTarget]
         if FileExtensions.image.contains(ext) {
             base = imageTargets
+        } else if ext == "md" {
+            base = markdownTargets
         } else if FileExtensions.document.contains(ext) {
             base = documentTargets
         } else if ext == "pdf" {
@@ -122,7 +135,7 @@ public enum ConversionCatalog {
         return base.filter { family($0.pathExtension) != family(ext) } + [zip]
     }
 
-    /// Nil for engines that run in-process (printPDF, pdfPages, pdfText, avExport).
+    /// Nil for engines that run in-process (printPDF, pdfPages, pdfText, avExport, markdown).
     public static func command(
         for engine: ConversionEngine, sourceExtension: String, source: String, output: String
     ) -> ToolCommand? {
@@ -133,10 +146,8 @@ public enum ConversionCatalog {
                 tool: "/usr/bin/sips",
                 arguments: ["-s", "format", format] + quality + [source, "--out", output])
         case .textutil(let format):
-            let input = sourceExtension == "md" ? ["-format", "txt"] : []
             return ToolCommand(
-                tool: "/usr/bin/textutil",
-                arguments: ["-convert", format] + input + ["-output", output, source])
+                tool: "/usr/bin/textutil", arguments: ["-convert", format, "-output", output, source])
         case .afconvert(let file, let data, let bitrate):
             let rate = bitrate.map { ["-b", "\($0)"] } ?? []
             return ToolCommand(
@@ -148,7 +159,7 @@ public enum ConversionCatalog {
                 arguments: ["-c", "-k", "--sequesterRsrc", "--keepParent", source, output])
         case .unzip:
             return ToolCommand(tool: "/usr/bin/ditto", arguments: ["-x", "-k", source, output])
-        case .printPDF, .pdfPages, .pdfText, .avExport:
+        case .printPDF, .pdfPages, .pdfText, .avExport, .markdown:
             return nil
         }
     }

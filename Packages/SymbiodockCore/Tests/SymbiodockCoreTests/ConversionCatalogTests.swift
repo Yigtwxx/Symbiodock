@@ -60,16 +60,32 @@ struct ConversionCatalogTests {
                 == ["-s", "format", "png", "/a/b.jpg", "--out", "/a/.t-b.png"])
     }
 
-    @Test func textutilReadsMarkdownAsPlainText() {
+    @Test func textutilConvertsTheSourceAsItIs() {
         #expect(
             ConversionCatalog.command(
-                for: .textutil(format: "docx"), sourceExtension: "md", source: "/a/n.md",
+                for: .textutil(format: "docx"), sourceExtension: "rtf", source: "/a/n.rtf",
                 output: "/a/.t-n.docx")
                 == ToolCommand(
                     tool: "/usr/bin/textutil",
-                    arguments: [
-                        "-convert", "docx", "-format", "txt", "-output", "/a/.t-n.docx", "/a/n.md",
-                    ]))
+                    arguments: ["-convert", "docx", "-output", "/a/.t-n.docx", "/a/n.rtf"]))
+    }
+
+    @Test func markdownIsRenderedInProcessForEveryChip() {
+        let targets = ConversionCatalog.targets(pathExtension: "MD", isDirectory: false)
+        #expect(targets.map(\.label) == ["PDF", "DOCX", "RTF", "TXT", "HTML", "ODT", "ZIP"])
+        #expect(targets.map(\.engine) == [
+            .printPDF, .markdown(format: "docx"), .markdown(format: "rtf"),
+            .markdown(format: "txt"), .markdown(format: "html"), .markdown(format: "odt"), .zip,
+        ])
+        #expect(targets.map(\.pathExtension) == ["pdf", "docx", "rtf", "txt", "html", "odt", "zip"])
+    }
+
+    @Test func otherDocumentsStillGoThroughTextutil() {
+        let targets = ConversionCatalog.targets(pathExtension: "txt", isDirectory: false)
+        #expect(targets.map(\.engine) == [
+            .printPDF, .textutil(format: "docx"), .textutil(format: "rtf"),
+            .textutil(format: "html"), .textutil(format: "odt"), .zip,
+        ])
     }
 
     @Test func afconvertCarriesTheBitrateOnlyWhenGiven() {
@@ -120,6 +136,7 @@ struct ConversionCatalogTests {
     @Test func inProcessEnginesHaveNoCommand() {
         let engines: [ConversionEngine] = [
             .printPDF, .pdfPages(jpeg: true), .pdfText, .avExport(audioOnly: true, container: "m4a"),
+            .markdown(format: "docx"),
         ]
         for engine in engines {
             #expect(
