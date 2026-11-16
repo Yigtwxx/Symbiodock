@@ -30,7 +30,7 @@ struct FilesContent: View {
                         .fill(.white.opacity(0.08))
                         .frame(width: 1)
                         .padding(.horizontal, 8)
-                    if let item = shelf.selected {
+                    if let item = shelf.selectedItems.first {
                         FileActionsColumn(
                             item: item, detail: previews?.detail(for: item),
                             conversion: conversions[item.id], notice: notice, onRequest: onRequest)
@@ -76,7 +76,7 @@ struct FilesContent: View {
                     ForEach(shelf.items) { item in
                         FileTile(
                             item: item, image: previews?.image(for: item),
-                            isSelected: item.id == shelf.selectedID, onSelect: { onSelect(item.id) })
+                            isSelected: item.id == shelf.selectedItems.first?.id, onSelect: { onSelect(item.id) })
                     }
                 }
             }

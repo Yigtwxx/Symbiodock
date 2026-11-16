@@ -586,7 +586,7 @@ extension OverlayController {
         guard let id = pressedFileID else { return }
         pressedFileID = nil
         guard geometry.fileDragRects[id]?.contains(point) == true else { return }
-        state.selectShelfItem(id)
+        state.selectShelfItems([id])
     }
 }
 

@@ -10,6 +10,8 @@ enum ShelfStore {
         var id: UUID
         var bookmark: Data
         var isDirectory: Bool
+        /// Absent in what older versions saved: the item is then its own stack.
+        var stack: UUID?
     }
 
     /// The saved items, newest first. One that can no longer be reached is dropped.
@@ -26,7 +28,8 @@ enum ShelfStore {
                     relativeTo: nil, bookmarkDataIsStale: &stale),
                 (try? url.checkResourceIsReachable()) == true
             else { return nil }
-            return ShelfItem(id: record.id, url: url, isDirectory: record.isDirectory)
+            return ShelfItem(
+                id: record.id, url: url, isDirectory: record.isDirectory, stack: record.stack)
         }
     }
 
@@ -35,7 +38,8 @@ enum ShelfStore {
         // Bookmarks are made again each time, so a stale one never outlives a launch.
         let records = items.compactMap { item -> Record? in
             guard let bookmark = try? item.url.bookmarkData() else { return nil }
-            return Record(id: item.id, bookmark: bookmark, isDirectory: item.isDirectory)
+            return Record(
+                id: item.id, bookmark: bookmark, isDirectory: item.isDirectory, stack: item.stack)
         }
         guard let data = try? PropertyListEncoder().encode(records) else { return }
         UserDefaults.standard.set(data, forKey: key)

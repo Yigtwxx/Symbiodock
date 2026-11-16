@@ -46,14 +46,20 @@ final class ShelfCoordinator {
 
     func handle(_ request: FileRequest) {
         switch request {
-        case .reveal(let id):
-            guard let item = item(id) else { return }
-            NSWorkspace.shared.activateFileViewerSelecting([item.url])
-        case .remove(let id):
-            guard let item = item(id) else { return }
-            state.removeShelfItem(id)
+        case .reveal(let ids):
+            let urls = items(ids).map(\.url)
+            guard !urls.isEmpty else { return }
+            NSWorkspace.shared.activateFileViewerSelecting(urls)
+        case .remove(let ids):
+            let removed = items(ids)
+            guard !removed.isEmpty else { return }
+            state.removeShelfItems(removed.map(\.id))
             changed()
-            discard(item.url)
+            removed.map(\.url).forEach(discard)
+        case .unstack(let stack):
+            guard let held = state.shelf.stack(stack) else { return }
+            state.separateShelfItems(held.items.map(\.id))
+            changed()
         case .convert, .cancel:
             // Conversions come with the converter.
             break
@@ -62,7 +68,7 @@ final class ShelfCoordinator {
 
     /// The tile left with a drag that was accepted: it is off the shelf, the file is not touched.
     func removeAfterDragOut(_ id: UUID) {
-        state.removeShelfItem(id)
+        state.removeShelfItems([id])
         changed()
     }
 
@@ -77,8 +83,8 @@ final class ShelfCoordinator {
         save()
     }
 
-    private func item(_ id: UUID) -> ShelfItem? {
-        state.shelf.items.first { $0.id == id }
+    private func items(_ ids: [UUID]) -> [ShelfItem] {
+        state.shelf.items.filter { ids.contains($0.id) }
     }
 
     /// A file the shelf made for itself goes with its tile; one the person owns never does.

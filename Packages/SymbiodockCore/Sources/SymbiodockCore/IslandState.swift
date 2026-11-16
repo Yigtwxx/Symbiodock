@@ -35,7 +35,9 @@ public enum IslandDrag {
 @MainActor
 @Observable
 public final class IslandState {
-    public private(set) var phase: IslandPhase = .collapsed
+    public private(set) var phase: IslandPhase = .collapsed {
+        didSet { if phase != .expanded { clearHoveredFile() } }
+    }
     /// What plays, the main track first. A second slot is a second source heard at the
     /// same time; the collapsed island shows it peeking out behind the first.
     public private(set) var mediaSlots: [NowPlayingSlot] = []
@@ -64,7 +66,9 @@ public final class IslandState {
     /// The tabs in the order the user chose.
     public private(set) var tabOrder: [IslandTab] = TabOrder.default
     /// The tab the expanded island shows.
-    public private(set) var selectedTab: IslandTab = TabOrder.default[0]
+    public private(set) var selectedTab: IslandTab = TabOrder.default[0] {
+        didSet { if selectedTab != .files { clearHoveredFile() } }
+    }
 
     /// The files held on the shelf.
     public private(set) var shelf = FileShelf()
@@ -74,6 +78,10 @@ public final class IslandState {
     public private(set) var shelfNotice: ShelfNotice?
     /// A file is being dragged over the island.
     public private(set) var isFileDragHovering = false
+    /// What the pointer rests on in the shelf; only while the island shows the Files tab.
+    public private(set) var hoveredFile: ShelfHover?
+    /// The stack a dragged file would join.
+    public private(set) var fileDropTarget: UUID?
 
     /// The count bubble right of the island: only at the notch, only collapsed, only with files.
     public var filesBubbleShown: Bool {
@@ -325,53 +333,92 @@ public final class IslandState {
         setShelf(FileShelf(items: items))
     }
 
-    public func addShelfItems(_ items: [ShelfItem]) {
+    /// Dropped files: several form one new stack; with `stack`, they join it in front.
+    public func addShelfItems(_ items: [ShelfItem], onto stack: UUID? = nil) {
         var next = shelf
-        next.add(items)
+        next.add(items, onto: stack)
         setShelf(next)
     }
 
-    /// Takes the item off the shelf and drops whatever hung on it.
-    public func removeShelfItem(_ id: UUID) {
+    /// A tile dropped on a stack: the files go in front of it.
+    public func moveShelfItems(_ ids: [UUID], onto stack: UUID) {
         var next = shelf
-        next.remove(id)
+        next.move(ids, onto: stack)
         setShelf(next)
-        if conversions[id] != nil { conversions[id] = nil }
-        if shelfNotice?.id == id { shelfNotice = nil }
     }
 
-    /// A notice about another item goes away with the look at this one.
-    public func selectShelfItem(_ id: UUID) {
+    /// Each file leaves its stack and becomes a lone tile.
+    public func separateShelfItems(_ ids: [UUID]) {
         var next = shelf
-        next.select(id)
+        next.separate(ids)
         setShelf(next)
-        if let notice = shelfNotice, notice.id != id { shelfNotice = nil }
     }
 
+    public func bringShelfItemToFront(_ id: UUID) {
+        var next = shelf
+        next.bringToFront(id)
+        setShelf(next)
+    }
+
+    /// A notice about another file goes away with the look at these.
+    public func selectShelfItems(_ ids: [UUID]) {
+        var next = shelf
+        next.select(ids)
+        setShelf(next)
+        dropNoticeOutsideSelection()
+    }
+
+    public func toggleShelfItems(_ ids: [UUID]) {
+        var next = shelf
+        next.toggle(ids)
+        setShelf(next)
+        dropNoticeOutsideSelection()
+    }
+
+    /// Takes the files off the shelf and drops whatever hung on them.
+    public func removeShelfItems(_ ids: [UUID]) {
+        var next = shelf
+        next.remove(ids)
+        setShelf(next)
+    }
+
+    public func setShelfNotice(_ notice: ShelfNotice?) {
+        if notice != shelfNotice { shelfNotice = notice }
+    }
+
+    /// Empties the shelf and drops every conversion and notice.
     public func clearShelf() {
         setShelf(FileShelf())
-        if !conversions.isEmpty { conversions = [:] }
-        if shelfNotice != nil { shelfNotice = nil }
     }
 
-    /// A file drag is over the island: it opens on Files at once (or switches to it).
+    /// The pointer rests on a stack of the shelf (or on none).
+    public func setHoveredFile(_ hover: ShelfHover?) {
+        if hover != hoveredFile { hoveredFile = hover }
+    }
+
+    /// A dragged file is over a stack, which it would join.
+    public func setFileDropTarget(_ stack: UUID?) {
+        if stack != fileDropTarget { fileDropTarget = stack }
+    }
+
+    /// A file drag is over the island: it opens on Files at once (or switches to it). When it
+    /// ends, no stack is its target any more.
     public func setFileDragHovering(_ hovering: Bool) {
-        if !hovering {
+        guard hovering else {
             if isFileDragHovering { isFileDragHovering = false }
+            setFileDropTarget(nil)
             return
         }
-        switch phase {
-        case .collapsed:
-            if !isFileDragHovering { isFileDragHovering = true }
+        guard phase == .collapsed || phase == .expanded else { return }
+        if !isFileDragHovering { isFileDragHovering = true }
+        if phase == .collapsed {
             setHovering(true, opening: .files)
-        case .expanded:
-            if !isFileDragHovering { isFileDragHovering = true }
+        } else {
             selectTab(.files)
-        case .stretching, .detached, .settling:
-            break
         }
     }
 
+    /// Starts the conversion of one file; ignored when it is not on the shelf or already busy.
     public func beginConversion(_ id: UUID, label: String, at date: Date) {
         guard conversions[id] == nil, shelf.items.contains(where: { $0.id == id }) else { return }
         conversions[id] = FileConversion(label: label, started: date)
@@ -387,7 +434,7 @@ public final class IslandState {
             next.replace(id, url: url, isDirectory: isDirectory)
             setShelf(next)
         case .failed(let text):
-            shelfNotice = ShelfNotice(id: id, text: text)
+            setShelfNotice(ShelfNotice(id: id, text: text))
         case .cancelled:
             break
         }
@@ -395,13 +442,32 @@ public final class IslandState {
         conversions[id] = conversion
     }
 
+    /// The reveal is over: the file is an ordinary tile again.
     public func endConversion(_ id: UUID) {
         if conversions[id] != nil { conversions[id] = nil }
     }
 
+    /// Assign only on change: every assignment redraws the island. What hung on a file that
+    /// is gone (its conversion, its notice) goes with it, and so do a hover or drop target
+    /// naming a stack that is gone.
     private func setShelf(_ next: FileShelf) {
-        // Assign only on change: every assignment redraws the island.
-        if next != shelf { shelf = next }
+        guard next != shelf else { return }
+        let kept = Set(next.items.map(\.id))
+        let gone = shelf.items.map(\.id).filter { !kept.contains($0) }
+        shelf = next
+        for id in gone where conversions[id] != nil { conversions[id] = nil }
+        if let notice = shelfNotice, gone.contains(notice.id) { shelfNotice = nil }
+        let stacks = Set(next.items.map(\.stack))
+        if let hover = hoveredFile, !stacks.contains(hover.stack) { hoveredFile = nil }
+        if let target = fileDropTarget, !stacks.contains(target) { fileDropTarget = nil }
+    }
+
+    private func dropNoticeOutsideSelection() {
+        if let notice = shelfNotice, !shelf.selection.contains(notice.id) { shelfNotice = nil }
+    }
+
+    private func clearHoveredFile() {
+        if hoveredFile != nil { hoveredFile = nil }
     }
 
     /// Once the Agents tab has been looked at, what finished is no longer news.

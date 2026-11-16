@@ -579,7 +579,7 @@ struct IslandStateTests {
         let a = file("/x/a.png")
         state.addShelfItems([a])
         #expect(state.shelf.items == [a])
-        state.removeShelfItem(a.id)
+        state.removeShelfItems([a.id])
         #expect(state.shelf.isEmpty)
     }
 
@@ -655,7 +655,7 @@ struct IslandStateTests {
         state.addShelfItems([a])
         state.beginConversion(a.id, label: "PDF", at: Date(timeIntervalSince1970: 1))
         state.revealConversion(a.id, result: .failed("x"), at: Date(timeIntervalSince1970: 2))
-        state.removeShelfItem(a.id)
+        state.removeShelfItems([a.id])
         #expect(state.conversions[a.id] == nil)
         #expect(state.shelfNotice == nil)
     }
@@ -679,9 +679,9 @@ struct IslandStateTests {
         state.beginConversion(a.id, label: "PDF", at: Date(timeIntervalSince1970: 3))
         #expect(state.shelfNotice == nil)
         state.revealConversion(a.id, result: .failed("y"), at: Date(timeIntervalSince1970: 4))
-        state.selectShelfItem(a.id)
+        state.selectShelfItems([a.id])
         #expect(state.shelfNotice != nil)
-        state.selectShelfItem(b.id)
+        state.selectShelfItems([b.id])
         #expect(state.shelfNotice == nil)
         #expect(state.shelf.selectedID == b.id)
     }
@@ -692,5 +692,202 @@ struct IslandStateTests {
         state.restoreShelf([a, b])
         #expect(state.shelf.items == [a, b])
         #expect(state.shelf.selectedID == a.id)
+    }
+
+    // MARK: Stacks, selection and hover on the shelf
+
+    /// Whether anything observing `read` is told about `action`'s changes.
+    private func notifies(_ read: @escaping () -> Void, whenDoing action: () -> Void) -> Bool {
+        let fired = Flag()
+        withObservationTracking(read) { fired.value = true }
+        action()
+        return fired.value
+    }
+
+    private final class Flag: @unchecked Sendable {
+        var value = false
+    }
+
+    private func openFilesTab(_ state: IslandState) {
+        state.setHovering(true, opening: .files)
+    }
+
+    @Test func droppingSeveralFormsOneStackAndOntoJoinsIt() {
+        let state = IslandState()
+        let (a, b, c) = (file("/x/a.png"), file("/x/b.png"), file("/x/c.png"))
+        state.addShelfItems([a, b])
+        #expect(state.shelf.stacks.count == 1)
+        let stack = state.shelf.stacks[0].id
+        state.addShelfItems([c], onto: stack)
+        #expect(state.shelf.stacks.map { $0.items.map(\.id) } == [[c.id, a.id, b.id]])
+        #expect(state.shelf.selection == [c.id])
+    }
+
+    @Test func movingSeparatingAndBringingToFrontGoThroughTheShelf() {
+        let state = IslandState()
+        let (a, b, c) = (file("/x/a.png"), file("/x/b.png"), file("/x/c.png"))
+        state.addShelfItems([a])
+        state.addShelfItems([b])
+        state.addShelfItems([c])
+        state.moveShelfItems([c.id, b.id], onto: a.id)
+        #expect(state.shelf.stacks.map { $0.items.map(\.id) } == [[c.id, b.id, a.id]])
+        state.bringShelfItemToFront(a.id)
+        #expect(state.shelf.items.map(\.id) == [a.id, c.id, b.id])
+        state.separateShelfItems([b.id])
+        #expect(state.shelf.stacks.map { $0.items.map(\.id) } == [[a.id, c.id], [b.id]])
+    }
+
+    @Test func selectingAndTogglingGoThroughTheShelf() {
+        let state = IslandState()
+        let (a, b) = (file("/x/a.png"), file("/x/b.png"))
+        state.addShelfItems([a, b])
+        state.selectShelfItems([a.id])
+        state.toggleShelfItems([b.id])
+        #expect(state.shelf.selection == [a.id, b.id])
+        state.toggleShelfItems([a.id])
+        #expect(state.shelf.selection == [b.id])
+    }
+
+    @Test func removingSeveralDropsTheirConversionsAndNotice() {
+        let state = IslandState()
+        let (a, b, c) = (file("/x/a.png"), file("/x/b.png"), file("/x/c.png"))
+        state.addShelfItems([a, b, c])
+        for item in [a, b, c] {
+            state.beginConversion(item.id, label: "PDF", at: Date(timeIntervalSince1970: 1))
+        }
+        state.revealConversion(a.id, result: .failed("x"), at: Date(timeIntervalSince1970: 2))
+        state.removeShelfItems([a.id, b.id])
+        #expect(Set(state.conversions.keys) == [c.id])
+        #expect(state.shelfNotice == nil)
+        #expect(state.shelf.items.map(\.id) == [c.id])
+    }
+
+    @Test func aNoticeSurvivesOnlyWhileItsFileIsSelected() {
+        let state = IslandState()
+        let (a, b) = (file("/x/a.png"), file("/x/b.png"))
+        state.addShelfItems([a])
+        state.addShelfItems([b])
+        state.setShelfNotice(ShelfNotice(id: a.id, text: "x"))
+        state.toggleShelfItems([a.id])
+        #expect(state.shelfNotice != nil)
+        state.selectShelfItems([b.id])
+        #expect(state.shelfNotice == nil)
+    }
+
+    @Test func theShelfNoticeIsAssignedOnlyOnChange() {
+        let state = IslandState()
+        let notice = ShelfNotice(id: UUID(), text: "x")
+        #expect(notifies({ _ = state.shelfNotice }, whenDoing: { state.setShelfNotice(nil) }) == false)
+        #expect(notifies({ _ = state.shelfNotice }, whenDoing: { state.setShelfNotice(notice) }))
+        #expect(notifies({ _ = state.shelfNotice }, whenDoing: { state.setShelfNotice(notice) }) == false)
+        #expect(notifies({ _ = state.shelfNotice }, whenDoing: { state.setShelfNotice(nil) }))
+    }
+
+    @Test func aFailedRevealAssignsTheNoticeOnlyWhenItDiffers() {
+        let state = IslandState()
+        let a = file("/x/a.png")
+        state.addShelfItems([a])
+        state.beginConversion(a.id, label: "PDF", at: Date(timeIntervalSince1970: 1))
+        state.setShelfNotice(ShelfNotice(id: a.id, text: "Couldn't convert to PDF"))
+        let fired = notifies(
+            { _ = state.shelfNotice },
+            whenDoing: {
+                state.revealConversion(
+                    a.id, result: .failed("Couldn't convert to PDF"), at: Date(timeIntervalSince1970: 2))
+            })
+        #expect(!fired)
+        #expect(state.conversions[a.id]?.revealStarted != nil)
+    }
+
+    @Test func selectingWhatIsSelectedAssignsNothing() {
+        let state = IslandState()
+        let a = file("/x/a.png")
+        state.addShelfItems([a])
+        #expect(!notifies({ _ = state.shelf }, whenDoing: { state.selectShelfItems([a.id]) }))
+        #expect(!notifies({ _ = state.shelf }, whenDoing: { state.selectShelfItems([UUID()]) }))
+        #expect(!notifies({ _ = state.shelf }, whenDoing: { state.removeShelfItems([UUID()]) }))
+        #expect(!notifies({ _ = state.shelf }, whenDoing: { state.bringShelfItemToFront(a.id) }))
+    }
+
+    @Test func hoverAndDropTargetAssignOnlyOnChange() {
+        let state = IslandState()
+        let a = file("/x/a.png")
+        state.addShelfItems([a])
+        openFilesTab(state)
+        let hover = ShelfHover(stack: a.id, hit: .body)
+        #expect(!notifies({ _ = state.hoveredFile }, whenDoing: { state.setHoveredFile(nil) }))
+        #expect(notifies({ _ = state.hoveredFile }, whenDoing: { state.setHoveredFile(hover) }))
+        #expect(state.hoveredFile == hover)
+        #expect(!notifies({ _ = state.hoveredFile }, whenDoing: { state.setHoveredFile(hover) }))
+        #expect(notifies({ _ = state.hoveredFile }, whenDoing: {
+            state.setHoveredFile(ShelfHover(stack: a.id, hit: .file(0)))
+        }))
+        #expect(!notifies({ _ = state.fileDropTarget }, whenDoing: { state.setFileDropTarget(nil) }))
+        #expect(notifies({ _ = state.fileDropTarget }, whenDoing: { state.setFileDropTarget(a.id) }))
+        #expect(!notifies({ _ = state.fileDropTarget }, whenDoing: { state.setFileDropTarget(a.id) }))
+    }
+
+    @Test func endingTheFileDragClearsTheDropTarget() {
+        let state = IslandState()
+        let a = file("/x/a.png")
+        state.addShelfItems([a])
+        state.setFileDragHovering(true)
+        state.setFileDropTarget(a.id)
+        state.setFileDragHovering(false)
+        #expect(state.fileDropTarget == nil)
+        #expect(!state.isFileDragHovering)
+        #expect(!notifies({ _ = state.isFileDragHovering; _ = state.fileDropTarget }, whenDoing: {
+            state.setFileDragHovering(false)
+        }))
+        #expect(notifies({ _ = state.isFileDragHovering }, whenDoing: { state.setFileDragHovering(true) }))
+        #expect(!notifies({ _ = state.isFileDragHovering }, whenDoing: { state.setFileDragHovering(true) }))
+    }
+
+    @Test func hoverIsClearedByLeavingTheFilesTabOrCollapsing() {
+        let state = IslandState()
+        let a = file("/x/a.png")
+        state.addShelfItems([a])
+        openFilesTab(state)
+        state.setHoveredFile(ShelfHover(stack: a.id, hit: .body))
+        state.selectTab(.media)
+        #expect(state.hoveredFile == nil)
+        state.selectTab(.files)
+        state.setHoveredFile(ShelfHover(stack: a.id, hit: .body))
+        state.setHovering(false)
+        #expect(state.phase == .collapsed)
+        #expect(state.hoveredFile == nil)
+        openFilesTab(state)
+        state.setHoveredFile(ShelfHover(stack: a.id, hit: .file(0)))
+        state.beginDrag(at: .zero, from: .zero)
+        #expect(state.hoveredFile == nil)
+    }
+
+    @Test func hoverAndDropTargetFollowTheirStackOffTheShelf() {
+        let state = IslandState()
+        let (a, b) = (file("/x/a.png"), file("/x/b.png"))
+        state.addShelfItems([a])
+        state.addShelfItems([b])
+        openFilesTab(state)
+        state.setHoveredFile(ShelfHover(stack: a.id, hit: .body))
+        state.setFileDropTarget(a.id)
+        state.removeShelfItems([b.id])
+        #expect(state.hoveredFile != nil)
+        #expect(state.fileDropTarget == a.id)
+        state.removeShelfItems([a.id])
+        #expect(state.hoveredFile == nil)
+        #expect(state.fileDropTarget == nil)
+    }
+
+    @Test func aConversionResultThatReplacesAnotherItemDropsItsConversion() {
+        let state = IslandState()
+        let (a, b) = (file("/x/a.png"), file("/x/b.pdf"))
+        state.addShelfItems([a])
+        state.addShelfItems([b])
+        state.beginConversion(a.id, label: "PDF", at: Date(timeIntervalSince1970: 1))
+        state.beginConversion(b.id, label: "PNG", at: Date(timeIntervalSince1970: 1))
+        state.revealConversion(
+            a.id, result: .converted(url: b.url, isDirectory: false), at: Date(timeIntervalSince1970: 2))
+        #expect(state.shelf.items.map(\.id) == [a.id])
+        #expect(Set(state.conversions.keys) == [a.id])
     }
 }

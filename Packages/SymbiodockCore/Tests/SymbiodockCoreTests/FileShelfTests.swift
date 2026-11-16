@@ -7,12 +7,12 @@ struct FileShelfTests {
         ShelfItem(url: URL(fileURLWithPath: path), isDirectory: dir)
     }
 
-    @Test func addingToAnEmptyShelfKeepsOrderAndSelectsTheFirst() {
+    @Test func addingToAnEmptyShelfKeepsOrderAndSelectsWhatWasAdded() {
         let (a, b, c) = (item("/x/a.png"), item("/x/b.pdf"), item("/x/c.jpg"))
         var shelf = FileShelf()
         shelf.add([a, b, c])
-        #expect(shelf.items == [a, b, c])
-        #expect(shelf.selected == a)
+        #expect(shelf.items.map(\.id) == [a.id, b.id, c.id])
+        #expect(shelf.selectedItems.map(\.id) == [a.id, b.id, c.id])
     }
 
     @Test func laterItemsGoInFrontAndGetSelected() {
@@ -20,38 +20,71 @@ struct FileShelfTests {
         var shelf = FileShelf()
         shelf.add([a, b, c])
         shelf.add([d])
-        #expect(shelf.items == [d, a, b, c])
-        #expect(shelf.selected == d)
+        #expect(shelf.items.map(\.id) == [d.id, a.id, b.id, c.id])
+        #expect(shelf.selectedItems == [shelf.items[0]])
+        #expect(shelf.selectedID == d.id)
     }
 
     @Test func aHeldPathMovesToTheFrontWithItsId() {
         let (a, b) = (item("/x/a.png"), item("/x/b.pdf"))
         var shelf = FileShelf()
-        shelf.add([a, b])
-        shelf.add([item("/x/b.pdf"), item("/x/./a.png")])
+        shelf.add([a])
+        shelf.add([b])
+        shelf.add([item("/x/b.pdf")])
         #expect(shelf.count == 2)
         #expect(shelf.items.map(\.id) == [b.id, a.id])
-        #expect(shelf.selectedID == b.id)
         shelf.add([item("/x/./a.png")])
         #expect(shelf.count == 2)
-        #expect(shelf.items[0].id == a.id)
+        #expect(shelf.items.map(\.id) == [a.id, b.id])
+        #expect(shelf.selectedID == a.id)
+    }
+
+    @Test func heldPathsDroppedTogetherJoinOneStackInFront() {
+        let (a, b, c) = (item("/x/a.png"), item("/x/b.pdf"), item("/x/c.jpg"))
+        var shelf = FileShelf()
+        shelf.add([a])
+        shelf.add([b])
+        shelf.add([c])
+        shelf.add([item("/x/./a.png"), item("/x/b.pdf")])
+        #expect(shelf.items.map(\.id) == [a.id, b.id, c.id])
+        #expect(shelf.stacks.count == 2)
+        #expect(shelf.stacks[0].items.map(\.id) == [a.id, b.id])
+        #expect(shelf.selection == [a.id, b.id])
+    }
+
+    @Test func initDropsALaterItemWithTheSamePath() {
+        let (a, b) = (item("/x/a.png"), item("/x/b.pdf"))
+        let shelf = FileShelf(items: [a, b, item("/x/./a.png")])
+        #expect(shelf.items.map(\.id) == [a.id, b.id])
+    }
+
+    @Test func initKeepsStacksContiguousFrontFirstAndSelectsTheFirst() {
+        let stack = UUID()
+        let a = ShelfItem(url: URL(fileURLWithPath: "/x/a.png"), isDirectory: false, stack: stack)
+        let b = item("/x/b.pdf")
+        let c = ShelfItem(url: URL(fileURLWithPath: "/x/c.jpg"), isDirectory: false, stack: stack)
+        let shelf = FileShelf(items: [a, b, c])
+        #expect(shelf.items.map(\.id) == [a.id, c.id, b.id])
+        #expect(shelf.stacks.map { $0.items.count } == [2, 1])
+        #expect(shelf.selectedID == a.id)
+        #expect(shelf.selection == [a.id])
     }
 
     @Test func removingTheSelectedMiddleItemSelectsTheNextOne() {
         let (a, b, c) = (item("/x/a.png"), item("/x/b.pdf"), item("/x/c.jpg"))
         var shelf = FileShelf(items: [a, b, c])
-        shelf.select(b.id)
-        shelf.remove(b.id)
+        shelf.select([b.id])
+        shelf.remove([b.id])
         #expect(shelf.selectedID == c.id)
     }
 
     @Test func removingTheLastSelectsTheNewLastAndTheOnlyDeselects() {
         let (a, b) = (item("/x/a.png"), item("/x/b.pdf"))
         var shelf = FileShelf(items: [a, b])
-        shelf.select(b.id)
-        shelf.remove(b.id)
+        shelf.select([b.id])
+        shelf.remove([b.id])
         #expect(shelf.selectedID == a.id)
-        shelf.remove(a.id)
+        shelf.remove([a.id])
         #expect(shelf.selectedID == nil)
         #expect(shelf.isEmpty)
     }
@@ -59,14 +92,14 @@ struct FileShelfTests {
     @Test func removingAnotherItemKeepsTheSelection() {
         let (a, b) = (item("/x/a.png"), item("/x/b.pdf"))
         var shelf = FileShelf(items: [a, b])
-        shelf.remove(b.id)
+        shelf.remove([b.id])
         #expect(shelf.selectedID == a.id)
     }
 
     @Test func replaceKeepsIdIndexAndSelectionAndKindFollowsTheUrl() {
         let (a, b) = (item("/x/a.png"), item("/x/b.pdf"))
         var shelf = FileShelf(items: [a, b])
-        shelf.select(b.id)
+        shelf.select([b.id])
         shelf.replace(b.id, url: URL(fileURLWithPath: "/x/b.docx"), isDirectory: false)
         #expect(shelf.items[1].id == b.id)
         #expect(shelf.selectedID == b.id)
@@ -74,11 +107,24 @@ struct FileShelfTests {
         #expect(shelf.items[1].badge == "DOCX")
     }
 
+    @Test func replacingWithAHeldPathRemovesTheOtherItem() {
+        let (a, b, c) = (item("/x/a.png"), item("/x/b.pdf"), item("/x/c.jpg"))
+        var shelf = FileShelf(items: [a, b, c])
+        shelf.replace(c.id, url: URL(fileURLWithPath: "/x/./a.png"), isDirectory: false)
+        #expect(shelf.items.map(\.id) == [b.id, c.id])
+        #expect(shelf.items[1].url.lastPathComponent == "a.png")
+        #expect(shelf.selection == [b.id])
+        shelf.replace(b.id, url: URL(fileURLWithPath: "/x/b.pdf"), isDirectory: false)
+        #expect(shelf.items.map(\.id) == [b.id, c.id])
+    }
+
     @Test func selectingAnUnknownIdChangesNothing() {
         let a = item("/x/a.png")
         var shelf = FileShelf(items: [a])
-        shelf.select(UUID())
+        shelf.select([UUID()])
         #expect(shelf.selectedID == a.id)
+        shelf.select([])
+        #expect(shelf.selection == [a.id])
     }
 
     @Test func clearEmptiesAndDeselects() {
@@ -86,7 +132,8 @@ struct FileShelfTests {
         shelf.clear()
         #expect(shelf.isEmpty)
         #expect(shelf.selectedID == nil)
-        #expect(shelf.selected == nil)
+        #expect(shelf.selection.isEmpty)
+        #expect(shelf.selectedItems.isEmpty)
     }
 
     @Test func bubbleKindsAreDistinctNewestFirstAndAtMostThree() {

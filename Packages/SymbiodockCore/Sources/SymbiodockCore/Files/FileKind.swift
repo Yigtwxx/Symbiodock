@@ -1,16 +1,21 @@
 /// The extensions each kind of file is recognised by, lowercase.
 public enum FileExtensions {
+    /// Pictures and photos, raw formats included.
     public static let image: Set<String> = [
         "png", "jpg", "jpeg", "heic", "heif", "tiff", "tif", "gif", "bmp", "webp", "avif", "jp2",
         "psd", "ico", "icns", "svg", "dng", "cr2", "cr3", "nef", "arw", "raf", "orf", "rw2",
     ]
+    /// Text documents `textutil` reads, and rich-text packages.
     public static let document: Set<String> = [
         "docx", "doc", "rtf", "rtfd", "txt", "md", "html", "htm", "odt", "webarchive",
     ]
+    /// Sound files.
     public static let audio: Set<String> = [
         "mp3", "m4a", "aac", "wav", "aif", "aiff", "flac", "caf", "ogg", "opus",
     ]
+    /// Movies and clips.
     public static let video: Set<String> = ["mov", "mp4", "m4v", "avi", "mkv", "webm"]
+    /// Archives and disk images.
     public static let archive: Set<String> = [
         "zip", "tar", "gz", "tgz", "bz2", "xz", "7z", "rar", "dmg",
     ]

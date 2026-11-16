@@ -27,7 +27,7 @@ struct FileActionsColumn: View {
                     .padding(.top, 2)
                 LazyVGrid(columns: Self.columns, spacing: 4) {
                     ForEach(targets) { target in
-                        Button(target.label) { onRequest(.convert(item.id, target)) }
+                        Button(target.label) { onRequest(.convert([item.id], label: target.label)) }
                             .buttonStyle(ChipStyle())
                     }
                 }
@@ -48,8 +48,8 @@ struct FileActionsColumn: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            iconButton("folder", label: "Show in Finder") { onRequest(.reveal(item.id)) }
-            iconButton("xmark", label: "Remove") { onRequest(.remove(item.id)) }
+            iconButton("folder", label: "Show in Finder") { onRequest(.reveal([item.id])) }
+            iconButton("xmark", label: "Remove") { onRequest(.remove([item.id])) }
         }
     }
 
@@ -91,7 +91,7 @@ struct FileActionsColumn: View {
             .foregroundStyle(.white.opacity(0.7))
             .lineLimit(1)
             .padding(.top, 2)
-        Button("Cancel") { onRequest(.cancel(item.id)) }
+        Button("Cancel") { onRequest(.cancel([item.id])) }
             .buttonStyle(ChipStyle())
             .frame(width: 56)
     }

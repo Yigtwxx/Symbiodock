@@ -41,6 +41,7 @@ public struct ToolCommand: Equatable, Sendable {
     }
 }
 
+/// What each kind of file can become, and the commands that make it.
 public enum ConversionCatalog {
     private static func target(_ label: String, _ ext: String, _ engine: ConversionEngine)
         -> ConversionTarget
@@ -49,6 +50,7 @@ public enum ConversionCatalog {
     }
 
     private static let zip = target("ZIP", "zip", .zip)
+    private static let unzip = target("Unzip", "", .unzip)
 
     private static let imageTargets = [
         target("PNG", "png", .sips(format: "png")),
@@ -102,7 +104,7 @@ public enum ConversionCatalog {
     public static func targets(pathExtension: String, isDirectory: Bool) -> [ConversionTarget] {
         let ext = pathExtension.lowercased()
         if isDirectory && ext != "rtfd" { return [zip] }
-        if ext == "zip" { return [target("Unzip", "", .unzip)] }
+        if ext == "zip" { return [unzip] }
         let base: [ConversionTarget]
         if FileExtensions.image.contains(ext) {
             base = imageTargets
@@ -149,5 +151,99 @@ public enum ConversionCatalog {
         case .printPDF, .pdfPages, .pdfText, .avExport:
             return nil
         }
+    }
+}
+
+/// What a batch of files will do for one chip.
+public struct BatchPlan: Equatable, Sendable {
+    /// Files to convert, each with its own engine.
+    public var targets: [UUID: ConversionTarget] = [:]
+    /// Already that format: skipped silently.
+    public var already: [UUID] = []
+    /// Cannot become that: skipped, and said.
+    public var unsupported: [UUID] = []
+    /// Several files and "ZIP": one `Archive.zip`, `targets` empty.
+    public var archive = false
+}
+
+extension ConversionCatalog {
+    /// Every target the catalog can make, for finding what a label means.
+    private static let everyTarget =
+        imageTargets + documentTargets + pdfTargets + audioTargets + videoTargets + [zip, unzip]
+
+    /// The chips for several files at once. One file keeps its own. Of several, a target is
+    /// offered when every "convertible" file (one with a target besides ZIP and Unzip) offers
+    /// it or already is that format, and at least one offers it; ZIP comes last. Only zips
+    /// leave just Unzip.
+    public static func commonLabels(_ items: [ShelfItem]) -> [String] {
+        let offered = items.map { targets(pathExtension: $0.url.pathExtension, isDirectory: $0.isDirectory) }
+        if items.count < 2 { return offered.first?.map(\.label) ?? [] }
+        if offered.allSatisfy({ $0.map(\.label) == [unzip.label] }) { return [unzip.label] }
+        let convertible = items.indices.filter { index in
+            offered[index].contains { $0.label != zip.label && $0.label != unzip.label }
+        }
+        var candidates: [ConversionTarget] = []
+        for index in convertible {
+            for target in offered[index]
+            where target.label != zip.label && !candidates.contains(where: { $0.label == target.label }) {
+                candidates.append(target)
+            }
+        }
+        let common = candidates.filter { candidate in
+            var offeredByOne = false
+            for index in convertible {
+                if offered[index].contains(where: { $0.label == candidate.label }) {
+                    offeredByOne = true
+                } else if !isAlready(items[index], candidate) {
+                    return false
+                }
+            }
+            return offeredByOne
+        }
+        return common.map(\.label) + [zip.label]
+    }
+
+    /// What pressing `label` does to each file. Several files and ZIP make one archive.
+    public static func plan(label: String, items: [ShelfItem]) -> BatchPlan {
+        var plan = BatchPlan()
+        if items.count > 1 && label == zip.label {
+            plan.archive = true
+            return plan
+        }
+        let wanted = everyTarget.first { $0.label == label }
+        for item in items {
+            let own = targets(pathExtension: item.url.pathExtension, isDirectory: item.isDirectory)
+            if let target = own.first(where: { $0.label == label }) {
+                plan.targets[item.id] = target
+            } else if let wanted, isAlready(item, wanted) {
+                plan.already.append(item.id)
+            } else {
+                plan.unsupported.append(item.id)
+            }
+        }
+        return plan
+    }
+
+    /// The file already is the format of the target (a folder or a file without an extension
+    /// is never "already" Unzip's empty extension).
+    private static func isAlready(_ item: ShelfItem, _ target: ConversionTarget) -> Bool {
+        let ext = item.url.pathExtension.lowercased()
+        return !target.pathExtension.isEmpty && !item.isDirectory
+            && family(ext) == family(target.pathExtension)
+    }
+}
+
+extension ShelfNotice {
+    /// "Slides.pptx can't become PDF", "2 files can't become PDF", "Couldn't convert 1 file",
+    /// both joined with " · "; nil when there is nothing to say.
+    public static func batchText(label: String, unsupported: [String], failed: Int) -> String? {
+        var parts: [String] = []
+        if unsupported.count == 1 {
+            parts.append("\(unsupported[0]) can't become \(label)")
+        } else if unsupported.count > 1 {
+            parts.append("\(unsupported.count) files can't become \(label)")
+        }
+        if failed > 0 { parts.append("Couldn't convert \(failed) file\(failed == 1 ? "" : "s")") }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
