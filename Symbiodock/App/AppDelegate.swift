@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         #if DEBUG
         DebugRender.runIfRequested()
+        if ConvertHook.runIfRequested() { return }
         #endif
         installTerminationHandler()
 

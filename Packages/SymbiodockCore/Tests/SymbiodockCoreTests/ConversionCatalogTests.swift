@@ -89,6 +89,13 @@ struct ConversionCatalogTests {
                 == ["/a/s.mp3", "-o", "/a/.t-s.wav", "-f", "WAVE", "-d", "LEI16"])
     }
 
+    @Test func m4aLeavesTheBitrateToAfconvert() {
+        // A fixed 256 kbps is refused for mono or low-sample-rate sources (voice memos).
+        let m4a = ConversionCatalog.targets(pathExtension: "wav", isDirectory: false)
+            .first { $0.label == "M4A" }
+        #expect(m4a?.engine == .afconvert(file: "m4af", data: "aac", bitrate: nil))
+    }
+
     @Test func dittoZipsAndUnzips() {
         #expect(
             ConversionCatalog.command(
