@@ -24,6 +24,16 @@ enum DebugRender {
                 ExpandedPreview(state: state), size: CGSize(width: 640, height: 190),
                 named: name, to: directory)
         }
+        let twoSources = IslandState()
+        DemoMedia.apply(to: twoSources, twoSources: true)
+        twoSources.setHovering(true)
+        twoSources.selectTab(.media)
+        write(
+            ExpandedPreview(state: twoSources), size: CGSize(width: 640, height: 190),
+            named: "expanded-media-two", to: directory)
+        write(
+            MediaStackGallery(slots: twoSources.mediaSlots), size: CGSize(width: 320, height: 150),
+            named: "collapsed-media-two", to: directory)
         let empty = IslandState()
         empty.setHovering(true)
         empty.selectTab(.agents)
@@ -149,7 +159,7 @@ private struct ExpandedPreview: View {
         ExpandedIsland(
             state: state,
             metrics: ExpandedHeaderMetrics(height: 32, leading: 200, gap: 200, trailing: 200),
-            onCommand: { _ in }, onOpenSession: { _ in })
+            onCommand: { _, _ in }, onOpenSession: { _ in })
             .frame(width: 600, height: 150)
             .background(.black, in: shape)
             .clipShape(shape)
@@ -263,6 +273,28 @@ private struct CollapsedGallery: View {
             strip(.needsInput(prompt: nil), .needsInput, at: 0.45)
             strip(.finished, .finished, at: 2)
             strip(.working, .none, at: 0)
+        }
+        .padding(16)
+    }
+}
+
+/// The collapsed media faces while two sources play: at the notch and as a capsule.
+private struct MediaStackGallery: View {
+    let slots: [NowPlayingSlot]
+
+    var body: some View {
+        let shape = UnevenRoundedRectangle(
+            bottomLeadingRadius: 10, bottomTrailingRadius: 10, style: .continuous)
+        VStack(spacing: 14) {
+            CollapsedContent(info: slots[0].info, behind: slots[1].info, notchWidth: 200)
+                .frame(width: 272, height: 32)
+                .background(.black, in: shape)
+            CollapsedContent(info: slots[0].info, notchWidth: 200)
+                .frame(width: 272, height: 32)
+                .background(.black, in: shape)
+            FloatingCollapsedContent(info: slots[0].info, behind: slots[1].info)
+                .frame(width: 200, height: 36)
+                .background(.black, in: Capsule())
         }
         .padding(16)
     }

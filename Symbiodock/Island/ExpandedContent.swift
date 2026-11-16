@@ -1,17 +1,27 @@
 import SwiftUI
 import SymbiodockCore
 
-/// Track details and playback controls, or an idle message.
+/// Track details and playback controls, or an idle message. Two sources that play at the
+/// same time get a row each, with their own controls.
 struct ExpandedContent: View {
-    let info: NowPlayingInfo?
+    let slots: [NowPlayingSlot]
     /// Height of the notch; nothing can be shown behind it.
     let topInset: CGFloat
-    let onCommand: (PlaybackCommand) -> Void
+    let onCommand: (PlaybackCommand, NowPlayingOrigin) -> Void
 
     var body: some View {
         Group {
-            if let info {
-                track(info)
+            if slots.count > 1 {
+                VStack(spacing: 0) {
+                    ForEach(slots) { slot in
+                        row(slot).frame(maxHeight: .infinity)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 2)
+                .padding(.bottom, 8)
+            } else if let slot = slots.first {
+                track(slot)
             } else {
                 idle
             }
@@ -33,8 +43,9 @@ struct ExpandedContent: View {
 
     /// Three rows that share whatever height the island has: at the notch that is little,
     /// floating at an edge it is more, and the rows spread out instead of leaving a gap.
-    private func track(_ info: NowPlayingInfo) -> some View {
-        VStack(spacing: 0) {
+    private func track(_ slot: NowPlayingSlot) -> some View {
+        let info = slot.info
+        return VStack(spacing: 0) {
             HStack(spacing: 12) {
                 ArtworkView(data: info.artworkData, size: 40)
                 VStack(alignment: .leading, spacing: 2) {
@@ -55,12 +66,7 @@ struct ExpandedContent: View {
             ProgressRow(info: info)
             Spacer(minLength: 4)
             HStack(spacing: 30) {
-                control("backward.fill", size: 15, label: "Previous", command: .previous)
-                control(
-                    info.isPlaying ? "pause.fill" : "play.fill", size: 19,
-                    label: info.isPlaying ? "Pause" : "Play",
-                    command: .togglePlayPause)
-                control("forward.fill", size: 15, label: "Next", command: .next)
+                controls(slot, glyph: 15, width: 40)
             }
         }
         .padding(.horizontal, 20)
@@ -68,15 +74,56 @@ struct ExpandedContent: View {
         .padding(.bottom, 8)
     }
 
+    /// One of two sources: everything of `track` on a single line, the position as a thin
+    /// bar under the names.
+    private func row(_ slot: NowPlayingSlot) -> some View {
+        let info = slot.info
+        return HStack(spacing: 10) {
+            ArtworkView(data: info.artworkData, size: 34)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(info.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                Text(info.artist.isEmpty ? info.sourceName : info.artist)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .lineLimit(1)
+                ProgressRow(info: info, isCompact: true)
+                    .padding(.top, 3)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 2) {
+                controls(slot, glyph: 12, width: 30)
+            }
+            LevelBars(isPlaying: info.isPlaying)
+                .opacity(info.isPlaying ? 1 : 0.4)
+        }
+        .opacity(info.isPlaying ? 1 : 0.6)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(info.sourceName)
+    }
+
+    @ViewBuilder
+    private func controls(_ slot: NowPlayingSlot, glyph: CGFloat, width: CGFloat) -> some View {
+        let isPlaying = slot.info.isPlaying
+        control("backward.fill", size: glyph, width: width, label: "Previous", slot, .previous)
+        control(
+            isPlaying ? "pause.fill" : "play.fill", size: glyph + 4, width: width,
+            label: isPlaying ? "Pause" : "Play", slot, .togglePlayPause)
+        control("forward.fill", size: glyph, width: width, label: "Next", slot, .next)
+    }
+
     private func control(
-        _ symbol: String, size: CGFloat, label: String, command: PlaybackCommand
+        _ symbol: String, size: CGFloat, width: CGFloat, label: String,
+        _ slot: NowPlayingSlot, _ command: PlaybackCommand
     ) -> some View {
         Button {
-            onCommand(command)
+            onCommand(command, slot.origin)
         } label: {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
-                .frame(width: 40, height: 24)
+                .frame(width: width, height: 24)
                 .contentShape(Rectangle())
         }
         .buttonStyle(ControlButtonStyle())
@@ -98,6 +145,8 @@ private struct ControlButtonStyle: ButtonStyle {
 /// no position (a live stream): the rows around it then move closer together.
 private struct ProgressRow: View {
     let info: NowPlayingInfo
+    /// The bar alone, thinner and without the times.
+    var isCompact = false
 
     var body: some View {
         if info.isPlaying {
@@ -116,7 +165,7 @@ private struct ProgressRow: View {
            let elapsed = PlaybackProgress.elapsed(for: info, at: date),
            let duration = info.duration {
             HStack(spacing: 8) {
-                time(elapsed)
+                if !isCompact { time(elapsed) }
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
                         Capsule().fill(.white.opacity(0.16))
@@ -124,8 +173,8 @@ private struct ProgressRow: View {
                             .frame(width: max(proxy.size.width * fraction, 4))
                     }
                 }
-                .frame(height: 4)
-                time(duration)
+                .frame(height: isCompact ? 2.5 : 4)
+                if !isCompact { time(duration) }
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Playback position")

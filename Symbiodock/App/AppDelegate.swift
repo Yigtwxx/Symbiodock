@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var agents: AgentSessionCoordinator?
     private var terminationSignalSource: DispatchSourceSignal?
     private var wingsExpiry: Task<Void, Never>?
+    /// The paused sources the running `wingsExpiry` waits for.
+    private var wingsExpiryOrigins: Set<NowPlayingOrigin> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         #if DEBUG
@@ -24,8 +26,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let overlayController = OverlayController(
             state: state, contextMenu: islandMenu.menu,
-            onCommand: { [weak self] command in
-                self?.nowPlaying?.send(command)
+            onCommand: { [weak self] command, origin in
+                self?.nowPlaying?.send(command, to: origin)
             },
             onOpenSession: { session in
                 if let pid = session.hostAppPID { HostApp.bringForward(pid: pid) }
@@ -66,9 +68,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let nowPlaying = NowPlayingCoordinator(
             onUpdate: { [weak self] info in
                 self?.state.setNowPlaying(info)
-                self?.scheduleWingsExpiry(for: info)
-                // The collapsed hit rect depends on whether the wings are shown.
-                self?.overlayController?.refreshPointer()
+                self?.mediaDidChange()
+            },
+            onCompanionUpdate: { [weak self] info in
+                self?.state.setCompanionPlaying(info)
+                self?.mediaDidChange()
             },
             onMusicAccessChange: { [weak self] denied in
                 self?.islandMenu?.setMusicAccessNeeded(denied)
@@ -102,14 +106,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.agents = agents
     }
 
-    /// Hides the collapsed wings a while after playback pauses, unless it resumes first.
-    private func scheduleWingsExpiry(for info: NowPlayingInfo?) {
+    private func mediaDidChange() {
+        scheduleWingsExpiry()
+        // The collapsed hit rect depends on whether the wings are shown.
+        overlayController?.refreshPointer()
+    }
+
+    /// Hides the collapsed wings, and a second source, a while after they pause, unless
+    /// they resume first.
+    private func scheduleWingsExpiry() {
+        let paused = Set(state.mediaSlots.filter { !$0.info.isPlaying }.map(\.origin))
+        // A playing source reports often; that must not restart the wait of a paused one.
+        guard paused != wingsExpiryOrigins else { return }
+        wingsExpiryOrigins = paused
         wingsExpiry?.cancel()
         wingsExpiry = nil
-        guard let info, !info.isPlaying else { return }
+        guard !paused.isEmpty else { return }
         wingsExpiry = Task { [weak self] in
             try? await Task.sleep(for: WingsTiming.pausedGrace)
             guard !Task.isCancelled, let self else { return }
+            self.wingsExpiryOrigins = []
             self.state.pausedGraceElapsed()
             self.overlayController?.refreshPointer()
         }

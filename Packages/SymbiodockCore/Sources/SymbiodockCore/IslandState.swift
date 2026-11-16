@@ -35,7 +35,17 @@ public enum IslandDrag {
 @Observable
 public final class IslandState {
     public private(set) var phase: IslandPhase = .collapsed
-    public private(set) var nowPlaying: NowPlayingInfo?
+    /// What plays, the main track first. A second slot is a second source heard at the
+    /// same time; the collapsed island shows it peeking out behind the first.
+    public private(set) var mediaSlots: [NowPlayingSlot] = []
+    /// The main track: the one the collapsed island speaks for.
+    public var nowPlaying: NowPlayingInfo? { mediaSlots.first?.info }
+
+    private var systemPlaying: NowPlayingInfo?
+    private var companionPlaying: NowPlayingInfo?
+    /// A second source that stayed paused through its grace period: hidden until it plays
+    /// again, so a paused player does not sit behind the main track all day.
+    private var retiredOrigin: NowPlayingOrigin?
 
     /// Whether the media face is shown collapsed (artwork and level bars).
     /// True while something plays, and for a grace period after it pauses, so a
@@ -151,12 +161,34 @@ public final class IslandState {
         phase = .collapsed
     }
 
+    /// The system-wide source reported.
     public func setNowPlaying(_ info: NowPlayingInfo?) {
-        nowPlaying = info
-        if info == nil {
+        systemPlaying = info
+        mediaChanged(.system, info)
+    }
+
+    /// The player that is asked directly reported.
+    public func setCompanionPlaying(_ info: NowPlayingInfo?) {
+        companionPlaying = info
+        mediaChanged(.companion, info)
+    }
+
+    private func mediaChanged(_ origin: NowPlayingOrigin, _ info: NowPlayingInfo?) {
+        // Playing again, or gone: either way it is no longer the paused track that was hidden.
+        if retiredOrigin == origin, info?.isPlaying != false { retiredOrigin = nil }
+        refreshMediaSlots()
+    }
+
+    private func refreshMediaSlots() {
+        var slots = NowPlayingLineup.slots(system: systemPlaying, companion: companionPlaying)
+        // Only a second slot retires; alone, a paused track stays for the open island.
+        if slots.count == 2, slots[1].origin == retiredOrigin { slots.removeLast() }
+        // Assign only on change: every assignment redraws the island.
+        if slots != mediaSlots { mediaSlots = slots }
+        if let front = slots.first {
+            if front.info.isPlaying, !mediaWings { mediaWings = true }
+        } else if mediaWings {
             mediaWings = false
-        } else if info?.isPlaying == true {
-            mediaWings = true
         }
         // Paused: keep what is shown; `pausedGraceElapsed()` hides the wings later.
     }
@@ -165,6 +197,10 @@ public final class IslandState {
     public func pausedGraceElapsed() {
         if nowPlaying?.isPlaying != true {
             mediaWings = false
+        }
+        if mediaSlots.count == 2, !mediaSlots[1].info.isPlaying {
+            retiredOrigin = mediaSlots[1].origin
+            refreshMediaSlots()
         }
     }
 

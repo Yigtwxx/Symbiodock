@@ -5,7 +5,7 @@ struct IslandView: View {
     let state: IslandState
     let geometry: IslandGeometry
     let session: DragSession
-    let onCommand: (PlaybackCommand) -> Void
+    let onCommand: (PlaybackCommand, NowPlayingOrigin) -> Void
     let onOpenSession: (AgentSession) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -100,6 +100,8 @@ struct IslandView: View {
         let lead = state.board.lead
         // On the media face an agent that wants attention still gets its mark.
         let attention = state.board.attentionRow?.state
+        // A second source heard at the same time peeks out behind the main artwork.
+        let behind = state.mediaSlots.dropFirst().first?.info
         // A docked island never hides: with no face it shows the paused track if there is
         // one, otherwise the first tab's idle text. When the agents speak without a lead
         // (all idle or merely running) it shows the first session of the list; the idle
@@ -118,7 +120,7 @@ struct IslandView: View {
             case .media:
                 if let info = state.nowPlaying {
                     CollapsedContent(
-                        info: info, notchWidth: geometry.notch.width, attention: attention)
+                        info: info, behind: behind, notchWidth: geometry.notch.width, attention: attention)
                         .padding(.bottom, IslandLayout.notchLip)
                 }
             case .none:
@@ -134,7 +136,7 @@ struct IslandView: View {
             if agentsSpeak {
                 AgentFloatingFace(row: state.board.spokesperson)
             } else {
-                FloatingCollapsedContent(info: state.nowPlaying, attention: attention)
+                FloatingCollapsedContent(info: state.nowPlaying, behind: behind, attention: attention)
             }
         }
     }

@@ -18,7 +18,7 @@ final class OverlayController {
     private let geometry = IslandGeometry()
     private let session = DragSession()
     private let contextMenu: NSMenu
-    private let onCommand: (PlaybackCommand) -> Void
+    private let onCommand: (PlaybackCommand, NowPlayingOrigin) -> Void
     private let onOpenSession: (AgentSession) -> Void
     private var panel: OverlayPanel?
     private var metrics: ScreenMetrics?
@@ -39,7 +39,7 @@ final class OverlayController {
 
     init(
         state: IslandState, contextMenu: NSMenu,
-        onCommand: @escaping (PlaybackCommand) -> Void,
+        onCommand: @escaping (PlaybackCommand, NowPlayingOrigin) -> Void,
         onOpenSession: @escaping (AgentSession) -> Void
     ) {
         self.state = state

@@ -56,6 +56,7 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 | Pet parlaklığı | Gölgelendirme tabanı yükseltildi (en soluk ton %36), renkler biraz daha parlak (2026-11-15) | Sahibi: "renkleri bi tık daha parlatalım ama çok abartmadan" |
 | Bitiş efekti | Biten oturumun pet'i kapalı adada iPhone Face ID onayı gibi mühürlenir (köşe parantezleri kapanır, daireye döner, pet söner, nane yeşili ✓; 1,7 sn), sonra ada bırakır: kanatlar kapanır, kenar ışığı biter; listede `Done ✓` sekme açılana kadar kalır. Biten oturum, çalışan başka bir oturum olsa da efekt süresince yüzü alır. Müzik yüzünde sağdaki ✓ aynı süre görünür (2026-11-15) | Sahibi: "agentın işi bittiği zaman sol tarafta gözüken petin orada iphone face id onaylama efekti olsun ve öyle kapansın"; liste için B seçeneği ("öneriyi yap") (spec: `2026-11-15-finish-seal-and-compacting-design.md`) |
 | Compact göstergesi | Claude Code `/compact` yaparken adanın kenarında mor (`#BF5AF2`) kesikli çizgi saat yönünde döner, sağdaki işaret mor kesikli halka olur ve döner, pet'in dalgası yukarıdan aşağı akar; compact bitince hepsi gider, bitiş sayılmaz. Hook yok: transcript'in sonundaki başlangıç izi (mesajı henüz yazılmamış `file-history-snapshot`; eski sürümlerde düz `/compact` kaydı) ve oturum dosyasındaki `busy` okunur. Otomatik compact ve Codex algılanmaz (2026-11-15) | Sahibi: "mor bir şekilde kesikli çizgilerle loop şeklinde compact bitene kadar dönsün", "hem adanın etrafında gezsin kesikli çizgi hem sağdaki halka yerine gelsin compact bitince de gitsin"; aynı Mac'teki Vibe Island bunu `PreCompact` hook'uyla yapıyor, bu proje hook kullanmıyor |
+| İki kaynak aynı anda | Sistem kaynağının yanında Apple Music de çalıyorsa kapalı adada ikinci kapak ana kapağın arkasından sola taşar; açık adada `Media` sekmesinde iki kaynak alt alta, her biri kendi tuşlarıyla. Kapaklar her zaman daire. Duraklatılan ikinci kaynak 10 sn sonra gizlenir. İkinci kaynak yalnızca Apple Music olabilir: sistem tek kaynak bildiriyor (2026-11-16) | Sahibi: "kickin arkasında apple music de gözüksün", "kare değil de yuvarlak düşündüm... adanın üstüne gelince alt alta ikisi de gözüksün" (spec: `2026-11-16-two-sources-design.md`) |
 | Mimari | Spec bölüm 4-5 | Sahibi onayladı |
 | Proje üretimi | XcodeGen (`project.yml`), `.xcodeproj` commit edilmez | Komut satırından üretilebilir ve diff'i okunur |
 | Kod yerleşimi | Saf mantık `Packages/SymbiodockCore` paketinde, AppKit/SwiftUI app hedefinde | Mantık uygulama açılmadan `swift test` ile test edilir |
@@ -133,6 +134,11 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
   Canlı ekranda görülemedi: ekran görüntüleri tamamen siyah geldi (ekran kapalıydı ya da ekran
   kaydı izni yok); canlı görünüm sahibinin elle kontrolüne kaldı. Elle kontrol listesi
   `docs/superpowers/plans/2026-11-15-finish-seal-and-compacting.md` sonunda (12 madde).
+- **İki kaynak aynı anda (2026-11-16): kod `main`'de, sahibi "bi yap bakalım ayarlarız" dedi.** 408
+  çekirdek testi geçiyor. Ekran dışı görüntülerde doğrulandı (`expanded-media-two.png`,
+  `collapsed-media-two.png`); canlıda gerçek Kick + Apple Music ile denenmedi, ölçüler sahibinin
+  ayarına açık. Apple Music artık her açılışta ayrıca soruluyor: Automation izni ilk kez burada
+  istenebilir. Deneme: `SYMBIODOCK_DEMO_MEDIA=2`.
 - Xcode 27.2 ve XcodeGen 2.45.4 kurulu, `xcode-select` ile seçili.
 
 ## "Yapılacakları yap" denince

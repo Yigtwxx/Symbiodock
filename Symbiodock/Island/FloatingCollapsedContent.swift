@@ -6,12 +6,14 @@ import SymbiodockCore
 /// With nothing playing it still says what it is, because a docked island never hides.
 struct FloatingCollapsedContent: View {
     let info: NowPlayingInfo?
+    /// A second source that plays at the same time.
+    var behind: NowPlayingInfo?
     var attention: AgentRowState?
 
     var body: some View {
         HStack(spacing: 8) {
             if let info {
-                ArtworkView(data: info.artworkData, size: 22)
+                ArtworkStack(front: info.artworkData, behind: behind, size: 22)
                 Text(info.title)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.white)
