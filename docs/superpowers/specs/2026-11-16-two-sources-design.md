@@ -16,7 +16,8 @@ ayırt edilemez.
 
 ## Davranış
 
-- Kapaklar her zaman daire (tek kaynakta da).
+- Kapaklar eskisi gibi yuvarlatılmış kare. Daire denendi; sahibi küçük buldu: "yuvarlak gibi
+  düşündüm derken... mantığı anla diye öyle dedim, önceki gibi gözüksün daha büyük duruyordu".
 - Kapalı ada (çentik ve yüzen kapsül): ana kapağın arkasında ikinci kaynağın kapağı, %84
   boyda, %70 opaklıkta, solundan boyun %36'sı kadar taşar. Yan kenar şeridi değişmez.
 - Açık ada, `Media` sekmesi: iki kaynak varken her biri kendi satırında (34 pt kapak, başlık,

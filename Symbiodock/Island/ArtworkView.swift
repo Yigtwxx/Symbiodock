@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import SymbiodockCore
 
-/// Album artwork as a disc, or a music glyph when there is none.
+/// Album artwork, or a music glyph when there is none.
 struct ArtworkView: View {
     let data: Data?
     let size: CGFloat
@@ -23,10 +23,11 @@ struct ArtworkView: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(Circle())
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
         // A hairline keeps dark artwork from melting into the black island.
         .overlay {
-            Circle().strokeBorder(.white.opacity(0.1), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                .strokeBorder(.white.opacity(0.1), lineWidth: 0.5)
         }
         .accessibilityHidden(true)
     }
@@ -52,8 +53,12 @@ struct ArtworkStack: View {
                     .transition(.opacity.combined(with: .offset(x: peek)))
             }
             ArtworkView(data: front, size: size)
-                // A black ring separates the two discs where they overlap.
-                .background { Circle().fill(.black).padding(behind == nil ? 0 : -1.5) }
+                // A black rim separates the two where they overlap.
+                .background {
+                    RoundedRectangle(cornerRadius: size * 0.22 + 1.5, style: .continuous)
+                        .fill(.black)
+                        .padding(behind == nil ? 0 : -1.5)
+                }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: behind != nil)
     }
