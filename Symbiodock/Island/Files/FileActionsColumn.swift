@@ -26,8 +26,9 @@ struct FileActionsColumn: View {
         VStack(alignment: .leading, spacing: 0) {
             titleRow
             infoLine
-            if let conversion = items.lazy.compactMap({ conversions[$0.id] }).first {
-                converting(conversion)
+            let converting = ids.filter { conversions[$0] != nil }
+            if let first = converting.first, let label = conversions[first]?.label {
+                progress(label: label, ids: converting)
             } else {
                 chips
             }
@@ -152,15 +153,19 @@ struct FileActionsColumn: View {
         return .other
     }
 
+    /// In the chips' place while selected files convert; `ids` are those files, until each is
+    /// an ordinary tile again.
     @ViewBuilder
-    private func converting(_ conversion: FileConversion) -> some View {
-        Text("Converting to \(conversion.label)…")
+    private func progress(label: String, ids: [UUID]) -> some View {
+        Text(ConversionBatch.progressText(label: label, files: ids.count))
             .font(.system(size: 10, weight: .medium))
             .foregroundStyle(.white.opacity(0.7))
             .lineLimit(1)
+            // A two-digit count with a long label can be a little wider than the panel.
+            .minimumScaleFactor(0.85)
             .padding(.top, 10)
             .padding(.bottom, 6)
-        Button("Cancel") { onRequest(.cancel(ids.filter { conversions[$0] != nil })) }
+        Button("Cancel") { onRequest(.cancel(ids)) }
             .buttonStyle(ChipStyle(color: .white))
             .frame(width: 64)
     }

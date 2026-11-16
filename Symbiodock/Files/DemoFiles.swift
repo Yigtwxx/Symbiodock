@@ -4,14 +4,18 @@ import SymbiodockCore
 
 /// A fixed shelf for looking at the Files tab without dropping anything:
 /// `open --env SYMBIODOCK_DEMO_FILES=1 build/Build/Products/Debug/Symbiodock.app`.
-/// A drawer of three documents, picked whole, then five lone files. `converting` picks the
-/// photo instead and starts a conversion of it. The files are not there: their pictures and
-/// sizes are made here, and a demo shelf is never saved.
+/// A drawer of three documents, picked whole, then five lone files. `converting` then presses
+/// `PDF` for the drawer: its two documents pretend to become PDFs and the column says
+/// `Slides.pptx can't become PDF`. The files are not there: their pictures and sizes are made
+/// here, and a demo shelf is never saved.
 ///
 /// `SYMBIODOCK_CONVERT=<path> SYMBIODOCK_CONVERT_TO=<chip label>` runs one conversion without
 /// the island, prints `converted: <path>` or `failed: <message>` and exits 0 / 1 (see
 /// `ConvertHook`). Several paths separated by `:` with `ZIP` call `archive`.
 /// `SYMBIODOCK_CONVERT_CANCEL_AFTER=<seconds>` cancels it part way.
+///
+/// `SYMBIODOCK_FLOW=<path>:<path>… SYMBIODOCK_FLOW_TO=<chip label>` plays a press of the chip
+/// through the shelf's whole flow without the island and prints what changes (see `FlowHook`).
 ///
 /// `SYMBIODOCK_ADD_FILE=<path>` puts that file on the real shelf at launch, as a drop would:
 /// run once with it, quit, run again without it, and the log line "restored 1 items" (category
@@ -30,17 +34,16 @@ enum DemoFiles {
         }
     }
 
-    static func apply(_ set: String, to state: IslandState, previews: FilePreviews, now: Date = Date()) {
+    /// Lays out the demo shelf; for `converting`, returns the chip press to play on it.
+    @discardableResult
+    static func apply(_ set: String, to state: IslandState, previews: FilePreviews) -> FileRequest? {
         let drawer = UUID()
         let stacked = ["Report.docx", "Notes.docx", "Slides.pptx"].map { item($0, stack: drawer) }
         let lone = ["Holiday.heic", "Invoice.pdf", "Mix.wav", "Clip.mov", "Photos/"].map { item($0) }
         state.restoreShelf(stacked + lone)
         state.selectShelfItems(stacked.map(\.id))
         stage(state.shelf.items, in: previews)
-        if set == "converting", let photo = lone.first {
-            state.selectShelfItems([photo.id])
-            state.beginConversion(photo.id, label: "PNG", at: now)
-        }
+        return set == "converting" ? .convert(stacked.map(\.id), label: "PDF") : nil
     }
 
     /// A file on a desktop that does not exist; a trailing slash makes a folder.
@@ -262,6 +265,126 @@ enum ConvertHook {
             exit(line.hasPrefix("converted") ? 0 : 1)
         }
         return true
+    }
+}
+
+/// Plays a press of a chip through the shelf's flow headless and exits by itself: what a tile
+/// goes through, without the island to watch it. The files go on a shelf of its own (several
+/// make one stack, as a drop would); the saved shelf is not touched. One line per change the
+/// island would show, with seconds since the press: `begin <name>`, `reveal <name> -> <name
+/// the tile shows now>`, `leave <name>`, `notice <text>`, `end <name>`; once no conversion is
+/// left, `shelf: <names>`, and exit 0. `SYMBIODOCK_FLOW_CANCEL_AFTER=<seconds>` presses Cancel;
+/// `SYMBIODOCK_FLOW_APART=1` puts each file on a tile of its own (the last one given in front).
+/// `SYMBIODOCK_FLOW=demo` plays the `converting` demo instead, without a chip.
+@MainActor
+enum FlowHook {
+    /// Kept alive until the process exits: the batches hold their coordinator weakly.
+    private static var running: (ShelfCoordinator, FlowPrinter)?
+
+    /// True when the hook took over: the caller must not build the island.
+    static func runIfRequested() -> Bool {
+        let environment = ProcessInfo.processInfo.environment
+        guard let paths = environment["SYMBIODOCK_FLOW"],
+            paths == "demo" || environment["SYMBIODOCK_FLOW_TO"] != nil
+        else { return false }
+        let state = IslandState()
+        let previews = FilePreviews()
+        let shelf = ShelfCoordinator(
+            state: state, previews: previews,
+            converter: FileConverter(runner: ToolRunner(helpers: HelperProcesses())))
+        shelf.persists = false
+        let request: FileRequest?
+        if paths == "demo" {
+            shelf.isDemo = true
+            request = DemoFiles.apply("converting", to: state, previews: previews)
+        } else {
+            let urls = paths.split(separator: ":").map { URL(fileURLWithPath: String($0)) }
+            if environment["SYMBIODOCK_FLOW_APART"] == "1" {
+                urls.forEach { shelf.add([$0]) }
+            } else {
+                shelf.add(urls)
+            }
+            request = environment["SYMBIODOCK_FLOW_TO"].map { .convert(state.shelf.items.map(\.id), label: $0) }
+        }
+        let printer = FlowPrinter(state: state)
+        running = (shelf, printer)
+        printer.watch()
+        if let request { shelf.handle(request) }
+        // Nothing covered and nothing said: no change will come to end the run.
+        if state.conversions.isEmpty { Task { printer.changed() } }
+        if let after = environment["SYMBIODOCK_FLOW_CANCEL_AFTER"].flatMap(Double.init) {
+            Task {
+                try? await Task.sleep(for: .seconds(after))
+                shelf.handle(.cancel(state.shelf.items.map(\.id)))
+            }
+        }
+        return true
+    }
+}
+
+/// Prints the changes of the shelf's state as `FlowHook` describes them.
+@MainActor
+private final class FlowPrinter {
+    private let state: IslandState
+    private let start = Date()
+    /// What was printed last: the conversions, the files with the names they showed, the notice.
+    private var conversions: [UUID: FileConversion] = [:]
+    private var shown: [(id: UUID, name: String)]
+    private var notice: ShelfNotice?
+
+    init(state: IslandState) {
+        self.state = state
+        shown = state.shelf.items.map { ($0.id, Self.name($0)) }
+        notice = state.shelfNotice
+    }
+
+    func watch() {
+        withObservationTracking {
+            _ = state.conversions
+            _ = state.shelf
+            _ = state.shelfNotice
+        } onChange: { [weak self] in
+            // Told before the change: look once the change is made.
+            Task { @MainActor in self?.changed() }
+        }
+    }
+
+    func changed() {
+        let now = state.conversions
+        let held = Dictionary(state.shelf.items.map { ($0.id, Self.name($0)) }) { first, _ in first }
+        var lines: [String] = []
+        for (id, name) in shown {
+            if let conversion = now[id], conversions[id] == nil {
+                lines.append(line(at: conversion.started, "begin \(name)"))
+            }
+        }
+        for (id, name) in shown {
+            guard let opened = now[id]?.revealStarted, conversions[id]?.revealStarted == nil else { continue }
+            let showing = held[id].map { $0 == name ? "unchanged" : $0 } ?? "gone"
+            lines.append(line(at: opened, "reveal \(name) -> \(showing)"))
+        }
+        for (id, name) in shown where held[id] == nil { lines.append(line(at: Date(), "leave \(name)")) }
+        if let next = state.shelfNotice, next != notice { lines.append(line(at: Date(), "notice \(next.text)")) }
+        for (id, name) in shown where conversions[id] != nil && now[id] == nil && held[id] != nil {
+            lines.append(line(at: Date(), "end \(name)"))
+        }
+        lines.forEach { print($0) }
+        conversions = now
+        shown = state.shelf.items.map { ($0.id, Self.name($0)) }
+        notice = state.shelfNotice
+        guard now.isEmpty else { return watch() }
+        print("shelf: " + shown.map(\.name).joined(separator: ", "))
+        fflush(stdout)
+        exit(0)
+    }
+
+    private func line(at date: Date, _ text: String) -> String {
+        String(format: "%6.3f ", date.timeIntervalSince(start)) + text
+    }
+
+    /// A folder ends in "/", as it would in a listing.
+    private static func name(_ item: ShelfItem) -> String {
+        item.isDirectory ? item.name + "/" : item.name
     }
 }
 #endif

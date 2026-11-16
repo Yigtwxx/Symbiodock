@@ -18,7 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         #if DEBUG
         DebugRender.runIfRequested()
-        if ConvertHook.runIfRequested() { return }
+        if ConvertHook.runIfRequested() || FlowHook.runIfRequested() { return }
         #endif
         installTerminationHandler()
 
@@ -101,16 +101,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         shelf?.stop()
     }
 
-    /// Brings the shelf back, or lays out a demo one; the menu's `Clear Files` empties it.
+    /// Brings the shelf back, or lays out a demo one; the menu's `Clear Files` empties it. The
+    /// tools its conversions run are stopped with it, on quit.
     private func startShelf(islandMenu: IslandMenu) {
-        let shelf = ShelfCoordinator(state: state, previews: previews)
+        let converter = FileConverter(runner: ToolRunner(helpers: HelperProcesses()))
+        let shelf = ShelfCoordinator(state: state, previews: previews, converter: converter)
         self.shelf = shelf
         islandMenu.hasFiles = { [weak self] in !(self?.state.shelf.isEmpty ?? true) }
         islandMenu.onClearFiles = { [weak shelf] in shelf?.clear() }
         #if DEBUG
         if let demo = DemoFiles.requested {
             shelf.isDemo = true
-            DemoFiles.apply(demo, to: state, previews: previews)
+            if let request = DemoFiles.apply(demo, to: state, previews: previews) {
+                shelf.handle(request)
+            }
             return
         }
         #endif
