@@ -48,8 +48,10 @@ final class OverlayController {
     var fileURL: (UUID) -> URL? = { _ in nil }
     /// What the dragged file looks like under the pointer.
     var dragImage: (UUID) -> NSImage? = { _ in nil }
-    /// The tile a press went down on, until the press travels or comes up.
-    private var pressedFileID: UUID?
+    /// A click without travel on a stack: which stack, where on it, and whether ⌘ was held.
+    var onPickFile: (_ stack: UUID, StackLayout.Hit, _ command: Bool) -> Void = { _, _, _ in }
+    /// The stack a press went down on, until the press travels or comes up.
+    private var pressedStackID: UUID?
     /// The tile whose file is being dragged out, until the drag ends.
     private var outgoingFileID: UUID?
     /// Kept for the session: AppKit does not promise to keep its source alive.
@@ -250,7 +252,7 @@ final class OverlayController {
                 return
             }
             pressLocation = nil
-            pressedFileID = nil
+            pressedStackID = nil
         }
 
         let hitRect = IslandLayout.hitRect(
@@ -266,6 +268,7 @@ final class OverlayController {
         // Assign only on change: this runs on every mouse move system-wide.
         setAcceptsMouse(takesDrop)
         endStaleFileDragHover(onTarget: takesDrop)
+        updateFileHover(at: local, onIsland: hitRect.contains(local))
 
         guard inside != pointerInside else { return }
         pointerInside = inside
@@ -324,13 +327,13 @@ final class OverlayController {
             // past its edge; it only never becomes a drag of the island.
             pressAllowsDrag = !(state.phase == .expanded
                 && geometry.noDragRects.values.contains { $0.contains(point) })
-            pressedFileID = pressLocation.flatMap(fileTile(at:))
-            // A press on a tile drags its file, never the island.
-            if pressedFileID != nil { pressAllowsDrag = false }
+            pressedStackID = pressLocation.flatMap(pressedStack(at:))
+            // A press on a stack drags its files, never the island.
+            if pressedStackID != nil { pressAllowsDrag = false }
         case .leftMouseDragged:
             if state.isDragging {
                 continueDrag(to: point)
-            } else if pressedFileID != nil {
+            } else if pressedStackID != nil {
                 continueFilePress(to: point, event: event)
             } else if let press = pressLocation, pressAllowsDrag, isIdle,
                       hypot(point.x - press.x, point.y - press.y) > Self.dragThreshold {
@@ -341,7 +344,7 @@ final class OverlayController {
                 continueDrag(to: point)
             }
         case .leftMouseUp:
-            releaseFilePress(at: point)
+            releaseFilePress(at: point, command: event.modifierFlags.contains(.command))
             let wasPressed = pressLocation != nil
             pressLocation = nil
             if state.isDragging {
@@ -439,7 +442,7 @@ final class OverlayController {
         settleTask = nil
         settleDeadline = nil
         pressLocation = nil
-        pressedFileID = nil
+        pressedStackID = nil
         state.cancelDrag()
     }
 }
@@ -527,40 +530,64 @@ extension OverlayController {
 // MARK: - Dragging files out
 
 extension OverlayController {
-    /// The tile under a press on the open Files page, unless it is scrolled out of view.
-    private func fileTile(at point: CGPoint) -> UUID? {
-        guard state.phase == .expanded, state.selectedTab == .files else { return nil }
-        let id = geometry.fileDragViewport.contains(point)
-            ? geometry.fileDragRects.first { $0.value.contains(point) }?.key : nil
+    /// The stack whose box holds a panel-local point on the open Files page, unless it is
+    /// scrolled out of view.
+    private func stackBox(at point: CGPoint) -> (id: UUID, box: CGRect)? {
+        guard state.phase == .expanded, state.selectedTab == .files,
+              geometry.fileDragViewport.contains(point),
+              let (id, box) = geometry.fileDragRects.first(where: { $0.value.contains(point) })
+        else { return nil }
+        return (id, box)
+    }
+
+    /// Where on its stack a panel-local point lands; nil off every card.
+    private func shelfHit(at point: CGPoint) -> ShelfHover? {
+        guard let (id, box) = stackBox(at: point), let stack = state.shelf.stack(id),
+              let hit = StackLayout.hit(
+                  CGPoint(x: point.x - box.minX, y: point.y - box.minY), count: stack.items.count)
+        else { return nil }
+        return ShelfHover(stack: id, hit: hit)
+    }
+
+    /// While the open island shows Files and no button is down, the card under the pointer
+    /// rises; anywhere else nothing does. The state assigns only on change, and this runs on
+    /// every pointer move and poll.
+    private func updateFileHover(at point: CGPoint, onIsland: Bool) {
+        let resting = onIsland && NSEvent.pressedMouseButtons & 1 == 0
+        state.setHoveredFile(resting ? shelfHit(at: point) : nil)
+    }
+
+    /// The stack under a press on the open Files page.
+    private func pressedStack(at point: CGPoint) -> UUID? {
+        let id = stackBox(at: point)?.id
         FileDragSource.log.debug(
-            "press on the Files page; on a tile: \(id != nil), tiles: \(self.geometry.fileDragRects.count), in row: \(self.geometry.fileDragViewport.contains(point))")
+            "press on the Files page; on a stack: \(id != nil), stacks: \(self.geometry.fileDragRects.count), in row: \(self.geometry.fileDragViewport.contains(point))")
         return id
     }
 
-    /// Past the threshold a press on a tile becomes a drag of its file, once. A tile whose file
-    /// is converting stays where it is, and the press is no longer a click.
+    /// Past the threshold a press on a stack becomes a drag of its front file, once. A file
+    /// that is converting stays where it is, and the press is no longer a click.
     private func continueFilePress(to point: CGPoint, event: NSEvent) {
-        guard let id = pressedFileID, let press = pressLocation,
+        guard let id = pressedStackID, let press = pressLocation,
               hypot(point.x - press.x, point.y - press.y) > Self.dragThreshold else { return }
-        pressedFileID = nil
-        guard beginFileDrag(id, event: event) else { return }
+        pressedStackID = nil
+        guard beginFileDrag(fromStack: id, event: event) else { return }
         // Held, the press would keep the full-screen panel taking events, and it would swallow
         // the drop meant for the app below.
         pressLocation = nil
         refreshPointer()
     }
 
-    private func beginFileDrag(_ id: UUID, event: NSEvent) -> Bool {
-        guard let view = panel?.contentView, let url = fileURL(id),
-              let tile = geometry.fileDragRects[id] else {
-            FileDragSource.log.notice("file drag not started: the tile has no file to give")
+    private func beginFileDrag(fromStack stackID: UUID, event: NSEvent) -> Bool {
+        guard let view = panel?.contentView, let stack = state.shelf.stack(stackID),
+              let url = fileURL(stack.front.id), let box = geometry.fileDragRects[stackID] else {
+            FileDragSource.log.notice("file drag not started: the stack has no file to give")
             return false
         }
+        let id = stack.front.id
         let item = NSDraggingItem(pasteboardWriter: url as NSURL)
-        // The preview sits 6 pt below the tile's top edge (`FileTile`).
-        let preview = CGRect(x: tile.midX - 24, y: tile.minY + 6, width: 48, height: 48)
-        item.setDraggingFrame(
-            preview, contents: dragImage(id) ?? NSWorkspace.shared.icon(forFile: url.path))
+        let image = dragImage(id) ?? NSWorkspace.shared.icon(forFile: url.path)
+        item.setDraggingFrame(dragFrame(for: image, onFrontOf: stack, in: box), contents: image)
         let source = FileDragSource(
             onMoved: { [weak self] in self?.refreshPointer() },
             onEnded: { [weak self] dropped in self?.fileDragEnded(dropped: dropped) })
@@ -581,12 +608,28 @@ extension OverlayController {
         refreshPointer()
     }
 
-    /// A press on a tile that never travelled is a click: it selects the tile.
-    private func releaseFilePress(at point: CGPoint) {
-        guard let id = pressedFileID else { return }
-        pressedFileID = nil
-        guard geometry.fileDragRects[id]?.contains(point) == true else { return }
-        state.selectShelfItems([id])
+    /// The dragged image starts where the front card's picture is, 48 pt on its longer side
+    /// and not stretched, so it seems to lift off the card.
+    private func dragFrame(for image: NSImage, onFrontOf stack: ShelfStack, in box: CGRect) -> CGRect {
+        let card = StackLayout.cards(count: stack.items.count)[0]
+            .offsetBy(dx: box.minX, dy: box.minY)
+        let picture = CGRect(
+            x: card.minX, y: card.minY, width: card.width, height: card.height - FileCard.labelHeight)
+        let side: CGFloat = 48
+        let scale = side / max(image.size.width, image.size.height, 1)
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        return CGRect(
+            x: picture.midX - size.width / 2, y: picture.midY - size.height / 2,
+            width: size.width, height: size.height)
+    }
+
+    /// A press on a stack that never travelled is a click: it picks what it lands on, if that
+    /// is still on the same stack.
+    private func releaseFilePress(at point: CGPoint, command: Bool) {
+        guard let id = pressedStackID else { return }
+        pressedStackID = nil
+        guard let landed = shelfHit(at: point), landed.stack == id else { return }
+        onPickFile(id, landed.hit, command)
     }
 }
 

@@ -1,11 +1,12 @@
 #if DEBUG
-import Foundation
+import AppKit
 import SymbiodockCore
 
 /// A fixed shelf for looking at the Files tab without dropping anything:
 /// `open --env SYMBIODOCK_DEMO_FILES=1 build/Build/Products/Debug/Symbiodock.app`.
-/// `converting` also starts a conversion of the selected item. The files are not there, and
-/// a demo shelf is never saved.
+/// A drawer of three documents, picked whole, then five lone files. `converting` picks the
+/// photo instead and starts a conversion of it. The files are not there: their pictures and
+/// sizes are made here, and a demo shelf is never saved.
 ///
 /// `SYMBIODOCK_CONVERT=<path> SYMBIODOCK_CONVERT_TO=<chip label>` runs one conversion without
 /// the island, prints `converted: <path>` or `failed: <message>` and exits 0 / 1 (see
@@ -29,17 +30,184 @@ enum DemoFiles {
         }
     }
 
-    static func apply(_ set: String, to state: IslandState, now: Date = Date()) {
-        let desktop = URL(fileURLWithPath: "/Users/demo/Desktop", isDirectory: true)
-        let names: [(String, Bool)] = [
-            ("Holiday.heic", false), ("Report.docx", false), ("Invoice.pdf", false),
-            ("Mix.wav", false), ("Clip.mov", false), ("Photos", true),
-        ]
-        state.restoreShelf(
-            names.map { ShelfItem(url: desktop.appendingPathComponent($0.0), isDirectory: $0.1) })
-        if set == "converting", let id = state.shelf.selectedID {
-            state.beginConversion(id, label: "PNG", at: now)
+    static func apply(_ set: String, to state: IslandState, previews: FilePreviews, now: Date = Date()) {
+        let drawer = UUID()
+        let stacked = ["Report.docx", "Notes.docx", "Slides.pptx"].map { item($0, stack: drawer) }
+        let lone = ["Holiday.heic", "Invoice.pdf", "Mix.wav", "Clip.mov", "Photos/"].map { item($0) }
+        state.restoreShelf(stacked + lone)
+        state.selectShelfItems(stacked.map(\.id))
+        stage(state.shelf.items, in: previews)
+        if set == "converting", let photo = lone.first {
+            state.selectShelfItems([photo.id])
+            state.beginConversion(photo.id, label: "PNG", at: now)
         }
+    }
+
+    /// A file on a desktop that does not exist; a trailing slash makes a folder.
+    static func item(_ name: String, stack: UUID? = nil) -> ShelfItem {
+        let isDirectory = name.hasSuffix("/")
+        let desktop = URL(fileURLWithPath: "/Users/demo/Desktop", isDirectory: true)
+        return ShelfItem(
+            url: desktop.appendingPathComponent(name.trimmingCharacters(in: ["/"])),
+            isDirectory: isDirectory, stack: stack)
+    }
+
+    /// What real files would show: a photo, two pages, and plausible sizes (none for a folder).
+    static func stage(_ items: [ShelfItem], in previews: FilePreviews) {
+        for item in items {
+            previews.stage(item, image: DemoPictures.image(for: item.name), bytes: sizes[item.name])
+        }
+    }
+
+    private static let sizes: [String: Int64] = [
+        "Report.docx": 1_240_000, "Notes.docx": 86_000, "Slides.pptx": 2_810_000,
+        "Holiday.heic": 3_420_000, "Invoice.pdf": 248_000, "Mix.wav": 31_700_000,
+        "Clip.mov": 58_200_000, "Archive.zip": 12_400_000,
+    ]
+}
+
+/// Pictures drawn in code for demo files: a sunset photo, a report's page, an invoice. Drawn
+/// at whatever scale they are shown, so they are as sharp as real thumbnails.
+private enum DemoPictures {
+    static func image(for name: String) -> NSImage? {
+        switch name {
+        case "Holiday.heic": photo
+        case "Report.docx": page(drawReport)
+        case "Invoice.pdf": page(drawInvoice)
+        default: nil
+        }
+    }
+
+    private static func rgb(_ red: CGFloat, _ green: CGFloat, _ blue: CGFloat, _ alpha: CGFloat = 1)
+        -> NSColor
+    {
+        NSColor(srgbRed: red / 255, green: green / 255, blue: blue / 255, alpha: alpha)
+    }
+
+    /// A sun low over the sea, a headland on the left.
+    private static var photo: NSImage {
+        NSImage(size: CGSize(width: 160, height: 120), flipped: false) { rect in
+            let horizon = rect.height * 0.36
+            let sky = CGRect(x: 0, y: horizon, width: rect.width, height: rect.height - horizon)
+            NSGradient(
+                colors: [rgb(255, 205, 140), rgb(245, 130, 105), rgb(150, 80, 140), rgb(40, 44, 110)],
+                atLocations: [0, 0.22, 0.58, 1], colorSpace: .sRGB)?
+                .draw(in: sky, angle: 90)
+            let sun = CGPoint(x: rect.width * 0.63, y: horizon + 15)
+            NSGradient(starting: rgb(255, 225, 170, 0.9), ending: rgb(255, 160, 110, 0))?
+                .draw(fromCenter: sun, radius: 0, toCenter: sun, radius: 52, options: [])
+            rgb(255, 240, 205).setFill()
+            NSBezierPath(ovalIn: CGRect(x: sun.x - 11, y: sun.y - 11, width: 22, height: 22)).fill()
+            NSGradient(starting: rgb(22, 30, 70), ending: rgb(85, 70, 120))?
+                .draw(in: CGRect(x: 0, y: 0, width: rect.width, height: horizon), angle: 90)
+            // The sun's path on the water: shorter, fainter streaks towards the shore.
+            for step in 0..<8 {
+                let width = 30 - CGFloat(step) * 3
+                let y = horizon - 3 - CGFloat(step) * 5
+                rgb(255, 215, 160, 0.75 - CGFloat(step) * 0.08).setFill()
+                NSBezierPath(
+                    roundedRect: CGRect(x: sun.x - width / 2, y: y, width: width, height: 1.6),
+                    xRadius: 0.8, yRadius: 0.8
+                ).fill()
+            }
+            let land = NSBezierPath()
+            land.move(to: CGPoint(x: 0, y: horizon - 4))
+            land.line(to: CGPoint(x: 0, y: horizon + 26))
+            land.curve(
+                to: CGPoint(x: 46, y: horizon + 6), controlPoint1: CGPoint(x: 18, y: horizon + 30),
+                controlPoint2: CGPoint(x: 30, y: horizon + 10))
+            land.curve(
+                to: CGPoint(x: 70, y: horizon), controlPoint1: CGPoint(x: 56, y: horizon + 3),
+                controlPoint2: CGPoint(x: 62, y: horizon + 1))
+            land.line(to: CGPoint(x: 0, y: horizon - 4))
+            rgb(28, 22, 48).setFill()
+            land.fill()
+            return true
+        }
+    }
+
+    /// A white sheet in A4 proportions; `content` draws on it with the origin at the top-left.
+    private static func page(_ content: @escaping @Sendable (CGRect) -> Void) -> NSImage {
+        NSImage(size: CGSize(width: 85, height: 120), flipped: true) { rect in
+            NSColor.white.setFill()
+            rect.fill()
+            content(rect.insetBy(dx: 9, dy: 10))
+            return true
+        }
+    }
+
+    private static func bar(_ x: CGFloat, _ y: CGFloat, _ width: CGFloat, _ height: CGFloat, _ color: NSColor) {
+        color.setFill()
+        NSBezierPath(
+            roundedRect: CGRect(x: x, y: y, width: width, height: height),
+            xRadius: height / 2, yRadius: height / 2
+        ).fill()
+    }
+
+    /// A title, a figure and paragraphs of grey lines.
+    private static func drawReport(_ area: CGRect) {
+        let ink = rgb(60, 60, 67)
+        let text = rgb(199, 199, 204)
+        bar(area.minX, area.minY, area.width * 0.62, 5, ink)
+        bar(area.minX, area.minY + 9, area.width * 0.38, 3, rgb(10, 132, 255, 0.8))
+        var y = area.minY + 19
+        for width in [1, 0.94, 0.98, 0.7] as [CGFloat] {
+            bar(area.minX, y, area.width * width, 2.2, text)
+            y += 5
+        }
+        y += 3
+        rgb(229, 229, 234).setFill()
+        NSBezierPath(
+            roundedRect: CGRect(x: area.minX, y: y, width: area.width, height: 26), xRadius: 2,
+            yRadius: 2
+        ).fill()
+        for (index, height) in [10, 16, 13, 21, 18].enumerated() {
+            rgb(10, 132, 255, 0.55).setFill()
+            CGRect(
+                x: area.minX + 6 + CGFloat(index) * 11, y: y + 26 - 3 - CGFloat(height), width: 6,
+                height: CGFloat(height)
+            ).fill()
+        }
+        y += 32
+        for width in [0.96, 1, 0.9, 0.97, 0.6, 0.93, 0.85] as [CGFloat] where y < area.maxY {
+            bar(area.minX, y, area.width * width, 2.2, text)
+            y += 5
+        }
+    }
+
+    /// A logo and a heading, two addresses, a table of items and a total.
+    private static func drawInvoice(_ area: CGRect) {
+        let ink = rgb(60, 60, 67)
+        let text = rgb(199, 199, 204)
+        rgb(255, 69, 58).setFill()
+        NSBezierPath(
+            roundedRect: CGRect(x: area.minX, y: area.minY, width: 11, height: 11), xRadius: 3,
+            yRadius: 3
+        ).fill()
+        bar(area.maxX - area.width * 0.42, area.minY + 1, area.width * 0.42, 5, ink)
+        bar(area.maxX - area.width * 0.26, area.minY + 9, area.width * 0.26, 2.2, text)
+        var y = area.minY + 20
+        for width in [0.4, 0.32, 0.36] as [CGFloat] {
+            bar(area.minX, y, area.width * width, 2.2, text)
+            bar(area.maxX - area.width * width, y, area.width * width, 2.2, text)
+            y += 4.5
+        }
+        y += 6
+        rgb(242, 242, 247).setFill()
+        CGRect(x: area.minX, y: y, width: area.width, height: 7).fill()
+        bar(area.minX + 2, y + 2.4, area.width * 0.3, 2.2, rgb(142, 142, 147))
+        y += 11
+        for width in [0.5, 0.42, 0.56, 0.38, 0.47] as [CGFloat] {
+            bar(area.minX + 2, y, area.width * width, 2.2, text)
+            bar(area.maxX - 14, y, 12, 2.2, text)
+            y += 4
+            rgb(229, 229, 234).setFill()
+            CGRect(x: area.minX, y: y, width: area.width, height: 0.5).fill()
+            y += 3
+        }
+        y += 2
+        bar(area.maxX - area.width * 0.45, y, area.width * 0.2, 3, ink)
+        bar(area.maxX - 18, y, 16, 3, rgb(255, 69, 58))
     }
 }
 

@@ -32,13 +32,32 @@ enum DebugRender {
             named: "expanded-files-empty", to: directory)
         let previews = FilePreviews()
         let shelf = IslandState()
-        DemoFiles.apply("1", to: shelf)
-        previews.refresh(shelf.shelf.items)
+        DemoFiles.apply("1", to: shelf, previews: previews)
         shelf.setHovering(true)
         shelf.selectTab(.files)
         write(
             ExpandedPreview(state: shelf, previews: previews), size: CGSize(width: 640, height: 190),
             named: "expanded-files", to: directory)
+        // The pointer on the drawer's back tab: the tab rises, clear of the tab strip above.
+        if let drawer = shelf.shelf.stacks.first {
+            shelf.setHoveredFile(ShelfHover(stack: drawer.id, hit: .file(drawer.items.count - 1)))
+            write(
+                ExpandedPreview(state: shelf, previews: previews), size: CGSize(width: 640, height: 190),
+                named: "expanded-files-hover", to: directory)
+            shelf.setHoveredFile(nil)
+        }
+        // The drawer and the photo beside it, picked together.
+        let several = IslandState()
+        DemoFiles.apply("1", to: several, previews: previews)
+        several.toggleShelfItems(several.shelf.items.filter { $0.name == "Holiday.heic" }.map(\.id))
+        several.setHovering(true)
+        several.selectTab(.files)
+        write(
+            ExpandedPreview(state: several, previews: previews), size: CGSize(width: 640, height: 190),
+            named: "expanded-files-multi", to: directory)
+        write(
+            FileStacksGallery(previews: previews), size: CGSize(width: 760, height: 200),
+            named: "file-stacks", to: directory)
         shelf.setFileDragHovering(true)
         write(
             ExpandedPreview(state: shelf, previews: previews), size: CGSize(width: 640, height: 190),
@@ -207,6 +226,73 @@ private struct ExpandedPreview: View {
             .frame(width: 600, height: 150)
             .background(.black, in: shape)
             .clipShape(shape)
+    }
+}
+
+/// Drawers of every size, and a three-file drawer in each state the pointer and a drag give
+/// it, frozen (there is no pointer in a render).
+private struct FileStacksGallery: View {
+    private struct Sample: Identifiable {
+        let id = UUID()
+        let caption: String
+        let stack: ShelfStack
+        var hover: StackLayout.Hit?
+        var isDropTarget = false
+        var selection: Set<UUID> = []
+    }
+
+    let previews: FilePreviews
+    /// Made once: staging the pictures while drawing would redraw the gallery for ever.
+    private let samples: [Sample]
+
+    init(previews: FilePreviews) {
+        self.previews = previews
+        func stack(_ names: [String]) -> ShelfStack {
+            let id = UUID()
+            let items = names.map { DemoFiles.item($0, stack: id) }
+            DemoFiles.stage(items, in: previews)
+            return FileShelf(items: items).stacks[0]
+        }
+        let drawer = ["Report.docx", "Invoice.pdf", "Archive.zip"]
+        let middle = stack(drawer)
+        samples = [
+            Sample(caption: "1", stack: stack(["Holiday.heic"])),
+            Sample(caption: "2", stack: stack(["Invoice.pdf", "Notes.docx"])),
+            Sample(caption: "3", stack: stack(drawer)),
+            Sample(caption: "5", stack: stack(["Holiday.heic", "Invoice.pdf", "Mix.wav", "Archive.zip", "Clip.mov"])),
+            Sample(
+                caption: "9",
+                stack: stack([
+                    "Photos/", "Report.docx", "Invoice.pdf", "Holiday.heic", "Mix.wav", "Clip.mov",
+                    "Archive.zip", "Notes.docx", "Slides.pptx",
+                ])),
+            Sample(caption: "back tab", stack: stack(drawer), hover: .file(2)),
+            Sample(caption: "grip", stack: stack(drawer), hover: .file(0)),
+            Sample(caption: "body", stack: stack(drawer), hover: .body),
+            Sample(caption: "drop target", stack: stack(drawer), isDropTarget: true),
+            Sample(caption: "middle picked", stack: middle, selection: [middle.items[1].id]),
+        ]
+    }
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            ForEach(samples) { sample in
+                VStack(spacing: 8) {
+                    StackTile(
+                        stack: sample.stack, selection: sample.selection, hover: sample.hover,
+                        isDropTarget: sample.isDropTarget, previews: previews)
+                    Text(sample.caption)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .lineLimit(1)
+                        .fixedSize()
+                        .frame(width: StackLayout.tile.width)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 22)
+        .background(.black, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 

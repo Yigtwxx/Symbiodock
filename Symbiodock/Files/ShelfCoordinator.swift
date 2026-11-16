@@ -66,6 +66,29 @@ final class ShelfCoordinator {
         }
     }
 
+    /// A click on a stack. A file alone (a tab, or the front card's top strip) is picked and
+    /// comes to the front of its drawer; the body picks the whole drawer. With ⌘ the files join
+    /// the selection, or leave it if they were all in it, and nothing moves.
+    func pick(_ stackID: UUID, _ hit: StackLayout.Hit, command: Bool) {
+        guard let stack = state.shelf.stack(stackID) else { return }
+        switch hit {
+        case .file(let index):
+            guard stack.items.indices.contains(index) else { return }
+            let id = stack.items[index].id
+            if command {
+                state.toggleShelfItems([id])
+            } else {
+                state.selectShelfItems([id])
+                guard index > 0 else { return }
+                state.bringShelfItemToFront(id)
+                save()
+            }
+        case .body:
+            let ids = stack.items.map(\.id)
+            if command { state.toggleShelfItems(ids) } else { state.selectShelfItems(ids) }
+        }
+    }
+
     /// The tile left with a drag that was accepted: it is off the shelf, the file is not touched.
     func removeAfterDragOut(_ id: UUID) {
         state.removeShelfItems([id])

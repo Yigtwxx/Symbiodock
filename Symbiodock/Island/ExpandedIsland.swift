@@ -39,8 +39,9 @@ struct ExpandedIsland: View {
                     FilesContent(
                         shelf: state.shelf, conversions: state.conversions,
                         notice: state.shelfNotice, isDropTarget: state.isFileDragHovering,
+                        dropStack: state.fileDropTarget, hover: state.hoveredFile,
                         topInset: metrics.height, previews: previews,
-                        onSelect: { state.selectShelfItems([$0]) }, onRequest: onFile)
+                        onSelect: { state.selectShelfItems($0) }, onRequest: onFile)
                 }
             }
             .transition(.opacity)

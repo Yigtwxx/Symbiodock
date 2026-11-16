@@ -1,8 +1,8 @@
 import SwiftUI
 import SymbiodockCore
 
-/// The colour and the plain name of each kind of file. The colours are the ones the
-/// shelf's bubble uses too, so a tile and the bubble agree.
+/// The colour, the symbol and the plain name of each kind of file. The colours are the ones
+/// the shelf's bubble uses too, so a card and the bubble agree.
 enum FileKindPalette {
     private static func hex(_ value: UInt32) -> Color {
         Color(
@@ -23,6 +23,21 @@ enum FileKindPalette {
         }
     }
 
+    /// What a card shows where a file has no picture of its own. Never the system's
+    /// document icon: on the black island those read as white paper cut-outs.
+    static func symbol(_ kind: FileKind) -> String {
+        switch kind {
+        case .image: "photo"
+        case .pdf: "doc.richtext.fill"
+        case .document: "doc.text.fill"
+        case .audio: "waveform"
+        case .video: "film"
+        case .archive: "doc.zipper"
+        case .folder: "folder.fill"
+        case .other: "doc.fill"
+        }
+    }
+
     /// "Image", "PDF": what the detail line calls the kind.
     static func name(_ kind: FileKind) -> String {
         switch kind {
@@ -35,5 +50,21 @@ enum FileKindPalette {
         case .folder: "Folder"
         case .other: "File"
         }
+    }
+
+    /// "2 documents", "1 other": how many files of a kind a selection holds.
+    static func count(_ count: Int, of kind: FileKind) -> String {
+        let (one, many) =
+            switch kind {
+            case .image: ("image", "images")
+            case .pdf: ("PDF", "PDFs")
+            case .document: ("document", "documents")
+            case .audio: ("audio file", "audio files")
+            case .video: ("video", "videos")
+            case .archive: ("archive", "archives")
+            case .folder: ("folder", "folders")
+            case .other: ("other", "others")
+            }
+        return "\(count) \(count == 1 ? one : many)"
     }
 }

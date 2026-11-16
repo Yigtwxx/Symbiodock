@@ -110,8 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #if DEBUG
         if let demo = DemoFiles.requested {
             shelf.isDemo = true
-            DemoFiles.apply(demo, to: state)
-            previews.refresh(state.shelf.items)
+            DemoFiles.apply(demo, to: state, previews: previews)
             return
         }
         #endif
@@ -121,9 +120,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
     }
 
-    /// Dropped files go on the shelf; a tile's file taken by another app leaves it.
+    /// Dropped files go on the shelf; a tile's file taken by another app leaves it; a click on
+    /// a stack picks.
     private func wireFileDrags(_ overlayController: OverlayController) {
         overlayController.onDropFiles = { [weak self] urls in self?.shelf?.add(urls) }
+        overlayController.onPickFile = { [weak self] stack, hit, command in
+            self?.shelf?.pick(stack, hit, command: command)
+        }
         overlayController.onFileDraggedOut = { [weak self] id in self?.shelf?.removeAfterDragOut(id) }
         overlayController.fileURL = { [weak self] id in
             // A converting file is about to change; it stays until the reveal is over.

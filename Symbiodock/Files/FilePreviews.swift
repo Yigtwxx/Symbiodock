@@ -2,32 +2,34 @@ import AppKit
 import Observation
 import QuickLookThumbnailing
 import SymbiodockCore
-import UniformTypeIdentifiers
 
-/// What a tile shows of its file: a thumbnail once Quick Look has made one, the file's own
-/// icon until then, and its size.
+/// What a card shows of its file: the file's own picture once Quick Look has made one, and
+/// its size. Never the file's icon: a card without a picture shows its kind's symbol.
 @MainActor
 @Observable
 final class FilePreviews {
     private struct Entry {
         var url: URL
-        var image: NSImage
+        var image: NSImage?
+        var bytes: Int64?
     }
 
+    /// Large enough to fill a card's top at twice the scale without blurring.
+    private static let thumbnailSize = CGSize(width: 128, height: 128)
+
     private var entries: [UUID: Entry] = [:]
-    private var details: [UUID: String] = [:]
-    /// The urls whose thumbnail and size are being loaded.
+    /// The urls whose picture and size are being loaded.
     @ObservationIgnored private var loading: [UUID: URL] = [:]
     @ObservationIgnored private var tasks: [UUID: Task<Void, Never>] = [:]
 
-    /// The thumbnail once loaded, else the file's or type's icon.
+    /// A photo, a video's frame or a document's page; nil for kinds without one and until made.
     func image(for item: ShelfItem) -> NSImage? {
-        entries[item.id]?.url == item.url ? entries[item.id]?.image : nil
+        entry(item)?.image
     }
 
-    /// "2.4 MB"; nil for folders and until loaded.
-    func detail(for item: ShelfItem) -> String? {
-        entries[item.id]?.url == item.url ? details[item.id] : nil
+    /// The file's size in bytes; nil for folders and until read.
+    func size(for item: ShelfItem) -> Int64? {
+        entry(item)?.bytes
     }
 
     /// Loads what is missing and forgets what is gone.
@@ -35,7 +37,6 @@ final class FilePreviews {
         let ids = Set(items.map(\.id))
         for id in entries.keys where !ids.contains(id) {
             entries[id] = nil
-            details[id] = nil
         }
         for id in tasks.keys where !ids.contains(id) {
             tasks[id]?.cancel()
@@ -48,50 +49,61 @@ final class FilePreviews {
         }
     }
 
+    #if DEBUG
+    /// What a demo file looks like, since it is not on disk; `refresh` keeps it.
+    func stage(_ item: ShelfItem, image: NSImage?, bytes: Int64?) {
+        tasks[item.id]?.cancel()
+        tasks[item.id] = nil
+        loading[item.id] = nil
+        entries[item.id] = Entry(url: item.url, image: image, bytes: bytes)
+    }
+    #endif
+
+    private func entry(_ item: ShelfItem) -> Entry? {
+        guard let entry = entries[item.id], entry.url == item.url else { return nil }
+        return entry
+    }
+
+    /// Only kinds whose look is their content get a picture; a sound or an archive has none
+    /// worth showing at this size, and a folder's would be the icon.
+    private static func hasPicture(_ kind: FileKind) -> Bool {
+        switch kind {
+        case .image, .video, .pdf, .document: true
+        case .audio, .archive, .folder, .other: false
+        }
+    }
+
     private func load(_ item: ShelfItem) {
         let id = item.id
         let url = item.url
+        let isDirectory = item.isDirectory
+        let wantsPicture = Self.hasPicture(item.kind)
         loading[id] = url
         tasks[id]?.cancel()
-        let isDirectory = item.isDirectory
-        if entries[id]?.url != url {
-            entries[id] = Entry(url: url, image: Self.icon(for: url, isDirectory: isDirectory))
-            details[id] = nil
-        }
+        // Until its picture is made, a file that changed shows its kind's symbol.
+        entries[id] = Entry(url: url)
         tasks[id] = Task { [weak self] in
-            let size = isDirectory ? nil : await Self.fileSize(of: url)
-            let thumbnail = await Self.thumbnail(of: url)
+            let bytes = isDirectory ? nil : await Self.fileSize(of: url)
+            let image = wantsPicture ? await Self.thumbnail(of: url) : nil
             guard !Task.isCancelled, let self, self.loading[id] == url else { return }
             self.loading[id] = nil
             self.tasks[id] = nil
-            if let thumbnail { self.entries[id] = Entry(url: url, image: thumbnail) }
-            if let size { self.details[id] = size }
+            if image != nil || bytes != nil {
+                self.entries[id] = Entry(url: url, image: image, bytes: bytes)
+            }
         }
-    }
-
-    /// A file that is not there (the demo shelf) gets its type's icon; a folder has no extension
-    /// to tell it by.
-    private static func icon(for url: URL, isDirectory: Bool) -> NSImage {
-        if FileManager.default.fileExists(atPath: url.path) {
-            return NSWorkspace.shared.icon(forFile: url.path)
-        }
-        let type = isDirectory ? .folder : UTType(filenameExtension: url.pathExtension) ?? .data
-        return NSWorkspace.shared.icon(for: type)
     }
 
     /// Read off the main actor: a file on a network volume can take a while.
-    private static func fileSize(of url: URL) async -> String? {
+    private static func fileSize(of url: URL) async -> Int64? {
         await Task.detached {
-            guard let bytes = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize else {
-                return nil as String?
-            }
-            return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+            (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init)
         }.value
     }
 
     private static func thumbnail(of url: URL) async -> NSImage? {
         let request = QLThumbnailGenerator.Request(
-            fileAt: url, size: CGSize(width: 48, height: 48),
+            fileAt: url, size: thumbnailSize,
             scale: NSScreen.main?.backingScaleFactor ?? 2, representationTypes: .thumbnail)
         let representation = try? await QLThumbnailGenerator.shared.generateBestRepresentation(
             for: request)

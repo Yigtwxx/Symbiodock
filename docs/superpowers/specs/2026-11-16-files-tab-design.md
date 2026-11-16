@@ -78,12 +78,15 @@ sekmelerindeki özen yoktu. Yeni görünüm aşağıdakidir ve "Sekme" bölümü
   tür renginde uzantı (8 pt heavy, harf aralıklı, hap zemini yok).
 - **Seçili kart:** tür renginde 1,5 pt halka ve daha güçlü zemin (%34 → %14). Gri plaka yok.
 - **Yığın:** arkadaki kartlar kendi tür renklerinde aynı cam yüzeylerdir; çekmece, renkli
-  sekmeli dosyalar gibi okunur.
-- **İşlem sütunu bir panel:** çizgi yerine beyaz %5 zeminli, 12 pt köşeli panel. Ad 12 pt
+  sekmeli dosyalar gibi okunur. Görünen şerit birkaç pt olduğundan arka kartın rengi biraz
+  daha güçlüdür (%32 → %12, kenar %50; bütün yığın seçiliyken %46, kenar %75).
+- **İşlem sütunu bir panel:** çizgi yerine beyaz %5 zeminli panel; köşesi adanınkiyle eş
+  merkezli (16 pt: adanın 24 pt'lik köşesi, 8 pt'lik kenar boşluğu). Ad 12 pt
   semibold; ayrıntı satırının başında tür renginde nokta; simge düğmeleri 20 pt daire (beyaz
   %8). `CONVERT TO` küçük, harf aralıklı başlık.
 - **Çipler hedef türünün renginde:** `PDF` kırmızı, `PNG`/`JPEG` mavi, `ZIP` amber…: yazı o
-  renkte, zemin %16, kenar %30, 7 pt köşe, 22 pt yükseklik; basılıyken %55.
+  renkte, zemin %16, kenar %30, 7 pt köşe, 20 pt yükseklik (iki sıra çip çentikteki 150 pt'lik
+  adaya ancak böyle sığar); basılıyken %55.
 - **Boş raf:** her zaman görünen kesikli bırakma alanı (beyaz %14), ortasında simge, `Drop files
   here` ve altında `They stay while you switch spaces` (10 pt, beyaz %35). Dosya sürüklenirken
   alan parlar (beyaz %45) ve `Drop to hold` yazar.
@@ -114,8 +117,9 @@ sekmelerindeki özen yoktu. Yeni görünüm aşağıdakidir ve "Sekme" bölümü
 ### Çoklu seçim ve toplu çevirme
 
 - ⌘-tıklama seçime ekler ya da çıkarır (şeritte tek dosya, gövdede bütün yığın). Düz tıklama
-  seçimi yeniden kurar. Seçili kartların zemini beyaz %10; yığının içinden tek dosya seçiliyse
-  o kartın 1 pt beyaz %40 çerçevesi olur.
+  seçimi yeniden kurar. Seçili kart "Görünüm"deki gibi tür renginde halka ve güçlü zemin alır.
+  Bütünü seçili yığında halka öndeki kartta, arkadaki sekmeler parlar; yığının içinden tek dosya
+  seçiliyse halka yalnızca onun kartında (arkadaysa sekmesinde) olur.
 - Birden fazla dosya seçiliyken sütun: `3 files`, altında toplam boyut; `Show in Finder` hepsini
   gösterir, `Remove` hepsini raftan çıkarır.
 - Ortak çipler: seçimdeki "çevrilebilir" dosyalar (ZIP dışında en az bir hedefi olanlar)
@@ -259,14 +263,15 @@ Hata ve iptalde de aynı açılış oynar. Reduce Motion: 0,2 sn kararma, 0,2 sn
 - Uygulama (`Symbiodock/`):
   - `Files/`: `ShelfCoordinator`, `ShelfStorage`, `FilePreviews`, `ToolRunner`, `FileConverter`,
     `DocumentPDFWriter`, `DemoFiles`.
-  - `Island/Files/`: `FilesContent`, `FileTile`, `FileActionsColumn`, `EngulfView`,
+  - `Island/Files/`: `FilesContent`, `StackTile`, `FileCard`, `FileActionsColumn`, `EngulfView`,
     `FileKindPalette`, `FilesBubble`.
   - `Window/`: `ShelfStore`, `FileDragSource`; `IslandGeometry.fileDragRects`;
     `OverlayController` bırakma hedefi, dosya sürüklemesi ve iki baloncuk.
 - Deneme: `SYMBIODOCK_DEMO_FILES=1|converting`; ekran dışı görüntüler `expanded-files.png`,
-  `expanded-files-empty.png`, `expanded-files-drop.png`, `engulf.png`,
-  `collapsed-files-bubble.png`. Tek çevirme, pencere açmadan:
-  `SYMBIODOCK_CONVERT=<dosya> SYMBIODOCK_CONVERT_TO=<çip>` (yalnızca Debug).
+  `expanded-files-multi.png`, `expanded-files-hover.png`, `expanded-files-empty.png`,
+  `expanded-files-drop.png`, `file-stacks.png`, `engulf.png`, `collapsed-files-bubble.png`.
+  Tek çevirme, pencere açmadan: `SYMBIODOCK_CONVERT=<dosya> SYMBIODOCK_CONVERT_TO=<çip>`
+  (yalnızca Debug).
 
 ## Kapsam dışı
 
