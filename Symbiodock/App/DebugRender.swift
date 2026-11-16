@@ -386,6 +386,19 @@ private struct CollapsedGallery: View {
             .clipShape(shape)
     }
 
+    /// The strip with no agent running, as an island docked on the right edge shows it.
+    private var idleStrip: some View {
+        let anchor = IslandAnchor.edge(.right, fraction: 0.5)
+        let radii = IslandLayout.cornerRadii(anchor: anchor, radius: IslandLayout.collapsedCornerRadius)
+        let shape = UnevenRoundedRectangle(
+            topLeadingRadius: radii.topLeading, bottomLeadingRadius: radii.bottomLeading,
+            style: .continuous)
+        return shape.fill(.black)
+            .overlay { AgentSideFace(row: nil) }
+            .frame(width: 36, height: 170)
+            .clipShape(shape)
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 24) {
             VStack(alignment: .leading, spacing: 14) {
@@ -404,6 +417,7 @@ private struct CollapsedGallery: View {
             strip(.needsInput(prompt: nil), .needsInput, at: 0.45)
             strip(.finished, .finished, at: 2)
             strip(.working, .none, at: 0)
+            idleStrip
         }
         .padding(16)
     }

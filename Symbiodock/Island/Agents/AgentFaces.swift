@@ -37,8 +37,10 @@ struct AgentFloatingFace: View {
                 Spacer(minLength: 0)
                 AgentStatusMark(state: row.isSettled ? .idle : row.state)
             } else {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 11, weight: .semibold))
+                // The Agents tab's prompt, as wide as the symbol it replaced so the text beside
+                // it stays where it was.
+                TabGlyph(tab: .agents)
+                    .frame(width: 12.5)
                     .foregroundStyle(.white.opacity(0.4))
                 Text("No agents running")
                     .font(.system(size: 12, weight: .medium))
@@ -64,8 +66,7 @@ struct AgentSideFace: View {
                     .foregroundStyle(.white)
                 AgentStatusMark(state: row.isSettled ? .idle : row.state)
             } else {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 11, weight: .semibold))
+                TabGlyph(tab: .agents)
                     .foregroundStyle(.white.opacity(0.4))
                     .frame(height: 18)
                 RotatedLine(text: "No agents running")

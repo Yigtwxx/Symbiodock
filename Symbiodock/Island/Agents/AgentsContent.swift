@@ -31,8 +31,10 @@ struct AgentsContent: View {
 
     private var idle: some View {
         VStack(spacing: 6) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 20, weight: .medium))
+            // The Agents tab's prompt, drawn about as large as the symbol it replaced, in that
+            // symbol's 23 × 26 box so the line below stays where it was.
+            TabGlyph(tab: .agents, size: 24)
+                .frame(width: 23, height: 26)
                 .foregroundStyle(.white.opacity(0.35))
             Text("No agents running")
                 .font(.system(size: 12, weight: .medium))
