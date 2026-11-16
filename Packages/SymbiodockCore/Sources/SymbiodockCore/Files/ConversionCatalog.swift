@@ -75,7 +75,7 @@ public enum ConversionCatalog {
     ]
 
     private static let audioTargets = [
-        target("M4A", "m4a", .afconvert(file: "m4af", data: "aac", bitrate: nil)),
+        target("M4A", "m4a", .afconvert(file: "m4af", data: "aac", bitrate: 256_000)),
         target("WAV", "wav", .afconvert(file: "WAVE", data: "LEI16", bitrate: nil)),
         target("AIFF", "aiff", .afconvert(file: "AIFF", data: "BEI16", bitrate: nil)),
         target("FLAC", "flac", .afconvert(file: "flac", data: "flac", bitrate: nil)),

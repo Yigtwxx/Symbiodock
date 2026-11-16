@@ -11,10 +11,21 @@ enum DocumentPDFWriter {
     static func write(_ source: URL, sourceExtension: String, to output: URL) throws {
         var options: [NSAttributedString.DocumentReadingOptionKey: Any] = [:]
         // Markdown is read as the plain text it is; textutil does the same for `md`.
-        if sourceExtension == "md" || sourceExtension == "txt" {
+        let isPlain = sourceExtension == "md" || sourceExtension == "txt"
+        if isPlain {
             options[.documentType] = NSAttributedString.DocumentType.plain
         }
-        let text = try NSAttributedString(url: source, options: options, documentAttributes: nil)
+        let text: NSAttributedString
+        do {
+            // Plain text is UTF-8 first; the system's own guess would read Turkish letters
+            // as Mac Roman.
+            var utf8 = options
+            if isPlain { utf8[.characterEncoding] = String.Encoding.utf8.rawValue }
+            text = try NSAttributedString(url: source, options: utf8, documentAttributes: nil)
+        } catch where isPlain {
+            // Not valid UTF-8: let the system detect the encoding.
+            text = try NSAttributedString(url: source, options: options, documentAttributes: nil)
+        }
 
         let printInfo = (NSPrintInfo.shared.copy() as? NSPrintInfo) ?? NSPrintInfo()
         printInfo.topMargin = margin

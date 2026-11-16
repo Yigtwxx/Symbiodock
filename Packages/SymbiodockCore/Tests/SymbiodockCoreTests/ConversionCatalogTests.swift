@@ -89,11 +89,15 @@ struct ConversionCatalogTests {
                 == ["/a/s.mp3", "-o", "/a/.t-s.wav", "-f", "WAVE", "-d", "LEI16"])
     }
 
-    @Test func m4aLeavesTheBitrateToAfconvert() {
-        // A fixed 256 kbps is refused for mono or low-sample-rate sources (voice memos).
-        let m4a = ConversionCatalog.targets(pathExtension: "wav", isDirectory: false)
-            .first { $0.label == "M4A" }
-        #expect(m4a?.engine == .afconvert(file: "m4af", data: "aac", bitrate: nil))
+    @Test func m4aAsksAfconvertForTheFullBitrate() throws {
+        // The app retries without the bitrate when afconvert refuses it (mono, low rates).
+        let m4a = try #require(
+            ConversionCatalog.targets(pathExtension: "wav", isDirectory: false)
+                .first { $0.label == "M4A" })
+        #expect(m4a.engine == .afconvert(file: "m4af", data: "aac", bitrate: 256_000))
+        let command = ConversionCatalog.command(
+            for: m4a.engine, sourceExtension: "wav", source: "/a/s.wav", output: "/a/.t-s.m4a")
+        #expect(command?.arguments.suffix(2) == ["-b", "256000"])
     }
 
     @Test func dittoZipsAndUnzips() {

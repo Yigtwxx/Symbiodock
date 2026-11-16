@@ -40,7 +40,9 @@ struct FileConverter: Sendable {
         let final: URL
         var producesDirectory = target.engine == .unzip
         if case .pdfPages = target.engine {
-            guard let document = PDFDocument(url: source), document.pageCount > 0 else { throw fail }
+            guard let document = PDFDocument(url: source) else { throw fail }
+            if document.isLocked { throw Self.lockedPDF }
+            guard document.pageCount > 0 else { throw fail }
             pdf = document
             if document.pageCount > 1 {
                 final = OutputNaming.pagesFolder(for: source, exists: exists)
@@ -71,6 +73,8 @@ struct FileConverter: Sendable {
         }
     }
 
+    private static let lockedPDF = ConversionFailure(message: "This PDF is locked")
+
     private static func token() -> String {
         String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(8)).lowercased()
     }
@@ -88,7 +92,20 @@ struct FileConverter: Sendable {
             else { throw fail }
             let limit: Duration
             if case .afconvert = engine { limit = Self.audioLimit } else { limit = Self.toolLimit }
-            guard await runner.run(command, timeLimit: limit) == 0 else { throw fail }
+            let status = await runner.run(command, timeLimit: limit)
+            if status != 0 {
+                // afconvert refuses a fixed bitrate for mono or low-sample-rate sources: once
+                // more with its own default, after the failed run's output is gone. No status
+                // means it did not run to its end (time, cancel): no second try.
+                guard status != nil, case .afconvert(let file, let data, let bitrate?) = engine, bitrate > 0,
+                    let fallback = ConversionCatalog.command(
+                        for: .afconvert(file: file, data: data, bitrate: nil),
+                        sourceExtension: sourceExtension, source: source.path, output: temp.path)
+                else { throw fail }
+                try Task.checkCancellation()
+                try? FileManager.default.removeItem(at: temp)
+                guard await runner.run(fallback, timeLimit: limit) == 0 else { throw fail }
+            }
         case .printPDF:
             do {
                 try await MainActor.run {
@@ -99,7 +116,9 @@ struct FileConverter: Sendable {
             guard let pdf else { throw fail }
             try Self.writePages(pdf, source: source, jpeg: jpeg, temp: temp, fail: fail)
         case .pdfText:
-            guard let text = PDFDocument(url: source)?.string,
+            let document = PDFDocument(url: source)
+            if document?.isLocked == true { throw Self.lockedPDF }
+            guard let text = document?.string,
                 !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             else { throw ConversionFailure(message: "No text in this PDF") }
             do { try Data(text.utf8).write(to: temp) } catch { throw fail }
@@ -144,18 +163,27 @@ struct FileConverter: Sendable {
         }
     }
 
-    /// One page at 150 dpi on white; the media box is in points (72 per inch).
+    /// Most pixels a page bitmap may have; a larger page is rendered at a lower dpi.
+    private static let maximumPixels = 100_000_000.0
+
+    /// One page at 150 dpi on white (less for a huge page); the media box is in points
+    /// (72 per inch).
     private static func render(_ page: PDFPage) -> CGImage? {
         let box = page.bounds(for: .mediaBox)
-        let scale = pageDPI / 72
         let rotated = page.rotation % 180 != 0
         let size = rotated ? CGSize(width: box.height, height: box.width) : box.size
-        let width = Int((size.width * scale).rounded(.up))
-        let height = Int((size.height * scale).rounded(.up))
-        guard width > 0, height > 0, width * height < 400_000_000,
+        guard size.width > 0, size.height > 0 else { return nil }
+        let fullScale = pageDPI / 72
+        let area = Double(size.width * size.height) * Double(fullScale * fullScale)
+        let scale =
+            area > maximumPixels
+            ? fullScale * CGFloat((maximumPixels / area).squareRoot()) : fullScale
+        let width = Int((size.width * scale).rounded(.down))
+        let height = Int((size.height * scale).rounded(.down))
+        guard width > 0, height > 0,
             let context = CGContext(
                 data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
-                space: CGColorSpaceCreateDeviceRGB(),
+                space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
                 bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
         else { return nil }
         context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
@@ -192,6 +220,7 @@ struct FileConverter: Sendable {
         guard let session = AVAssetExportSession(asset: asset, presetName: preset) else { throw fail }
         let box = SessionBox(session)
 
+        try Task.checkCancellation()
         try await withTaskCancellationHandler {
             if #available(macOS 15, *) {
                 do { try await session.export(to: temp, as: fileType) } catch { throw fail }
@@ -209,6 +238,7 @@ struct FileConverter: Sendable {
     // MARK: Archive
 
     /// One `Archive.zip` holding all the sources, like Finder's Compress; next to the first source.
+    @concurrent
     func archive(_ sources: [URL]) async throws -> URL {
         let fail = ConversionFailure(message: "Couldn't convert to ZIP")
         guard sources.count >= 2, sources.allSatisfy({ $0.isFileURL && $0.path.hasPrefix("/") })
@@ -229,6 +259,7 @@ struct FileConverter: Sendable {
         do {
             try Task.checkCancellation()
             try manager.createDirectory(at: staging, withIntermediateDirectories: false)
+            // Names are compared without case: the volume may not tell `A.txt` from `a.txt`.
             var taken: Set<String> = []
             for source in sources {
                 try Task.checkCancellation()
@@ -242,8 +273,8 @@ struct FileConverter: Sendable {
                     let base = n == 1 ? stem : "\(stem) \(n)"
                     return ext.isEmpty ? base : "\(base).\(ext)"
                 }
-                while taken.contains(name(number)) { number += 1 }
-                taken.insert(name(number))
+                while taken.contains(name(number).lowercased()) { number += 1 }
+                taken.insert(name(number).lowercased())
                 try manager.copyItem(at: source, to: staging.appendingPathComponent(name(number)))
             }
             let command = ToolCommand(
