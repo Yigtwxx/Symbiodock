@@ -44,6 +44,7 @@ public final class IslandState {
 
     private var systemPlaying: NowPlayingInfo?
     private var companionPlaying: NowPlayingInfo?
+    private var otherPlaying: [NowPlayingClient] = []
     /// A second source that stayed paused through its grace period: hidden until it plays
     /// again, so a paused player does not sit behind the main track all day.
     private var retiredOrigin: NowPlayingOrigin?
@@ -203,6 +204,14 @@ public final class IslandState {
         mediaChanged(.companion, info)
     }
 
+    /// The system listed every app that plays, the one it elects included.
+    public func setOtherPlaying(_ clients: [NowPlayingClient]) {
+        otherPlaying = clients
+        // Only playing apps make it into a slot, so a client slot is never the paused one
+        // that retires; nothing to clear here.
+        refreshMediaSlots()
+    }
+
     private func mediaChanged(_ origin: NowPlayingOrigin, _ info: NowPlayingInfo?) {
         // Playing again, or gone: either way it is no longer the paused track that was hidden.
         if retiredOrigin == origin, info?.isPlaying != false { retiredOrigin = nil }
@@ -210,7 +219,8 @@ public final class IslandState {
     }
 
     private func refreshMediaSlots() {
-        var slots = NowPlayingLineup.slots(system: systemPlaying, companion: companionPlaying)
+        var slots = NowPlayingLineup.slots(
+            system: systemPlaying, companion: companionPlaying, others: otherPlaying)
         // Only a second slot retires; alone, a paused track stays for the open island.
         if slots.count == 2, slots[1].origin == retiredOrigin { slots.removeLast() }
         // Assign only on change: every assignment redraws the island.

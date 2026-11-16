@@ -52,6 +52,91 @@ struct NowPlayingLineupTests {
             == [.system, .companion])
     }
 
+    // MARK: - Other apps the system knows about
+
+    private var safari: NowPlayingInfo { info("Kick", bundle: "com.apple.Safari", name: "Safari") }
+    private var spotify: NowPlayingInfo { info("Tune", bundle: "com.spotify.client", name: "Spotify") }
+
+    private func client(
+        _ info: NowPlayingInfo, pid: Int32, elected: Bool = false
+    ) -> NowPlayingClient {
+        NowPlayingClient(pid: pid, isElected: elected, info: info)
+    }
+
+    @Test func aBrowserIsShownWhileMusicIsTheElectedOne() {
+        // The reported bug: Music is elected, so system and companion are both Music and the
+        // browser was lost.
+        let slots = NowPlayingLineup.slots(
+            system: song, companion: song,
+            others: [client(song, pid: 2, elected: true), client(safari, pid: 1)])
+
+        #expect(slots == [
+            NowPlayingSlot(info: song, origin: .system),
+            NowPlayingSlot(info: safari, origin: .client(pid: 1)),
+        ])
+    }
+
+    @Test func theCompanionKeepsItsPlaceWhenTheBrowserIsTheElectedOne() {
+        let slots = NowPlayingLineup.slots(
+            system: safari, companion: song,
+            others: [client(safari, pid: 1, elected: true), client(song, pid: 2)])
+
+        #expect(slots == [
+            NowPlayingSlot(info: safari, origin: .system),
+            NowPlayingSlot(info: song, origin: .companion),
+        ])
+    }
+
+    @Test func pausedOrElectedAppsAreNotAdded() {
+        var pausedSafari = safari
+        pausedSafari.isPlaying = false
+
+        #expect(NowPlayingLineup.slots(
+            system: song, companion: nil, others: [client(pausedSafari, pid: 1)]
+        ).map(\.origin) == [.system])
+        #expect(NowPlayingLineup.slots(
+            system: song, companion: nil, others: [client(safari, pid: 1, elected: true)]
+        ).map(\.origin) == [.system])
+    }
+
+    @Test func anAppAlreadyShownIsNotAddedAgain() {
+        let slots = NowPlayingLineup.slots(
+            system: safari, companion: nil, others: [client(safari, pid: 7)])
+
+        #expect(slots.map(\.origin) == [.system])
+    }
+
+    @Test func threePlayingAppsStillGiveTwoSlots() {
+        let withCompanion = NowPlayingLineup.slots(
+            system: safari, companion: song, others: [client(spotify, pid: 3)])
+        #expect(withCompanion.map(\.origin) == [.system, .companion])
+
+        // First come, first kept: the helper's order decides.
+        let withoutCompanion = NowPlayingLineup.slots(
+            system: song, companion: song,
+            others: [client(spotify, pid: 3), client(safari, pid: 1)])
+        #expect(withoutCompanion.map(\.origin) == [.system, .client(pid: 3)])
+    }
+
+    @Test func anotherAppCanFillASlotWithoutTheSystemSource() {
+        #expect(NowPlayingLineup.slots(
+            system: nil, companion: nil, others: [client(safari, pid: 1)])
+            == [NowPlayingSlot(info: safari, origin: .client(pid: 1))])
+        #expect(NowPlayingLineup.slots(
+            system: nil, companion: song, others: [client(safari, pid: 1)]
+        ).map(\.origin) == [.companion, .client(pid: 1)])
+    }
+
+    @Test func aPlayingAppGoesInFrontOfAPausedSystemSource() {
+        var pausedSong = song
+        pausedSong.isPlaying = false
+
+        let slots = NowPlayingLineup.slots(
+            system: pausedSong, companion: nil, others: [client(safari, pid: 1)])
+
+        #expect(slots.map(\.origin) == [.client(pid: 1), .system])
+    }
+
     // MARK: - In the island's state
 
     @Test func stateShowsBothSourcesAndSpeaksForTheFirst() {
@@ -95,6 +180,36 @@ struct NowPlayingLineupTests {
         state.setNowPlaying(nil)
 
         #expect(state.nowPlaying == pausedSong)
+    }
+
+    @Test func stateShowsAnotherPlayingAppNextToTheElectedOne() {
+        let state = IslandState()
+        state.setNowPlaying(song)
+        state.setCompanionPlaying(song)
+        #expect(state.mediaSlots.map(\.origin) == [.system])
+
+        state.setOtherPlaying([client(song, pid: 2, elected: true), client(safari, pid: 1)])
+        #expect(state.mediaSlots.map(\.origin) == [.system, .client(pid: 1)])
+        #expect(state.nowPlaying == song)
+
+        state.setOtherPlaying([])
+        #expect(state.mediaSlots.map(\.origin) == [.system])
+    }
+
+    @Test func aPausedSystemSourceBehindAnotherAppRetiresAfterTheGrace() {
+        let state = IslandState()
+        var pausedSong = song
+        pausedSong.isPlaying = false
+        state.setNowPlaying(pausedSong)
+        state.setOtherPlaying([client(safari, pid: 1)])
+        #expect(state.mediaSlots.map(\.origin) == [.client(pid: 1), .system])
+
+        state.pausedGraceElapsed()
+        #expect(state.mediaSlots.map(\.origin) == [.client(pid: 1)])
+        #expect(state.mediaWings)
+
+        state.setNowPlaying(song)
+        #expect(state.mediaSlots.map(\.origin) == [.system, .client(pid: 1)])
     }
 
     @Test func wingsFollowTheFrontSource() {

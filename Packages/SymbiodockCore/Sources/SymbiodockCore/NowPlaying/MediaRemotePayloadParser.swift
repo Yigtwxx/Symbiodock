@@ -7,8 +7,9 @@ public enum MediaRemotePayloadParser {
     }
 
     /// Every field is optional and decoded leniently: a value of an unexpected type counts as
-    /// absent, so one odd field does not drop the whole update.
-    private struct Payload: Decodable {
+    /// absent, so one odd field does not drop the whole update. Shared with
+    /// `NowPlayingClientsParser`, whose entries carry the same keys.
+    struct Payload: Decodable {
         let title: String?
         let artist: String?
         let album: String?
@@ -56,7 +57,11 @@ public enum MediaRemotePayloadParser {
     /// Returns nil when the line says nothing is playing. Throws on a malformed line.
     /// Takes bytes because the helper writes U+2028 and friends unescaped in titles.
     public static func info(fromStreamLine line: Data) throws -> NowPlayingInfo? {
-        let payload = try JSONDecoder().decode(Envelope.self, from: line).payload
+        info(from: try JSONDecoder().decode(Envelope.self, from: line).payload)
+    }
+
+    /// Returns nil when the payload has no title: nothing that can be shown is playing.
+    static func info(from payload: Payload) -> NowPlayingInfo? {
         guard let title = payload.title, !title.isEmpty else { return nil }
 
         let duration = payload.duration.flatMap { value in

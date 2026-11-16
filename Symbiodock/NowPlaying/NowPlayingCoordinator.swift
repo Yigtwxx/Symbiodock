@@ -51,6 +51,8 @@ final class NowPlayingCoordinator {
                 switch origin {
                 case .system: await service.send(command)
                 case .companion: await companion?.send(command)
+                // No client slot is fed yet, so there is nothing to route.
+                case .client: break
                 }
             }
         }
