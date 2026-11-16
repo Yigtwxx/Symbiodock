@@ -30,6 +30,23 @@ enum DebugRender {
         write(
             ExpandedPreview(state: files), size: CGSize(width: 640, height: 190),
             named: "expanded-files-empty", to: directory)
+        let previews = FilePreviews()
+        let shelf = IslandState()
+        DemoFiles.apply("1", to: shelf)
+        previews.refresh(shelf.shelf.items)
+        shelf.setHovering(true)
+        shelf.selectTab(.files)
+        write(
+            ExpandedPreview(state: shelf, previews: previews), size: CGSize(width: 640, height: 190),
+            named: "expanded-files", to: directory)
+        shelf.setFileDragHovering(true)
+        write(
+            ExpandedPreview(state: shelf, previews: previews), size: CGSize(width: 640, height: 190),
+            named: "expanded-files-drop", to: directory)
+        files.setFileDragHovering(true)
+        write(
+            ExpandedPreview(state: files), size: CGSize(width: 640, height: 190),
+            named: "expanded-files-empty-drop", to: directory)
         let twoSources = IslandState()
         DemoMedia.apply(to: twoSources, twoSources: true, otherApp: false)
         twoSources.setHovering(true)
@@ -178,6 +195,7 @@ private struct PetGallery: View {
 /// The open island as it is at the notch: 600 × 150, with a 200 × 32 camera housing.
 private struct ExpandedPreview: View {
     let state: IslandState
+    var previews: FilePreviews?
 
     var body: some View {
         let shape = UnevenRoundedRectangle(
@@ -185,7 +203,7 @@ private struct ExpandedPreview: View {
         ExpandedIsland(
             state: state,
             metrics: ExpandedHeaderMetrics(height: 32, leading: 200, gap: 200, trailing: 200),
-            onCommand: { _, _ in }, onOpenSession: { _ in })
+            onCommand: { _, _ in }, onOpenSession: { _ in }, previews: previews)
             .frame(width: 600, height: 150)
             .background(.black, in: shape)
             .clipShape(shape)

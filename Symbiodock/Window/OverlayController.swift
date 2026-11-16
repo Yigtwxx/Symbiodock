@@ -21,6 +21,8 @@ final class OverlayController {
     private let onCommand: (PlaybackCommand, NowPlayingOrigin) -> Void
     private let onVolume: (VolumeRequest) -> Void
     private let onOpenSession: (AgentSession) -> Void
+    private let previews: FilePreviews?
+    private let onFile: (FileRequest) -> Void
     private var panel: OverlayPanel?
     private var metrics: ScreenMetrics?
     private var screenObserver: NSObjectProtocol?
@@ -46,17 +48,20 @@ final class OverlayController {
         state: IslandState, contextMenu: NSMenu,
         onCommand: @escaping (PlaybackCommand, NowPlayingOrigin) -> Void,
         onVolume: @escaping (VolumeRequest) -> Void,
-        onOpenSession: @escaping (AgentSession) -> Void
+        onOpenSession: @escaping (AgentSession) -> Void,
+        previews: FilePreviews?,
+        onFile: @escaping (FileRequest) -> Void
     ) {
         self.state = state
         self.contextMenu = contextMenu
         self.onCommand = onCommand
         self.onVolume = onVolume
         self.onOpenSession = onOpenSession
+        self.previews = previews
+        self.onFile = onFile
         session.onCatch = {
             Self.dragLog.notice("strands caught a surface")
-            // The firmest pattern AppKit offers; `.alignment` was too faint to notice.
-            Self.haptic(.levelChange)
+            Haptics.tick()
         }
     }
 
@@ -136,7 +141,7 @@ final class OverlayController {
         let panel = OverlayPanel(screenFrame: metrics.frame)
         let hostingView = IslandHostingView(rootView: IslandView(
             state: state, geometry: geometry, session: session, onCommand: onCommand,
-            onVolume: onVolume, onOpenSession: onOpenSession))
+            onVolume: onVolume, onOpenSession: onOpenSession, previews: previews, onFile: onFile))
         hostingView.contextMenu = contextMenu
         // A menu opened mid-drag would freeze the island where it is.
         hostingView.allowsContextMenu = { [weak self] in self?.isIdle ?? false }
@@ -358,7 +363,7 @@ final class OverlayController {
             // State and effect tear on the same event, so they cannot disagree.
             session.tear()
             Self.dragLog.notice("island tore off")
-            Self.haptic(.levelChange)
+            Haptics.tick()
         }
     }
 
@@ -378,7 +383,7 @@ final class OverlayController {
             AnchorStore.save(state.anchor)
             // The island sticks now, caught or not: a firm tick while the finger is still on
             // the trackpad. A caught island also ticked when its strands took hold.
-            Self.haptic(.levelChange)
+            Haptics.tick()
         }
         // The glide needs no clicks; give the display back at once.
         setAcceptsMouse(false)
@@ -411,11 +416,6 @@ final class OverlayController {
         settleDeadline = nil
         pressLocation = nil
         state.cancelDrag()
-    }
-
-    /// Felt on the trackpad only; a mouse has nothing to move.
-    private static func haptic(_ pattern: NSHapticFeedbackManager.FeedbackPattern) {
-        NSHapticFeedbackManager.defaultPerformer.perform(pattern, performanceTime: .now)
     }
 }
 

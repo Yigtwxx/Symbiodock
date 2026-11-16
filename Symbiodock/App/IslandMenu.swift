@@ -12,6 +12,7 @@ final class IslandMenu: NSObject, NSMenuDelegate {
     private let musicAccessSeparator = NSMenuItem.separator()
     private let launchAtLoginItem: NSMenuItem
     private let returnToNotchItem: NSMenuItem
+    private let clearFilesItem: NSMenuItem
     private let firstTabItem = NSMenuItem(title: "First tab", action: nil, keyEquivalent: "")
     private var tabItems: [(tab: IslandTab, item: NSMenuItem)] = []
 
@@ -19,6 +20,11 @@ final class IslandMenu: NSObject, NSMenuDelegate {
     var firstTab: () -> IslandTab = { TabOrder.default[0] }
     /// Set by the app: the user chose a tab to be first.
     var onChooseFirstTab: ((IslandTab) -> Void)?
+
+    /// Set by the app: whether the shelf holds anything.
+    var hasFiles: () -> Bool = { false }
+    /// Set by the app: empties the shelf.
+    var onClearFiles: (() -> Void)?
 
     /// Set by the app: puts the island back on the notch.
     var onReturnToNotch: (() -> Void)?
@@ -32,6 +38,8 @@ final class IslandMenu: NSObject, NSMenuDelegate {
             title: "Launch at login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         returnToNotchItem = NSMenuItem(
             title: "Return to notch", action: #selector(returnToNotch), keyEquivalent: "")
+        clearFilesItem = NSMenuItem(
+            title: "Clear Files", action: #selector(clearFiles), keyEquivalent: "")
         super.init()
 
         menu.delegate = self
@@ -57,6 +65,9 @@ final class IslandMenu: NSObject, NSMenuDelegate {
         firstTabItem.submenu = tabMenu
         menu.addItem(firstTabItem)
 
+        clearFilesItem.target = self
+        menu.addItem(clearFilesItem)
+
         launchAtLoginItem.target = self
         menu.addItem(launchAtLoginItem)
         menu.addItem(.separator())
@@ -81,12 +92,17 @@ final class IslandMenu: NSObject, NSMenuDelegate {
         // A dash means it is registered but waiting for the user's approval in System Settings.
         launchAtLoginItem.state = LoginItem.isEnabled ? .on : (LoginItem.needsApproval ? .mixed : .off)
         returnToNotchItem.isEnabled = canReturnToNotch()
+        clearFilesItem.isHidden = !hasFiles()
         let first = firstTab()
         for (tab, item) in tabItems { item.state = tab == first ? .on : .off }
     }
 
     @objc private func returnToNotch() {
         onReturnToNotch?()
+    }
+
+    @objc private func clearFiles() {
+        onClearFiles?()
     }
 
     @objc private func chooseFirstTab(_ sender: NSMenuItem) {

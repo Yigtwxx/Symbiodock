@@ -8,6 +8,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var overlayController: OverlayController?
     private var nowPlaying: NowPlayingCoordinator?
     private var agents: AgentSessionCoordinator?
+    private let previews = FilePreviews()
+    private var shelf: ShelfCoordinator?
     private var terminationSignalSource: DispatchSourceSignal?
     private var wingsExpiry: Task<Void, Never>?
     /// The paused sources the running `wingsExpiry` waits for.
@@ -32,7 +34,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onVolume: { [weak self] request in self?.handleVolume(request) },
             onOpenSession: { session in
                 if let pid = session.hostAppPID { HostApp.bringForward(pid: pid) }
-            })
+            },
+            previews: previews,
+            onFile: { [weak self] request in self?.shelf?.handle(request) })
         overlayController.start()
         self.overlayController = overlayController
         islandMenu.onReturnToNotch = { [weak overlayController] in overlayController?.returnToNotch() }
@@ -46,6 +50,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // The collapsed face, and with it the hit rect, may have changed.
             self.overlayController?.refreshPointer()
         }
+
+        startShelf(islandMenu: islandMenu)
 
         #if DEBUG
         if let demo = DemoAgents.requested {
@@ -90,6 +96,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Otherwise the perl helper would outlive the app until its next write.
         nowPlaying?.stop()
         agents?.stop()
+        shelf?.stop()
+    }
+
+    /// Brings the shelf back, or lays out a demo one; the menu's `Clear Files` empties it.
+    private func startShelf(islandMenu: IslandMenu) {
+        let shelf = ShelfCoordinator(state: state, previews: previews)
+        self.shelf = shelf
+        islandMenu.hasFiles = { [weak self] in !(self?.state.shelf.isEmpty ?? true) }
+        islandMenu.onClearFiles = { [weak shelf] in shelf?.clear() }
+        #if DEBUG
+        if let demo = DemoFiles.requested {
+            shelf.isDemo = true
+            DemoFiles.apply(demo, to: state)
+            previews.refresh(state.shelf.items)
+            return
+        }
+        #endif
+        shelf.start()
+        #if DEBUG
+        if let file = DemoFiles.fileToAdd { shelf.add([file]) }
+        #endif
     }
 
     /// Starts looking for agent sessions.

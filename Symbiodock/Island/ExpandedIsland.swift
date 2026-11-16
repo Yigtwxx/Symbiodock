@@ -21,6 +21,8 @@ struct ExpandedIsland: View {
     let onCommand: (PlaybackCommand, NowPlayingOrigin) -> Void
     var onVolume: (VolumeRequest) -> Void = { _ in }
     let onOpenSession: (AgentSession) -> Void
+    var previews: FilePreviews?
+    var onFile: (FileRequest) -> Void = { _ in }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -34,7 +36,11 @@ struct ExpandedIsland: View {
                     AgentsContent(
                         rows: state.board.rows, topInset: metrics.height, onOpen: onOpenSession)
                 case .files:
-                    FilesContent(topInset: metrics.height)
+                    FilesContent(
+                        shelf: state.shelf, conversions: state.conversions,
+                        notice: state.shelfNotice, isDropTarget: state.isFileDragHovering,
+                        topInset: metrics.height, previews: previews,
+                        onSelect: { state.selectShelfItem($0) }, onRequest: onFile)
                 }
             }
             .transition(.opacity)
@@ -69,7 +75,12 @@ struct ExpandedIsland: View {
 
     @ViewBuilder
     private var summary: some View {
-        if state.selectedTab == .agents,
+        if state.selectedTab == .files, !state.shelf.isEmpty {
+            Text(state.shelf.count == 1 ? "1 item" : "\(state.shelf.count) items")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.5))
+                .lineLimit(1)
+        } else if state.selectedTab == .agents,
            let text = AgentLabels.summary(
                needsInput: state.board.needsInputCount, working: state.board.workingCount) {
             Text(text)

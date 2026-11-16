@@ -8,6 +8,8 @@ struct IslandView: View {
     let onCommand: (PlaybackCommand, NowPlayingOrigin) -> Void
     let onVolume: (VolumeRequest) -> Void
     let onOpenSession: (AgentSession) -> Void
+    let previews: FilePreviews?
+    let onFile: (FileRequest) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -125,7 +127,8 @@ struct IslandView: View {
         case .expanded:
             ExpandedIsland(
                 state: state, metrics: headerMetrics(atNotch: atNotch, frame: frame),
-                onCommand: onCommand, onVolume: onVolume, onOpenSession: onOpenSession)
+                onCommand: onCommand, onVolume: onVolume, onOpenSession: onOpenSession,
+                previews: previews, onFile: onFile)
                 .transition(.opacity)
         case .collapsed, .stretching, .detached, .settling:
             collapsedFace(atNotch: atNotch)
