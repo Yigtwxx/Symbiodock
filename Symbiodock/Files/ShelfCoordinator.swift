@@ -32,16 +32,28 @@ final class ShelfCoordinator {
         Self.log.notice("restored \(items.count) items")
     }
 
-    /// Puts files and folders on the shelf; one already there moves to the front.
-    func add(_ urls: [URL]) {
+    /// Puts files and folders on the shelf: onto a stack they join it in front, otherwise
+    /// several make one new stack. One already there moves (to that stack, or to the front).
+    func add(_ urls: [URL], onto stack: UUID? = nil) {
         let items = urls.map { url -> ShelfItem in
             let file = url.standardizedFileURL
             let isDirectory = (try? file.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
             return ShelfItem(url: file, isDirectory: isDirectory)
         }
         guard !items.isEmpty else { return }
-        state.addShelfItems(items)
+        state.addShelfItems(items, onto: stack)
         changed()
+    }
+
+    /// Files dragged within the island: onto a stack they join it in front; let go on the
+    /// row's empty part, each becomes a tile of its own. Nothing leaves the shelf.
+    func move(_ ids: [UUID], onto stack: UUID?) {
+        if let stack {
+            state.moveShelfItems(ids, onto: stack)
+        } else {
+            state.separateShelfItems(ids)
+        }
+        save()
     }
 
     func handle(_ request: FileRequest) {
@@ -89,9 +101,10 @@ final class ShelfCoordinator {
         }
     }
 
-    /// The tile left with a drag that was accepted: it is off the shelf, the file is not touched.
-    func removeAfterDragOut(_ id: UUID) {
-        state.removeShelfItems([id])
+    /// Files taken by the app they were dragged to: they are off the shelf, the files on disk
+    /// are not touched.
+    func removeAfterDragOut(_ ids: [UUID]) {
+        state.removeShelfItems(ids)
         changed()
     }
 

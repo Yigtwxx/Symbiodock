@@ -31,9 +31,10 @@ struct StackTile: View {
         ZStack(alignment: .topLeading) {
             // Back to front, so each card covers the one behind it.
             ForEach(frames.indices.reversed(), id: \.self) { index in
+                let frame = drawn(frames, index)
                 card(index)
-                    .frame(width: frames[index].width, height: frames[index].height)
-                    .offset(x: frames[index].minX, y: frames[index].minY - lift(of: index))
+                    .frame(width: frame.width, height: frame.height)
+                    .offset(x: frame.minX, y: frame.minY - lift(of: index))
             }
         }
         .offset(y: -stackLift)
@@ -59,17 +60,22 @@ struct StackTile: View {
     private func card(_ index: Int) -> some View {
         let item = stack.items[index]
         let look = emphasis(of: index)
-        let isLit = reduceMotion && count > 1 && hover == .file(index)
+        // With Reduce Motion nothing rises: the edge of what would have risen brightens.
+        let isLit = reduceMotion && count > 1 && (hover == .file(index) || (index == 0 && hover == .body))
         if index == 0 {
             FileCard(
                 item: item, label: labelItem, image: previews?.image(for: item), emphasis: look,
                 isLit: isLit
             )
-            .overlay(alignment: .topTrailing) { countPill }
+            // Pinned on the card's top edge: half on the tabs it counts, half on the card,
+            // clear of the picture, which starts at that edge.
+            .overlay(alignment: .topTrailing) {
+                countPill.alignmentGuide(.top) { $0[VerticalAlignment.center] }
+            }
             // The front card's edge falls on the tabs behind it; a soft shade keeps them apart.
             .shadow(color: .black.opacity(count > 1 ? 0.4 : 0), radius: 1.5, y: -0.5)
         } else {
-            let color = FileKindPalette.color(item.kind)
+            let color = FileKindPalette.tabColor(item.kind)
             CardGlass(color: color, emphasis: look, isTab: true)
                 .overlay { CardEdge(color: color, emphasis: look, isTab: true, isLit: isLit) }
                 .shadow(color: .black.opacity(0.4), radius: 1.5, y: -0.5)
@@ -96,9 +102,25 @@ struct StackTile: View {
         items.allSatisfy { selection.contains($0.id) }
     }
 
+    /// A card behind ends a little below the front card's top, under its rounded corners:
+    /// reaching the box's bottom as in `StackLayout`, it would show under a front card that
+    /// rises.
+    private func drawn(_ frames: [CGRect], _ index: Int) -> CGRect {
+        guard index > 0 else { return frames[0] }
+        var frame = frames[index]
+        frame.size.height = frames[0].minY + 2 * CardGlass.radius - frame.minY
+        return frame
+    }
+
+    /// The hovered card rises by `lift`. The cards behind it rise just enough that the tab
+    /// right behind keeps a strip of `minPeek`: a card rising into a 7 pt tab would leave
+    /// only a sliver of it.
     private func lift(of index: Int) -> CGFloat {
-        guard !reduceMotion, count > 1, hover == .file(index) else { return 0 }
-        return StackLayout.lift
+        guard !reduceMotion, count > 1, case .file(let hovered)? = hover, index >= hovered else {
+            return 0
+        }
+        if index == hovered { return StackLayout.lift }
+        return max(0, StackLayout.lift - (StackLayout.peek(count: count) - StackLayout.minPeek))
     }
 
     /// A drawer rises a little under the pointer resting on its body, and so does any stack a
@@ -117,19 +139,20 @@ struct StackTile: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 5)
                 .frame(minWidth: 15, minHeight: 14)
-                // Darker than a plain scrim: the pill often lies on a white page.
-                .background(.black.opacity(0.6), in: Capsule())
+                // Nearly opaque: it lies across a tab, the card's edge and the top of a picture,
+                // and none of them should run through it.
+                .background(.black.opacity(0.8), in: Capsule())
                 .padding(5)
         }
     }
 
-    /// Stays where the box is while the stack rises inside it.
+    /// Stays where the box is while the stack rises inside it, with room above for the rise.
     @ViewBuilder
     private var dropOutline: some View {
         if isDropTarget {
             RoundedRectangle(cornerRadius: CardGlass.radius + 3, style: .continuous)
                 .strokeBorder(.white.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                .padding(-3)
+                .padding(EdgeInsets(top: -3 - StackLayout.bodyLift, leading: -3, bottom: -3, trailing: -3))
         }
     }
 

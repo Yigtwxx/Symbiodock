@@ -23,6 +23,13 @@ enum FileKindPalette {
         }
     }
 
+    /// A tab of a drawer: a strip of a few points, washed strongly so it reads as its colour.
+    /// Grey is light at full strength where the colours turn dark, so it is held back: a file
+    /// of no particular kind must not be the brightest tab of the drawer.
+    static func tabColor(_ kind: FileKind) -> Color {
+        kind == .other ? color(kind).opacity(0.6) : color(kind)
+    }
+
     /// What a card shows where a file has no picture of its own. Never the system's
     /// document icon: on the black island those read as white paper cut-outs.
     static func symbol(_ kind: FileKind) -> String {

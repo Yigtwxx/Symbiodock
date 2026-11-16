@@ -120,22 +120,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
     }
 
-    /// Dropped files go on the shelf; a tile's file taken by another app leaves it; a click on
-    /// a stack picks.
+    /// Dropped files go on the shelf; files dragged within the island change stacks; files
+    /// taken by another app leave it; a click on a stack picks.
     private func wireFileDrags(_ overlayController: OverlayController) {
-        overlayController.onDropFiles = { [weak self] urls in self?.shelf?.add(urls) }
+        overlayController.onDropFiles = { [weak self] urls, stack in self?.shelf?.add(urls, onto: stack) }
+        overlayController.onMoveFiles = { [weak self] ids, stack in self?.shelf?.move(ids, onto: stack) }
         overlayController.onPickFile = { [weak self] stack, hit, command in
             self?.shelf?.pick(stack, hit, command: command)
         }
-        overlayController.onFileDraggedOut = { [weak self] id in self?.shelf?.removeAfterDragOut(id) }
+        overlayController.onFilesDraggedOut = { [weak self] ids in self?.shelf?.removeAfterDragOut(ids) }
         overlayController.fileURL = { [weak self] id in
             // A converting file is about to change; it stays until the reveal is over.
             guard let self, self.state.conversions[id] == nil else { return nil }
             return self.shelfItem(id)?.url
         }
         overlayController.dragImage = { [weak self] id in
+            // What the card shows: its picture, or its kind's symbol on its glass.
             guard let self, let item = self.shelfItem(id) else { return nil }
-            return self.previews.image(for: item)
+            return self.previews.image(for: item) ?? KindSymbolCard.image(for: item.kind)
         }
     }
 

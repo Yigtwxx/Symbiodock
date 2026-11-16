@@ -128,7 +128,7 @@ struct FileActionsColumn: View {
                 .font(.system(size: 8, weight: .semibold))
                 .tracking(0.8)
                 .foregroundStyle(.white.opacity(0.35))
-                .padding(.top, 5)
+                .padding(.top, 4)
                 .padding(.bottom, 3)
             LazyVGrid(columns: Self.columns, spacing: 4) {
                 ForEach(labels, id: \.self) { label in

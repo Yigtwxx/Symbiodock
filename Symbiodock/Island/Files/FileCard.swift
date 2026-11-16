@@ -26,8 +26,8 @@ struct CardGlass: View {
         switch (emphasis, isTab) {
         case (.plain, false): (0.24, 0.08)
         case (_, false): (0.34, 0.14)
-        case (.plain, true): (0.32, 0.12)
-        case (_, true): (0.46, 0.18)
+        case (.plain, true): (0.46, 0.16)
+        case (_, true): (0.6, 0.22)
         }
     }
 
@@ -138,7 +138,7 @@ private struct CardPicture: View {
         case (.document, let image?):
             paper(image)
         default:
-            symbol
+            KindSymbol(kind: item.kind).offset(y: 2)
         }
     }
 
@@ -165,11 +165,16 @@ private struct CardPicture: View {
                 .offset(y: 2)
         }
     }
+}
 
-    /// The symbol glows faintly in its colour, so a card without a picture is not just a void.
-    private var symbol: some View {
-        let color = FileKindPalette.color(item.kind)
-        return Image(systemName: FileKindPalette.symbol(item.kind))
+/// A kind's symbol, glowing faintly in its colour, so a card without a picture is not just a
+/// void.
+private struct KindSymbol: View {
+    let kind: FileKind
+
+    var body: some View {
+        let color = FileKindPalette.color(kind)
+        Image(systemName: FileKindPalette.symbol(kind))
             .font(.system(size: 24, weight: .regular))
             .foregroundStyle(color)
             .background {
@@ -179,7 +184,28 @@ private struct CardPicture: View {
                 )
                 .frame(width: 60, height: 60)
             }
-            .offset(y: 2)
+    }
+}
+
+/// A file without a picture as its card shows it, the kind's symbol on the kind's glass: what
+/// it looks like while it is dragged, instead of a Finder icon the shelf never shows.
+struct KindSymbolCard: View {
+    let kind: FileKind
+
+    var body: some View {
+        let color = FileKindPalette.color(kind)
+        KindSymbol(kind: kind)
+            .frame(width: 48, height: 48)
+            .background { CardGlass(color: color, emphasis: .plain) }
+            .clipShape(RoundedRectangle(cornerRadius: CardGlass.radius, style: .continuous))
+            .overlay { CardEdge(color: color, emphasis: .plain) }
+    }
+
+    /// Drawn when a drag begins, once for each file it carries without a picture.
+    static func image(for kind: FileKind) -> NSImage? {
+        let renderer = ImageRenderer(content: KindSymbolCard(kind: kind))
+        renderer.scale = 2
+        return renderer.nsImage
     }
 }
 

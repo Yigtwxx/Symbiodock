@@ -78,15 +78,19 @@ sekmelerindeki özen yoktu. Yeni görünüm aşağıdakidir ve "Sekme" bölümü
   tür renginde uzantı (8 pt heavy, harf aralıklı, hap zemini yok).
 - **Seçili kart:** tür renginde 1,5 pt halka ve daha güçlü zemin (%34 → %14). Gri plaka yok.
 - **Yığın:** arkadaki kartlar kendi tür renklerinde aynı cam yüzeylerdir; çekmece, renkli
-  sekmeli dosyalar gibi okunur. Görünen şerit birkaç pt olduğundan arka kartın rengi biraz
-  daha güçlüdür (%32 → %12, kenar %50; bütün yığın seçiliyken %46, kenar %75).
+  sekmeli dosyalar gibi okunur. Görünen şerit birkaç pt olduğundan arka kartın rengi daha
+  güçlüdür (%46 → %16, kenar %50; bütün yığın seçiliyken %60, kenar %75); %32'de kehribar
+  kahverengi, kırmızı bordo okunuyordu. Gri (diğer) sekme %60 gücünde: tam güçte koyulaşan
+  renklerin yanında yığının en parlak sekmesi oluyordu. Arka kartlar öndeki kartın üstünden
+  iki köşe yarıçapı aşağıda biter, öndeki kart kalkınca altından görünmez.
 - **İşlem sütunu bir panel:** çizgi yerine beyaz %5 zeminli panel; köşesi adanınkiyle eş
   merkezli (16 pt: adanın 24 pt'lik köşesi, 8 pt'lik kenar boşluğu). Ad 12 pt
   semibold; ayrıntı satırının başında tür renginde nokta; simge düğmeleri 20 pt daire (beyaz
   %8). `CONVERT TO` küçük, harf aralıklı başlık.
 - **Çipler hedef türünün renginde:** `PDF` kırmızı, `PNG`/`JPEG` mavi, `ZIP` amber…: yazı o
-  renkte, zemin %16, kenar %30, 7 pt köşe, 20 pt yükseklik (iki sıra çip çentikteki 150 pt'lik
-  adaya ancak böyle sığar); basılıyken %55.
+  renkte, zemin %16, kenar %30, 7 pt köşe, 20 pt yükseklik; `CONVERT TO`'nun üstünde 4 pt. İki sıra çiple
+  panel, çentikteki 150 pt'lik adanın bıraktığı 110 pt'yi tam doldurur ve alt kenarı
+  kartlarınkiyle aynı hizada kalır (5 pt'de 1 pt taşıyordu); basılıyken %55.
 - **Boş raf:** her zaman görünen kesikli bırakma alanı (beyaz %14), ortasında simge, `Drop files
   here` ve altında `They stay while you switch spaces` (10 pt, beyaz %35). Dosya sürüklenirken
   alan parlar (beyaz %45) ve `Drop to hold` yazar.
@@ -102,12 +106,20 @@ sekmelerindeki özen yoktu. Yeni görünüm aşağıdakidir ve "Sekme" bölümü
   bir öncekinin üstünden 7 pt taşarak ve iki yandan 3 pt daralarak görünür. Dosya çoğaldıkça
   şerit incelir (en az 3 pt, toplam taşma 21 pt'yi geçmez); en fazla 7 arka kart çizilir,
   fazlası sayılır ama çizilmez. Yığının kutusu tek karodan 8 pt yüksektir (64 × 104) ve alta
-  hizalanır; öndeki kartın önizlemesi kalan yere göre küçülür. Öndeki kartın sağ üstünde adet.
+  hizalanır; öndeki kartın önizlemesi kalan yere göre küçülür. Adet, öndeki kartın üst
+  kenarına sağda iğnelenmiş bir haptır (yarısı saydığı sekmelerin, yarısı kartın üstünde;
+  siyah %80): kartın içinde sayfanın ya da görselin köşesine biniyordu.
 - İmleç bir arka kartın şeridine gelince o kart 6 pt yukarı kalkar (yay animasyonu) ve yığının
   ad satırı o dosyanın adını gösterir. Öndeki kartın üst 12 pt'lik şeridi de aynı şekilde
-  davranır (yalnızca öndeki dosya). Gövdede beklerken yığının tamamı 3 pt kalkar.
+  davranır (yalnızca öndeki dosya). Kalkan kartın arkasındakiler, hemen arkadaki şerit en az
+  3 pt görünecek kadar birlikte kalkar (7 pt'lik şeritte 2 pt): yoksa 6 pt kalkan kart onu
+  1 pt'lik bir çizgiye indiriyordu. Gövdede beklerken yığının tamamı 3 pt kalkar. Reduce
+  Motion'da hiçbir şey kalkmaz; şeritte o kartın, gövdede öndeki kartın kenarı parlar.
 - Tıklama: şeride tıklamak o dosyayı tek başına seçer ve öne getirir; gövdeye tıklamak yığının
-  tamamını seçer.
+  tamamını seçer. Neyin seçileceğine basılan yer karar verir, bırakılan yer değil (şerit 3–7 pt,
+  sürükleme eşiği 6 pt: kayan bir tıklama komşu dosyayı seçerdi); aynı karar sürüklemede neyin
+  gideceğini de belirler. Tıklama yığını yeniden sıraladıysa imleç kıpırdayana kadar altındaki
+  kart kalkmaz. Kutunun kartsız köşeleri boş alandır: oradan basıp çekmek adayı koparır.
 - Yığından çıkarma: bir dosyayı şeridinden tutup karo şeridinin boş yerine bırakmak onu ayrı
   karo yapar. İşlem sütunundaki `Unstack` simgesi (tek bir yığının tamamı seçiliyken) yığını
   ayrı karolara dağıtır.
@@ -155,11 +167,18 @@ sekmelerindeki özen yoktu. Yeni görünüm aşağıdakidir ve "Sekme" bölümü
   çekmek bugünkü gibi adayı koparır. Karoya tıklamak onu seçer.
 - Yığında neyin sürükleneceğini basılan yer belirler, seçim değil: gövdeden tutulunca yığının
   bütün dosyaları birlikte gider; bir arka kartın şeridinden ya da öndeki kartın üst şeridinden
-  tutulunca yalnızca o dosya gider.
-- Sürüklenen karo adanın içinde başka bir karoya bırakılırsa yığına katılır, karo şeridinin boş
-  yerine bırakılırsa (yığından geldiyse) ayrı karo olur; ikisinde de raftan çıkmaz.
+  tutulunca yalnızca o dosya gider. Her dosya ayrı bir sürükleme öğesidir (öndeki önce); ilk
+  beşinin görüntüsü öndeki kartın resminden sağa yukarı 4'er pt yelpaze açar, gerisi görüntüsüz
+  gider. Görüntü kartın gösterdiğidir: önizleme ya da tür camında tür simgesi, Finder simgesi
+  değil.
+- Sürüklenen karo adanın içinde başka bir karoya bırakılırsa yığına katılır (önüne), karo
+  şeridinin boş yerine bırakılırsa (yığından geldiyse) ayrı karo olur; ikisinde de raftan
+  çıkmaz. Hedef yığın kesikli çerçeveyle, boş yer baştaki yer tutucuyla gösterilir. Bütün bir
+  yığını boş yere ya da bir dosyayı kendi yığınına bırakmak hiçbir şey değiştirmez ve
+  reddedilir.
 - Kopya mı taşıma mı olacağına hedef uygulama karar verir (Finder'daki gibi). Çöp Sepeti'ne
-  bırakma sunulmaz.
+  bırakma sunulmaz. Rafın kendi klasöründeki dosyalar (söz verilen, ham görsel) için takma ad
+  (`.link`) da sunulmaz: klasör temizlenince takma ad kırılırdı.
 - Başarılı bırakmada giden dosyalar raftan çıkar; iptal edilirse yerine döner. Adanın başka
   bir yerine bırakmak iptaldir. İçinde çevrilen dosya olan yığın ve çevrilen karo sürüklenmez.
 - Sürükleme sırasında imleç adadan çıkınca ada her zamanki gibi kapanır ve panel tıklamaları
