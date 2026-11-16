@@ -4,7 +4,8 @@ public enum NowPlayingOrigin: Equatable, Hashable, Sendable {
     case system
     /// A player that is asked directly, next to the system-wide source (Apple Music).
     case companion
-    /// A playing app the system knows about but does not currently elect.
+    /// An app from the system's list of players, in a slot of its own (usually one the
+    /// system does not elect).
     case client(pid: Int32)
 
     /// The process of an app from the system's list; nil for the other origins.
