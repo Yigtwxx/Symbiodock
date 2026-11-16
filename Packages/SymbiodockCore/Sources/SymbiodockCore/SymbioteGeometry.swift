@@ -58,19 +58,31 @@ enum SymbioteGeometry {
     }
 
     /// A thin sliver along the lit side of a strand, fading out toward both ends.
-    /// - Parameter minimumWidth: the sliver never gets thinner than this, so it does not break up.
-    static func sheen(_ points: [CGPoint], _ radii: [CGFloat], minimumWidth: CGFloat) -> [CGPoint]? {
-        sliver(points, radii, side: 1, inset: 0.42, width: 0.2, minimumWidth: minimumWidth)
+    /// - Parameters:
+    ///   - minimumWidth: the sliver never gets thinner than this, so it does not break up.
+    ///   - widthScale: thins the sliver in place, to fade it in or out without moving it.
+    ///   - facing: when set, the side the sliver keeps all along the strand. Without it each
+    ///     point turns to the light on its own, and a strand running along the light would
+    ///     throw its sliver from side to side.
+    static func sheen(
+        _ points: [CGPoint], _ radii: [CGFloat], minimumWidth: CGFloat, widthScale: CGFloat = 1,
+        facing: CGPoint? = nil
+    ) -> [CGPoint]? {
+        sliver(
+            points, radii, side: 1, inset: 0.42, width: 0.2, minimumWidth: minimumWidth,
+            widthScale: widthScale, facing: facing ?? lightDirection)
     }
 
     /// A fainter line along the far side, which makes the strand read as round.
     static func rimLight(_ points: [CGPoint], _ radii: [CGFloat], minimumWidth: CGFloat) -> [CGPoint]? {
-        sliver(points, radii, side: -1, inset: 0.62, width: 0.07, minimumWidth: minimumWidth)
+        sliver(
+            points, radii, side: -1, inset: 0.62, width: 0.07, minimumWidth: minimumWidth,
+            widthScale: 1, facing: lightDirection)
     }
 
     private static func sliver(
         _ points: [CGPoint], _ radii: [CGFloat], side: CGFloat, inset: CGFloat, width: CGFloat,
-        minimumWidth: CGFloat
+        minimumWidth: CGFloat, widthScale: CGFloat, facing: CGPoint
     ) -> [CGPoint]? {
         let skip = points.count / 6
         let range = skip..<(points.count - skip)
@@ -80,13 +92,13 @@ enum SymbioteGeometry {
         for i in range {
             let tangent = (points[min(i + 1, points.count - 1)] - points[max(i - 1, 0)]).normalized
             var normal = CGPoint(x: -tangent.y, y: tangent.x)
-            if normal.x * lightDirection.x + normal.y * lightDirection.y < 0 {
+            if normal.x * facing.x + normal.y * facing.y < 0 {
                 normal = normal * -1
             }
             normal = normal * side
             let t = CGFloat(i - range.lowerBound) / CGFloat(range.count - 1)
             shifted.append(points[i] + normal * (radii[i] * inset))
-            widths.append(max(radii[i] * width * sin(CGFloat.pi * t), minimumWidth))
+            widths.append(max(radii[i] * width * sin(CGFloat.pi * t), minimumWidth) * widthScale)
         }
         return ribbon(shifted, widths)
     }
