@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import Observation
 
 /// The display facts the island is laid out against, in panel-local coordinates.
@@ -14,4 +15,9 @@ final class IslandGeometry {
     /// Where a press must not start dragging the island (a slider), in panel-local
     /// coordinates. Written during layout, so it is not observed.
     @ObservationIgnored var noDragRects: [String: CGRect] = [:]
+    /// The Files page's tiles by item, panel-local: a press on one drags its file out
+    /// instead of the island. Written during layout, so it is not observed.
+    @ObservationIgnored var fileDragRects: [UUID: CGRect] = [:]
+    /// The visible part of the tile row; a tile scrolled out of it is not under the pointer.
+    @ObservationIgnored var fileDragViewport: CGRect = .null
 }

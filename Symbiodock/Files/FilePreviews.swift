@@ -53,11 +53,11 @@ final class FilePreviews {
         let url = item.url
         loading[id] = url
         tasks[id]?.cancel()
+        let isDirectory = item.isDirectory
         if entries[id]?.url != url {
-            entries[id] = Entry(url: url, image: Self.icon(for: url))
+            entries[id] = Entry(url: url, image: Self.icon(for: url, isDirectory: isDirectory))
             details[id] = nil
         }
-        let isDirectory = item.isDirectory
         tasks[id] = Task { [weak self] in
             let size = isDirectory ? nil : await Self.fileSize(of: url)
             let thumbnail = await Self.thumbnail(of: url)
@@ -69,11 +69,14 @@ final class FilePreviews {
         }
     }
 
-    private static func icon(for url: URL) -> NSImage {
+    /// A file that is not there (the demo shelf) gets its type's icon; a folder has no extension
+    /// to tell it by.
+    private static func icon(for url: URL, isDirectory: Bool) -> NSImage {
         if FileManager.default.fileExists(atPath: url.path) {
             return NSWorkspace.shared.icon(forFile: url.path)
         }
-        return NSWorkspace.shared.icon(for: UTType(filenameExtension: url.pathExtension) ?? .data)
+        let type = isDirectory ? .folder : UTType(filenameExtension: url.pathExtension) ?? .data
+        return NSWorkspace.shared.icon(for: type)
     }
 
     /// Read off the main actor: a file on a network volume can take a while.

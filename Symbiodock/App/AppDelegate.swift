@@ -37,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             },
             previews: previews,
             onFile: { [weak self] request in self?.shelf?.handle(request) })
+        wireFileDrags(overlayController)
         overlayController.start()
         self.overlayController = overlayController
         islandMenu.onReturnToNotch = { [weak overlayController] in overlayController?.returnToNotch() }
@@ -117,6 +118,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #if DEBUG
         if let file = DemoFiles.fileToAdd { shelf.add([file]) }
         #endif
+    }
+
+    /// Dropped files go on the shelf; a tile's file taken by another app leaves it.
+    private func wireFileDrags(_ overlayController: OverlayController) {
+        overlayController.onDropFiles = { [weak self] urls in self?.shelf?.add(urls) }
+        overlayController.onFileDraggedOut = { [weak self] id in self?.shelf?.removeAfterDragOut(id) }
+        overlayController.fileURL = { [weak self] id in
+            // A converting file is about to change; it stays until the reveal is over.
+            guard let self, self.state.conversions[id] == nil else { return nil }
+            return self.shelfItem(id)?.url
+        }
+        overlayController.dragImage = { [weak self] id in
+            guard let self, let item = self.shelfItem(id) else { return nil }
+            return self.previews.image(for: item)
+        }
+    }
+
+    private func shelfItem(_ id: UUID) -> ShelfItem? {
+        state.shelf.items.first { $0.id == id }
     }
 
     /// Starts looking for agent sessions.

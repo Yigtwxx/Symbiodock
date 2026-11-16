@@ -19,6 +19,8 @@ final class MouseTracker {
     private var timer: Timer?
     /// Fallback timer used only while the pointer is on the island (`.eventMonitors` mode).
     private var supplementalTimer: Timer?
+    /// Runs only while the left button is held down in another app (`.eventMonitors` mode).
+    private var pressTimer: Timer?
 
     init(mode: Mode, onMove: @escaping @MainActor (CGPoint) -> Void) {
         self.mode = mode
@@ -29,9 +31,15 @@ final class MouseTracker {
         switch mode {
         case .eventMonitors:
             let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
-            if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] _ in
-                MainActor.assumeIsolated { self?.report() }
-            }) {
+            if let global = NSEvent.addGlobalMonitorForEvents(
+                matching: mask.union(.leftMouseDown), handler: { [weak self] event in
+                    let isPress = event.type == .leftMouseDown
+                    MainActor.assumeIsolated {
+                        if isPress { self?.startPressPolling() }
+                        self?.report()
+                    }
+                })
+            {
                 monitors.append(global)
             }
             // Clicks also re-evaluate the pointer, so a lost exit event cannot outlive a click.
@@ -53,6 +61,8 @@ final class MouseTracker {
         monitors.removeAll()
         timer?.invalidate()
         timer = nil
+        pressTimer?.invalidate()
+        pressTimer = nil
         setSupplementalPolling(false)
     }
 
@@ -70,10 +80,30 @@ final class MouseTracker {
         }
     }
 
+    /// Polls while the left button is held down in another app, and stops once it is up.
+    /// Another app's file drag may not report `.leftMouseDragged` to the global monitor (not
+    /// verified); without this the island would not see the drag arrive and could not take the
+    /// drop. A plain click costs one tick.
+    private func startPressPolling() {
+        guard pressTimer == nil else { return }
+        pressTimer = makePollingTimer { tracker in
+            if NSEvent.pressedMouseButtons & 1 == 0 {
+                tracker.pressTimer?.invalidate()
+                tracker.pressTimer = nil
+            }
+            tracker.report()
+        }
+    }
+
     /// `.common` mode keeps the timer firing while a menu is open (event tracking mode).
-    private func makePollingTimer() -> Timer {
+    private func makePollingTimer(
+        onTick: @escaping @MainActor (MouseTracker) -> Void = { $0.report() }
+    ) -> Timer {
         let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.report() }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                onTick(self)
+            }
         }
         RunLoop.main.add(timer, forMode: .common)
         return timer

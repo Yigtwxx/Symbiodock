@@ -281,6 +281,15 @@ spec'te yazılı.
   sayılır; böylece compact'ın bitişi hiçbir zaman bitiş (finish) sayılmaz.
 - Claude Code `status: "shell"`: tur bitmiş, arka planda kabuk komutu sürüyor (bir oturumda iki
   kez görüldü). Boşta sayılıyor; başka anlamı çıkarsa buraya yazılır.
+- Dosya sürükleme (2026-11-16, Faz 10 Görev 5): gerçek sürükleme elle yapılması gerektiği için
+  üç varsayımın hiçbiri denenmedi. (1) Başka uygulamanın sürüklemesi sırasında global
+  `.leftMouseDragged` geliyor; yedek kodda: global `leftMouseDown` ile başlayıp tuş bırakılınca
+  duran 30 Hz yoklama (`MouseTracker`, istirahatte çalışmaz). (2) Sürükleme ortasında
+  `ignoresMouseEvents = false` yapılan panel bırakma hedefi oluyor; yedek yazılmadı: yalnızca
+  dosya sürüklemesi boyunca gösterilen, ada boyunda ayrı küçük bırakma paneli. (3)
+  `beginDraggingSession` sırasında 30 Hz yoklama sürüyor; yedek kodda:
+  `draggingSession(_:movedTo:)` içinden `refreshPointer()`. Başarısız olursa Console'da `drop` ve
+  `file-drag` kategorilerine bakılır.
 
 ## Doğrulama
 

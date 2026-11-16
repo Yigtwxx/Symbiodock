@@ -15,6 +15,8 @@ struct FilesContent: View {
     let onSelect: (UUID) -> Void
     let onRequest: (FileRequest) -> Void
 
+    @Environment(IslandGeometry.self) private var geometry: IslandGeometry?
+
     private static let tileSpacing: CGFloat = 8
 
     var body: some View {
@@ -92,8 +94,13 @@ struct FilesContent: View {
                     Rectangle()
                 }
             }
+            // Only the visible part of the row takes a press on a tile.
+            .onChange(of: proxy.frame(in: .global), initial: true) { _, frame in
+                geometry?.fileDragViewport = frame
+            }
         }
         .frame(height: FileTile.height)
+        .onDisappear { geometry?.fileDragViewport = .null }
     }
 
     private var placeholder: some View {

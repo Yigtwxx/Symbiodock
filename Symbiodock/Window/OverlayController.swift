@@ -40,6 +40,21 @@ final class OverlayController {
     /// When the current settle is due to end; the pointer poll enforces it if the timer is lost.
     private var settleDeadline: ContinuousClock.Instant?
 
+    /// Files dropped on the island or on a bubble.
+    var onDropFiles: ([URL]) -> Void = { _ in }
+    /// A tile's file was taken by the app it was dragged to.
+    var onFileDraggedOut: (UUID) -> Void = { _ in }
+    /// The file a tile holds; nil while it converts or once it is gone: such a tile is not dragged.
+    var fileURL: (UUID) -> URL? = { _ in nil }
+    /// What the dragged file looks like under the pointer.
+    var dragImage: (UUID) -> NSImage? = { _ in nil }
+    /// The tile a press went down on, until the press travels or comes up.
+    private var pressedFileID: UUID?
+    /// The tile whose file is being dragged out, until the drag ends.
+    private var outgoingFileID: UUID?
+    /// Kept for the session: AppKit does not promise to keep its source alive.
+    private var fileDragSource: FileDragSource?
+
     /// Drag milestones only (phase names and booleans, never content). Watch with:
     /// `log stream --predicate 'subsystem == "com.yigtwxx.Symbiodock" && category == "drag"'`
     private static let dragLog = Logger(subsystem: "com.yigtwxx.Symbiodock", category: "drag")
@@ -147,6 +162,7 @@ final class OverlayController {
         hostingView.allowsContextMenu = { [weak self] in self?.isIdle ?? false }
         // Keep SwiftUI from resizing the panel to the content's ideal size.
         hostingView.sizingOptions = []
+        acceptFileDrops(on: hostingView)
         panel.contentView = hostingView
         panel.setFrame(metrics.frame, display: true)
         panel.orderFrontRegardless()
@@ -183,6 +199,7 @@ final class OverlayController {
     private func resetHoverState() {
         hoverTask?.cancel()
         hoverTask = nil
+        state.setFileDragHovering(false)
         state.setHovering(false)
         pointerInside = false
         pointerOnBubble = false
@@ -233,6 +250,7 @@ final class OverlayController {
                 return
             }
             pressLocation = nil
+            pressedFileID = nil
         }
 
         let hitRect = IslandLayout.hitRect(
@@ -243,9 +261,11 @@ final class OverlayController {
         // Read again when the hover fires: the pointer may have moved on to the island.
         pointerOnBubble = bubbleHitRect?.contains(local) ?? false
         let inside = pointerOnBubble || hitRect.contains(local)
+        let takesDrop = inside || dragIsOverFilesBubble(local)
 
         // Assign only on change: this runs on every mouse move system-wide.
-        setAcceptsMouse(inside)
+        setAcceptsMouse(takesDrop)
+        endStaleFileDragHover(onTarget: takesDrop)
 
         guard inside != pointerInside else { return }
         pointerInside = inside
@@ -277,38 +297,41 @@ final class OverlayController {
         dragMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
         ) { [weak self] event in
-            let type = event.type
-            let windowNumber = event.windowNumber
-            // Control-click opens the menu; it must never start a drag.
-            let isControlClick = event.modifierFlags.contains(.control)
-            MainActor.assumeIsolated {
-                self?.handleMouse(type, windowNumber: windowNumber, isControlClick: isControlClick)
-            }
+            // Local monitors run on the main thread; the event goes on to the panel unchanged.
+            MainActor.assumeIsolated { self?.handleMouse(event) }
             return event
         }
     }
 
-    private func handleMouse(_ type: NSEvent.EventType, windowNumber: Int, isControlClick: Bool) {
+    private func handleMouse(_ event: NSEvent) {
         guard let metrics, let panel else { return }
         var point = metrics.localPoint(fromGlobal: NSEvent.mouseLocation)
         // Dragging between displays is not supported: the island stays on its own.
         point.x = min(max(point.x, 0), geometry.screenSize.width)
         point.y = min(max(point.y, 0), geometry.screenSize.height)
 
-        switch type {
+        switch event.type {
         case .leftMouseDown:
             let onIsland = islandFrame(phase: state.phase)
                 .insetBy(dx: -IslandLayout.hitPadding, dy: -IslandLayout.hitPadding)
                 .contains(point)
+            // Control-click opens the menu; it must never start a drag.
+            let isControlClick = event.modifierFlags.contains(.control)
             pressLocation =
-                windowNumber == panel.windowNumber && !isControlClick && isIdle && onIsland ? point : nil
+                event.windowNumber == panel.windowNumber && !isControlClick && isIdle && onIsland
+                ? point : nil
             // The press is still tracked, so the island stays open while a slider is dragged
             // past its edge; it only never becomes a drag of the island.
             pressAllowsDrag = !(state.phase == .expanded
                 && geometry.noDragRects.values.contains { $0.contains(point) })
+            pressedFileID = pressLocation.flatMap(fileTile(at:))
+            // A press on a tile drags its file, never the island.
+            if pressedFileID != nil { pressAllowsDrag = false }
         case .leftMouseDragged:
             if state.isDragging {
                 continueDrag(to: point)
+            } else if pressedFileID != nil {
+                continueFilePress(to: point, event: event)
             } else if let press = pressLocation, pressAllowsDrag, isIdle,
                       hypot(point.x - press.x, point.y - press.y) > Self.dragThreshold {
                 // One press starts at most one drag: a drag event still queued after the
@@ -318,6 +341,7 @@ final class OverlayController {
                 continueDrag(to: point)
             }
         case .leftMouseUp:
+            releaseFilePress(at: point)
             let wasPressed = pressLocation != nil
             pressLocation = nil
             if state.isDragging {
@@ -415,15 +439,197 @@ final class OverlayController {
         settleTask = nil
         settleDeadline = nil
         pressLocation = nil
+        pressedFileID = nil
         state.cancelDrag()
     }
 }
 
-/// Hosts the island and shows its context menu on a secondary click.
+// MARK: - Dropping files in
+
+extension OverlayController {
+    /// The panel takes file drags where the island or a bubble is; anywhere else it lets
+    /// events through as usual, so it is never in the way of a drag meant for another app.
+    private func acceptFileDrops(on view: IslandHostingView<IslandView>) {
+        view.registerForDraggedTypes(FileDropReader.types)
+        FileDropReader.log.debug("drop target registered \(view.registeredDraggedTypes.count) types")
+        view.fileDragMoved = { [weak self] point, pasteboard, entered in
+            self?.fileDragMoved(to: point, pasteboard: pasteboard, entered: entered) ?? []
+        }
+        view.onFileDragLeft = { [weak self] in self?.fileDragLeft() }
+        view.performFileDrop = { [weak self] pasteboard in self?.performFileDrop(pasteboard) ?? false }
+    }
+
+    /// The files bubble's hover area while it is shown.
+    private var filesBubbleHitRect: CGRect? {
+        guard state.filesBubbleShown else { return nil }
+        return IslandLayout.filesBubbleHitRect(
+            notch: geometry.notch, screenSize: geometry.screenSize, showsWings: state.showsWings,
+            behind: max(state.shelf.bubbleKinds.count - 1, 0))
+    }
+
+    /// A drag carried onto the files bubble may be dropped there, so the panel must take events
+    /// under it while the button is held. It does not open the island: a press that only
+    /// happens to be held there (a menu bar icon) must not, and a file drag opens it on entering.
+    private func dragIsOverFilesBubble(_ point: CGPoint) -> Bool {
+        guard filesBubbleHitRect?.contains(point) == true else { return false }
+        return NSEvent.pressedMouseButtons & 1 != 0
+    }
+
+    /// AppKit may not say that a drag left when the panel stops taking events under it, nor
+    /// when it was cancelled over the island: the drop look must not outlive the drag.
+    private func endStaleFileDragHover(onTarget: Bool) {
+        guard state.isFileDragHovering, !onTarget || NSEvent.pressedMouseButtons & 1 == 0 else { return }
+        FileDropReader.log.debug("file drag hover ended from the pointer poll")
+        state.setFileDragHovering(false)
+    }
+
+    private func fileDragMoved(to point: CGPoint, pasteboard: NSPasteboard, entered: Bool) -> NSDragOperation {
+        let isOwn = outgoingFileID != nil
+        let readable = FileDropReader.canRead(pasteboard)
+        let onTarget = IslandLayout.hitRect(
+            anchor: state.anchor, phase: state.phase, notch: geometry.notch,
+            visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
+            showsWings: state.showsWings
+        ).contains(point)
+            || bubbleHitRect?.contains(point) == true
+            || filesBubbleHitRect?.contains(point) == true
+        if entered {
+            FileDropReader.log.notice(
+                "file drag entered at \(Int(point.x)),\(Int(point.y)); own: \(isOwn), readable: \(readable), resting: \(self.isIdle), on island: \(onTarget)")
+        }
+        guard !isOwn, isIdle, readable, onTarget else { return [] }
+        if !state.isFileDragHovering {
+            // Open on Files at once: no hover delay for a drag on its way in.
+            hoverTask?.cancel()
+            hoverTask = nil
+            pointerInside = true
+            state.setFileDragHovering(true)
+            FileDropReader.log.notice("file drag accepted; island opens on Files")
+        }
+        return .copy
+    }
+
+    private func fileDragLeft() {
+        state.setFileDragHovering(false)
+        refreshPointer()
+    }
+
+    private func performFileDrop(_ pasteboard: NSPasteboard) -> Bool {
+        let taken = FileDropReader.read(pasteboard, storage: .shared) { [weak self] urls in
+            self?.onDropFiles(urls)
+        }
+        FileDropReader.log.notice("file drop performed; taken: \(taken)")
+        if taken { Haptics.tick() }
+        return taken
+    }
+}
+
+// MARK: - Dragging files out
+
+extension OverlayController {
+    /// The tile under a press on the open Files page, unless it is scrolled out of view.
+    private func fileTile(at point: CGPoint) -> UUID? {
+        guard state.phase == .expanded, state.selectedTab == .files else { return nil }
+        let id = geometry.fileDragViewport.contains(point)
+            ? geometry.fileDragRects.first { $0.value.contains(point) }?.key : nil
+        FileDragSource.log.debug(
+            "press on the Files page; on a tile: \(id != nil), tiles: \(self.geometry.fileDragRects.count), in row: \(self.geometry.fileDragViewport.contains(point))")
+        return id
+    }
+
+    /// Past the threshold a press on a tile becomes a drag of its file, once. A tile whose file
+    /// is converting stays where it is, and the press is no longer a click.
+    private func continueFilePress(to point: CGPoint, event: NSEvent) {
+        guard let id = pressedFileID, let press = pressLocation,
+              hypot(point.x - press.x, point.y - press.y) > Self.dragThreshold else { return }
+        pressedFileID = nil
+        guard beginFileDrag(id, event: event) else { return }
+        // Held, the press would keep the full-screen panel taking events, and it would swallow
+        // the drop meant for the app below.
+        pressLocation = nil
+        refreshPointer()
+    }
+
+    private func beginFileDrag(_ id: UUID, event: NSEvent) -> Bool {
+        guard let view = panel?.contentView, let url = fileURL(id),
+              let tile = geometry.fileDragRects[id] else {
+            FileDragSource.log.notice("file drag not started: the tile has no file to give")
+            return false
+        }
+        let item = NSDraggingItem(pasteboardWriter: url as NSURL)
+        // The preview sits 6 pt below the tile's top edge (`FileTile`).
+        let preview = CGRect(x: tile.midX - 24, y: tile.minY + 6, width: 48, height: 48)
+        item.setDraggingFrame(
+            preview, contents: dragImage(id) ?? NSWorkspace.shared.icon(forFile: url.path))
+        let source = FileDragSource(
+            onMoved: { [weak self] in self?.refreshPointer() },
+            onEnded: { [weak self] dropped in self?.fileDragEnded(dropped: dropped) })
+        let session = view.beginDraggingSession(with: [item], event: event, source: source)
+        session.animatesToStartingPositionsOnCancelOrFail = true
+        fileDragSource = source
+        outgoingFileID = id
+        FileDragSource.log.notice("file drag began")
+        return true
+    }
+
+    private func fileDragEnded(dropped: Bool) {
+        let id = outgoingFileID
+        outgoingFileID = nil
+        fileDragSource = nil
+        FileDragSource.log.notice("file drag ended; dropped: \(dropped)")
+        if dropped, let id { onFileDraggedOut(id) }
+        refreshPointer()
+    }
+
+    /// A press on a tile that never travelled is a click: it selects the tile.
+    private func releaseFilePress(at point: CGPoint) {
+        guard let id = pressedFileID else { return }
+        pressedFileID = nil
+        guard geometry.fileDragRects[id]?.contains(point) == true else { return }
+        state.selectShelfItem(id)
+    }
+}
+
+/// Hosts the island, shows its context menu on a secondary click and takes file drops.
 private final class IslandHostingView<Content: View>: NSHostingView<Content> {
     var contextMenu: NSMenu?
     /// Asked before the menu opens.
     var allowsContextMenu: () -> Bool = { true }
+    /// A file drag entered (`entered`) or moved, at a panel-local point: what it may do here.
+    var fileDragMoved: (_ point: CGPoint, _ pasteboard: NSPasteboard, _ entered: Bool) -> NSDragOperation =
+        { _, _, _ in [] }
+    /// The drag left the panel or ended, dropped or not.
+    var onFileDragLeft: () -> Void = {}
+    /// The drag was let go over a place `fileDragMoved` accepted.
+    var performFileDrop: (_ pasteboard: NSPasteboard) -> Bool = { _ in false }
+
+    // NSHostingView answers every destination call for SwiftUI's own drop modifiers. The island
+    // has none, so each call is taken here and none reaches it. The view is flipped, so a point
+    // converted from the window is panel-local.
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        fileDragMoved(convert(sender.draggingLocation, from: nil), sender.draggingPasteboard, true)
+    }
+
+    override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        fileDragMoved(convert(sender.draggingLocation, from: nil), sender.draggingPasteboard, false)
+    }
+
+    override func draggingExited(_ sender: (any NSDraggingInfo)?) {
+        onFileDragLeft()
+    }
+
+    override func draggingEnded(_ sender: any NSDraggingInfo) {
+        onFileDragLeft()
+    }
+
+    override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool { true }
+
+    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        performFileDrop(sender.draggingPasteboard)
+    }
+
+    override func concludeDragOperation(_ sender: (any NSDraggingInfo)?) {}
 
     /// A click on a panel that never becomes key would otherwise only "activate" it;
     /// the island's buttons must react to the first click.
