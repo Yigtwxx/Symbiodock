@@ -70,3 +70,40 @@ final class SiteResolver {
         if let latest, Self.key(for: latest) != nil { publish(latest) }
     }
 }
+
+/// The same for the other apps the system lists: the first browser among them that could
+/// be shown gets its site. A second browser keeps the browser's own icon.
+@MainActor
+final class ClientSiteResolver {
+    private let onUpdate: @MainActor ([NowPlayingClient]) -> Void
+    private var latest: [NowPlayingClient] = []
+    /// The client whose info goes through `resolver`.
+    private var browserPID: Int32?
+    private lazy var resolver = SiteResolver { [weak self] info in self?.resolved(info) }
+
+    init(onUpdate: @escaping @MainActor ([NowPlayingClient]) -> Void) {
+        self.onUpdate = onUpdate
+    }
+
+    func publish(_ clients: [NowPlayingClient]) {
+        latest = clients
+        // Only a playing, non-elected app can take a slot; the elected one is named by the
+        // system source, whose resolver gives it its site.
+        let browser = clients.first { client in
+            client.info.isPlaying && !client.isElected
+                && client.info.sourceBundleIdentifier.map(BrowserTabScript.supports) == true
+        }
+        browserPID = browser?.pid
+        resolver.publish(browser?.info)
+    }
+
+    private func resolved(_ info: NowPlayingInfo?) {
+        var clients = latest
+        if let info, let index = clients.firstIndex(where: {
+            $0.pid == browserPID && $0.info.title == info.title
+        }) {
+            clients[index].info.site = info.site
+        }
+        onUpdate(clients)
+    }
+}

@@ -12,6 +12,10 @@ final class NowPlayingCoordinator {
     private let companion: AppleMusicProvider?
     private let onCompanionUpdate: @MainActor (NowPlayingInfo?) -> Void
     private var companionTask: Task<Void, Never>?
+    /// Also lists the apps the system plays but does not elect; nil without the system source.
+    private let mediaRemote: MediaRemoteProvider?
+    private let clientSites: ClientSiteResolver
+    private var othersTask: Task<Void, Never>?
     // One consumer runs the commands one after another, in the order they were issued.
     private let commands: AsyncStream<(PlaybackCommand, NowPlayingOrigin)>
     private let commandSink: AsyncStream<(PlaybackCommand, NowPlayingOrigin)>.Continuation
@@ -20,6 +24,7 @@ final class NowPlayingCoordinator {
     init(
         onUpdate: @escaping @MainActor (NowPlayingInfo?) -> Void,
         onCompanionUpdate: @escaping @MainActor (NowPlayingInfo?) -> Void,
+        onOthersUpdate: @escaping @MainActor ([NowPlayingClient]) -> Void,
         onMusicAccessChange: @escaping @MainActor @Sendable (_ denied: Bool) -> Void
     ) {
         let appleMusic = AppleMusicProvider(onConsentChange: onMusicAccessChange)
@@ -27,9 +32,13 @@ final class NowPlayingCoordinator {
         // SYMBIODOCK_PROVIDER=applemusic skips the system-wide source, to verify the fallback.
         let appleMusicOnly =
             ProcessInfo.processInfo.environment["SYMBIODOCK_PROVIDER"] == "applemusic"
+        var mediaRemote: MediaRemoteProvider?
         if !appleMusicOnly, let paths = MediaRemoteProvider.Paths.inMainBundle() {
-            providers.append(MediaRemoteProvider(paths: paths, helpers: helpers))
+            mediaRemote = MediaRemoteProvider(paths: paths, helpers: helpers)
         }
+        if let mediaRemote { providers.append(mediaRemote) }
+        self.mediaRemote = mediaRemote
+        clientSites = ClientSiteResolver(onUpdate: onOthersUpdate)
         // The system names one source only; Music is asked as well, to show both at once.
         companion = providers.isEmpty ? nil : appleMusic
         self.onCompanionUpdate = onCompanionUpdate
@@ -63,6 +72,16 @@ final class NowPlayingCoordinator {
                 for await info in companion.updates { onCompanionUpdate(info) }
             }
         }
+        // The system elects one app; this lists the others, so a second slot is not limited
+        // to Apple Music.
+        if let mediaRemote {
+            let clientSites = clientSites
+            othersTask = Task {
+                for await clients in mediaRemote.clientUpdates { clientSites.publish(clients) }
+                // The helper gave up or cannot list the apps: back to the elected one alone.
+                clientSites.publish([])
+            }
+        }
     }
 
     /// Cancelling ends the provider's stream, which terminates the helper process; that
@@ -74,6 +93,8 @@ final class NowPlayingCoordinator {
         commandTask = nil
         companionTask?.cancel()
         companionTask = nil
+        othersTask?.cancel()
+        othersTask = nil
         commandSink.finish()
         helpers.terminateAll()
     }

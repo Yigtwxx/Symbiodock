@@ -75,6 +75,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.state.setCompanionPlaying(info)
                 self?.mediaDidChange()
             },
+            onOthersUpdate: { [weak self] clients in
+                self?.state.setOtherPlaying(clients)
+                self?.mediaDidChange()
+            },
             onMusicAccessChange: { [weak self] denied in
                 self?.islandMenu?.setMusicAccessNeeded(denied)
             })

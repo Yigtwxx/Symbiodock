@@ -31,7 +31,7 @@ enum DebugRender {
             ExpandedPreview(state: files), size: CGSize(width: 640, height: 190),
             named: "expanded-files-empty", to: directory)
         let twoSources = IslandState()
-        DemoMedia.apply(to: twoSources, twoSources: true)
+        DemoMedia.apply(to: twoSources, twoSources: true, otherApp: false)
         twoSources.setHovering(true)
         twoSources.selectTab(.media)
         write(
@@ -43,8 +43,18 @@ enum DebugRender {
         write(
             BubbleGallery(slots: twoSources.mediaSlots), size: CGSize(width: 380, height: 170),
             named: "collapsed-bubble", to: directory)
+        let otherApp = IslandState()
+        DemoMedia.apply(to: otherApp, twoSources: false, otherApp: true)
+        otherApp.setHovering(true)
+        otherApp.selectTab(.media)
+        write(
+            ExpandedPreview(state: otherApp), size: CGSize(width: 640, height: 190),
+            named: "expanded-media-client", to: directory)
+        write(
+            MediaStackGallery(slots: otherApp.mediaSlots), size: CGSize(width: 320, height: 150),
+            named: "collapsed-media-client", to: directory)
         let oneSource = IslandState()
-        DemoMedia.apply(to: oneSource, twoSources: false)
+        DemoMedia.apply(to: oneSource, twoSources: false, otherApp: false)
         oneSource.setHovering(true)
         oneSource.selectTab(.media)
         write(

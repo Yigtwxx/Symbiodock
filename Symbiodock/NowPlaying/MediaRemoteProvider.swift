@@ -43,12 +43,41 @@ struct MediaRemoteProvider: NowPlayingProvider {
     }
 
     var updates: AsyncStream<NowPlayingInfo?> {
-        let paths = paths
+        let arguments = [
+            paths.script.path, paths.framework.path, "stream", "--no-diff", "--debounce=100",
+        ]
         let helpers = helpers
         return AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
             let task = Task.detached {
                 await Self.streamLoop(
-                    paths: paths, helpers: helpers, continuation: continuation)
+                    helpers: helpers, arguments: arguments, label: "MediaRemote helper"
+                ) { line in
+                    do {
+                        continuation.yield(try MediaRemotePayloadParser.info(fromStreamLine: line))
+                    } catch {
+                        // The line itself is never logged: it holds what the user is playing.
+                        Self.logger.error("Unreadable line from the MediaRemote helper.")
+                    }
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// Every app the system knows plays something, the elected one included, from a second
+    /// helper. Each access starts a new helper, like `updates`. The stream finishing means the
+    /// helper has failed for good; a helper that cannot list the apps reports none.
+    var clientUpdates: AsyncStream<[NowPlayingClient]> {
+        let arguments = [paths.script.path, paths.framework.path, "stream-clients"]
+        let helpers = helpers
+        return AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            let task = Task.detached {
+                await Self.streamLoop(
+                    helpers: helpers, arguments: arguments, label: "MediaRemote clients helper"
+                ) { line in
+                    continuation.yield(NowPlayingClientsParser.clients(fromStreamLine: line))
+                }
                 continuation.finish()
             }
             continuation.onTermination = { _ in task.cancel() }
@@ -67,21 +96,21 @@ struct MediaRemoteProvider: NowPlayingProvider {
         ])
     }
 
-    /// Keeps the helper running. Returns when `RestartPolicy` gives up on it, or when the
-    /// task is cancelled.
+    /// Keeps a streaming helper running and hands each output line to `onLine`. Returns when
+    /// `RestartPolicy` gives up on it, or when the task is cancelled.
     private static func streamLoop(
-        paths: Paths, helpers: HelperProcesses,
-        continuation: AsyncStream<NowPlayingInfo?>.Continuation
+        helpers: HelperProcesses, arguments: [String], label: String,
+        onLine: @escaping @Sendable (Data) -> Void
     ) async {
         var policy = RestartPolicy()
         let clock = ContinuousClock()
         while !Task.isCancelled {
             let startedAt = clock.now
-            await streamOnce(paths: paths, helpers: helpers, continuation: continuation)
+            await streamOnce(helpers: helpers, arguments: arguments, label: label, onLine: onLine)
             if Task.isCancelled { return }
 
             guard let delay = policy.delayAfterRun(lasting: clock.now - startedAt) else {
-                logger.error("The MediaRemote helper keeps exiting; giving up on it.")
+                logger.error("The \(label, privacy: .public) keeps exiting; giving up on it.")
                 return
             }
             try? await Task.sleep(for: delay)
@@ -89,14 +118,12 @@ struct MediaRemoteProvider: NowPlayingProvider {
     }
 
     private static func streamOnce(
-        paths: Paths, helpers: HelperProcesses,
-        continuation: AsyncStream<NowPlayingInfo?>.Continuation
+        helpers: HelperProcesses, arguments: [String], label: String,
+        onLine: @escaping @Sendable (Data) -> Void
     ) async {
         let process = Process()
         process.executableURL = perl
-        process.arguments = [
-            paths.script.path, paths.framework.path, "stream", "--no-diff", "--debounce=100",
-        ]
+        process.arguments = arguments
         process.environment = HelperProcesses.minimalEnvironment()
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -105,7 +132,7 @@ struct MediaRemoteProvider: NowPlayingProvider {
         do {
             try process.run()
         } catch {
-            logger.error("Could not launch the MediaRemote helper.")
+            logger.error("Could not launch the \(label, privacy: .public).")
             return
         }
         helpers.register(process)
@@ -123,15 +150,10 @@ struct MediaRemoteProvider: NowPlayingProvider {
                     }
                     defer { buffer.removeAll(keepingCapacity: true) }
                     if buffer.isEmpty { continue }
-                    do {
-                        continuation.yield(try MediaRemotePayloadParser.info(fromStreamLine: buffer))
-                    } catch {
-                        // The line itself is never logged: it holds what the user is playing.
-                        logger.error("Unreadable line from the MediaRemote helper.")
-                    }
+                    onLine(buffer)
                 }
             } catch {
-                logger.error("Reading from the MediaRemote helper failed.")
+                logger.error("Reading from the \(label, privacy: .public) failed.")
             }
         } onCancel: {
             HelperProcesses.terminateEscalating(process)
