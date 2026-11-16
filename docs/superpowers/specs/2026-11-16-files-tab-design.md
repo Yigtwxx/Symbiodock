@@ -202,7 +202,8 @@ Kendi formatı listelenmez; ZIP dışındaki her öğede son çip `ZIP`'tir.
 | Kaynak | Hedefler | Araç |
 |---|---|---|
 | Görsel (png, jpg, jpeg, heic, heif, tiff, tif, gif, bmp, webp, avif, jp2, psd, ico, icns, svg, raw) | PNG, JPEG, HEIC, TIFF, GIF, BMP, PDF | `/usr/bin/sips` |
-| Belge (docx, doc, rtf, rtfd, txt, md, html, htm, odt, webarchive) | PDF, DOCX, RTF, TXT, HTML, ODT | `/usr/bin/textutil`; PDF: `NSTextView` + `NSPrintOperation` |
+| Belge (docx, doc, rtf, rtfd, txt, html, htm, odt, webarchive) | PDF, DOCX, RTF, TXT, HTML, ODT | `/usr/bin/textutil`; PDF: `NSTextView` + `NSPrintOperation` |
+| Markdown (md) | PDF, DOCX, RTF, TXT, HTML, ODT | Sistemin Markdown ayrıştırıcısı (`AttributedString(markdown:)`), uygulama içinde dizilir; PDF: `NSTextView` + `NSPrintOperation` |
 | PDF | PNG, JPEG, TXT | PDFKit (150 dpi) |
 | Ses (mp3, m4a, aac, wav, aif, aiff, flac, caf) | M4A, WAV, AIFF, FLAC | `/usr/bin/afconvert` |
 | Video (mov, mp4, m4v) | MP4, MOV, M4A | `AVAssetExportSession` |
@@ -214,6 +215,20 @@ Kendi formatı listelenmez; ZIP dışındaki her öğede son çip `ZIP`'tir.
   yeniden adlandırılır; hata ya da iptalde geçici dosya silinir.
 - Çok sayfalı PDF → görsel: `report pages/report-01.png …` klasörü; karo klasör olur. Tek sayfada
   tek dosya. Metni olmayan PDF → TXT hatadır (`No text in this PDF`).
+- Markdown biçimli çıkar: yalnızca sistemin kendi ayrıştırıcısı kullanılır, üçüncü taraf kod
+  yok. Başlıklar (1–6), kalın, italik, üstü çizili, satır içi kod, bağlantılar (mavi, altı
+  çizili, adresiyle), madde ve numaralı listeler (iç içe, asılı girinti), alıntılar (girintili,
+  gri; PDF ve HTML'de solda çizgi), kod blokları (eş aralıklı yazı, açık gri zemin; PDF ve
+  HTML'de çerçeveli kutu) ve yatay çizgi (PDF'de ince çizgi, diğerlerinde ortalı `• • •`)
+  dizilir. Tablolar sekmeyle ayrılmış satırlardır, başlık satırı kalın. Görseller yalnızca alt
+  metinleriyle yazılır; diskten ya da ağdan hiçbir şey yüklenmez. Satır içi HTML etiketleri
+  düşer (`<br>` satır kırar). TXT, işaretsiz metindir: başlık metni, `•` / `1.` ile liste,
+  bağlantı `metin (adres)`, tablo hücreleri sekmeyle. Dosya önce UTF-8, olmazsa sistemin
+  tahminiyle okunur; ayrıştırılamayan metin düz paragraf olarak yine çevrilir, hata vermez.
+- Markdown'da kalan sınırlar: DOCX yazıcısı sekme duraklarını ve bağlantı adresini yazmaz
+  (tablo sütunları Word'ün varsayılan duraklarına düşer, bağlantı yalnızca mavi ve altı
+  çizili kalır); kod kutusu ve alıntı çizgisi DOCX, RTF ve ODT'de girinti ve gölgeye döner;
+  liste içindeki alıntı ve kod blokları listenin girintisini ve işaretini PDF'de tam almaz.
 - Orijinal diskte kalır; karo yeni dosyayı gösterir ve seçili kalır.
 - Klasöre yazılamıyorsa (`Can't write to this folder`) ya da araç başarısız olursa
   (`Couldn't convert to PDF`) karo eski haliyle açılır.
@@ -295,6 +310,9 @@ Hata ve iptalde de aynı açılış oynar. Reduce Motion: 0,2 sn kararma, 0,2 sn
   - `Files/FileKind.swift`, `Files/FileShelf.swift` (`ShelfItem`, `FileShelf`, `FileRequest`,
     `FileConversion`), `Files/ConversionCatalog.swift`, `Files/OutputNaming.swift`,
     `Files/SymbioteEngulf.swift`, `Files/EngulfTiming.swift`.
+  - `Files/MarkdownBlocks.swift`: ayrıştırıcının çıktısını blok listesine (tür, liste ve alıntı
+    derinliği, işaret, satır içi parçalar) çevirir; TXT metni de burada üretilir.
+    `ConversionEngine.markdown(format:)`.
   - `SymbioteGeometry.swift`: `SymbioteSimulation`'ın şerit, eğri ve parlaklık yardımcıları
     modül içine açılır.
   - `IslandState`: `shelf`, `conversions`, `shelfNotice`, `isFileDragHovering`,
@@ -305,7 +323,8 @@ Hata ve iptalde de aynı açılış oynar. Reduce Motion: 0,2 sn kararma, 0,2 sn
     `fileDropTarget`.
 - Uygulama (`Symbiodock/`):
   - `Files/`: `ShelfCoordinator`, `ShelfStorage`, `FilePreviews`, `ToolRunner`, `FileConverter`,
-    `DocumentPDFWriter`, `DemoFiles`.
+    `DocumentPDFWriter`, `MarkdownDocument` (blokları yazı tipi ve paragraf stiliyle dizer;
+    DOCX, RTF, HTML, ODT yazar), `DemoFiles`.
   - `Island/Files/`: `FilesContent`, `StackTile`, `FileCard`, `FileActionsColumn`, `EngulfView`,
     `FileKindPalette`, `FilesBubble`.
   - `Window/`: `ShelfStore`, `FileDragSource`; `IslandGeometry.fileDragRects`;

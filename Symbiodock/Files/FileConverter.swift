@@ -112,6 +112,8 @@ struct FileConverter: Sendable {
                     try DocumentPDFWriter.write(source, sourceExtension: sourceExtension, to: temp)
                 }
             } catch { throw fail }
+        case .markdown(let format):
+            do { try MarkdownDocument.write(source, format: format, to: temp) } catch { throw fail }
         case .pdfPages(let jpeg):
             guard let pdf else { throw fail }
             try Self.writePages(pdf, source: source, jpeg: jpeg, temp: temp, fail: fail)
