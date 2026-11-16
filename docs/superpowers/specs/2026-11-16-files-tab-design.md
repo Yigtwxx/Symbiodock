@@ -241,10 +241,23 @@ Hata ve iptalde de aynı açılış oynar. Reduce Motion: 0,2 sn kararma, 0,2 sn
 - Ada çentikte ve kapalıyken raf doluysa adanın **sağında** siyah daire: sol baloncukla aynı çap
   (28 pt, kısa çentikte çentik boyu − 4), aynı 6 pt boşluk, çentik bandında dikey ortalı. Kanatlar
   varsa onların sağında.
-- İçinde en son eklenen dosyanın tür renginde disk (çapın 22/28'i) ve beyaz adet (99'dan çoksa
-  `99+`). Adet dosya sayısıdır, yığın sayısı değil.
+- İçinde en son eklenen dosyanın tür renginde disk (çapın 22/28'i) ve ortasında o türün beyaz
+  simgesi (kartlardaki simgenin aynısı: görselde fotoğraf, PDF'de kâğıt, seste dalga, videoda
+  film, arşivde fermuarlı belge, klasörde klasör, diğerinde düz belge; 22 pt'lik diskte 11 pt).
+  Sahibi düz renkli diskler için: "sağdaki yuvarlak olanları dümdüz yapmışsın; mesela
+  fotoğrafsa fotoğraf ikonu olsun ve onun kendi rengi olsun, pdf varsa onun kendi rengi olsun
+  ve bir kâğıt ikonu olsun".
+- Adet, öndeki baloncuğun sağ üst kenarına binen küçük bir rozettir (çekmecenin adet hapı
+  gibi): siyah kapsül, ince %20 beyaz kenar, beyaz yuvarlak kalın 8,5 pt rakam; 99'dan çoksa
+  `99+`; tek dosyada rozet yok. Adet dosya sayısıdır, yığın sayısı değil. Rozet baloncuğun
+  1 pt üstüne ve sağ kenarından 3 pt dışarı taşar: menü çubuğunun üst kenarına değmez
+  (baloncuk en az 2 pt aşağıdadır), dokunma alanının 4 pt'lik payının içinde kalır, sağdaki
+  işarete doğru değil ondan uzağa uzanır. 12 pt'lik simge `99+` rozetinin altına girdiği için
+  11 pt seçildi.
 - Rafta başka türler de varsa en fazla 2 tane daha, arkada ve sağdan taşarak: her biri bir
-  öncekinin %84'ü, çapın %36'sı kadar kayık, rengi %70 opak.
+  öncekinin %84'ü, çapın %36'sı kadar kayık, rengi %70 opak. Her biri kendi türünün simgesini
+  taşır; diskin yalnızca hilali göründüğü için simge hilalin ortasındadır ve hilale göre
+  boyutlanır (28 pt'lik baloncukta 6,5 pt).
 - Tür renkleri: görsel `#32ADE6`, PDF `#FF453A`, belge `#0A84FF`, ses `#FF375F`, video
   `#5E5CE6`, arşiv `#FF9F0A`, klasör `#64D2FF`, diğer `#8E8E93`.
 - Üstünde bekleyince ada `Files` ile açılır. Üstüne dosya bırakılabilir.
