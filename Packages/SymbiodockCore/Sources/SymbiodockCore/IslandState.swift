@@ -76,8 +76,10 @@ public final class IslandState {
     public private(set) var conversions: [UUID: FileConversion] = [:]
     /// A message about one item, until the person moves on.
     public private(set) var shelfNotice: ShelfNotice?
-    /// A file is being dragged over the island.
+    /// A file from another app is being dragged over the island.
     public private(set) var isFileDragHovering = false
+    /// The shelf's own files are dragged over the row's empty part: a drop sets them apart.
+    public private(set) var fileDragSetsApart = false
     /// What the pointer rests on in the shelf; only while the island shows the Files tab.
     public private(set) var hoveredFile: ShelfHover?
     /// The stack a dragged file would join.
@@ -351,6 +353,14 @@ public final class IslandState {
         setShelf(next)
     }
 
+    /// Files of one drop arriving one by one: together they make the stack `stack`, in the
+    /// order they arrive (see `FileShelf.add(_:into:)`).
+    public func addShelfItems(_ items: [ShelfItem], into stack: UUID) {
+        var next = shelf
+        next.add(items, into: stack)
+        setShelf(next)
+    }
+
     /// A tile dropped on a stack: the files go in front of it.
     public func moveShelfItems(_ ids: [UUID], onto stack: UUID) {
         var next = shelf
@@ -412,20 +422,34 @@ public final class IslandState {
         if stack != fileDropTarget { fileDropTarget = stack }
     }
 
-    /// A file drag is over the island: it opens on Files at once (or switches to it). When it
-    /// ends, no stack is its target any more.
+    /// The shelf's own files are dragged over the empty part of the row, where a drop sets
+    /// them apart. The row shows it without making room: no stack moves under the pointer.
+    public func setFileDragSetsApart(_ setsApart: Bool) {
+        if setsApart != fileDragSetsApart { fileDragSetsApart = setsApart }
+    }
+
+    /// A file drag from another app is over the island: it opens on Files at once (or
+    /// switches to it), and the row makes room for the drop. When any file drag ends, no stack
+    /// is its target any more and nothing is shown as set apart.
     public func setFileDragHovering(_ hovering: Bool) {
         guard hovering else {
             if isFileDragHovering { isFileDragHovering = false }
             setFileDropTarget(nil)
+            setFileDragSetsApart(false)
             return
         }
         guard phase == .collapsed || phase == .expanded else { return }
         if !isFileDragHovering { isFileDragHovering = true }
-        if phase == .collapsed {
-            setHovering(true, opening: .files)
-        } else {
-            selectTab(.files)
+        openOnFiles()
+    }
+
+    /// Opens the island on Files, or switches the open island to it; ignored while the island
+    /// is dragged or settling. A file drag on its way in does this without the hover delay.
+    public func openOnFiles() {
+        switch phase {
+        case .collapsed: setHovering(true, opening: .files)
+        case .expanded: selectTab(.files)
+        case .stretching, .detached, .settling: break
         }
     }
 

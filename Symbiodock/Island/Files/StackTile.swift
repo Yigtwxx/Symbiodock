@@ -35,6 +35,9 @@ struct StackTile: View {
     /// answer the pointer.
     private var pointer: StackLayout.Hit? { conversion == nil ? hover : nil }
 
+    /// A drawer in its cocoon takes no drop, so it never lifts or shows the outline for one.
+    private var isTarget: Bool { isDropTarget && conversion == nil }
+
     var body: some View {
         let box = StackLayout.boxSize(count: count)
         let frames = StackLayout.cards(count: count)
@@ -54,7 +57,7 @@ struct StackTile: View {
         .offset(y: -stackLift)
         .frame(width: box.width, height: box.height, alignment: .topLeading)
         .animation(reduceMotion ? nil : Self.spring, value: pointer)
-        .animation(reduceMotion ? nil : Self.spring, value: isDropTarget)
+        .animation(reduceMotion ? nil : Self.spring, value: isTarget)
         .background { dropOutline }
         .background {
             GeometryReader { proxy in
@@ -141,7 +144,7 @@ struct StackTile: View {
     /// dragged file would join. A lone tile does not rise under the pointer.
     private var stackLift: CGFloat {
         guard !reduceMotion else { return 0 }
-        if isDropTarget || (count > 1 && pointer == .body) { return StackLayout.bodyLift }
+        if isTarget || (count > 1 && pointer == .body) { return StackLayout.bodyLift }
         return 0
     }
 
@@ -163,7 +166,7 @@ struct StackTile: View {
     /// Stays where the box is while the stack rises inside it, with room above for the rise.
     @ViewBuilder
     private var dropOutline: some View {
-        if isDropTarget {
+        if isTarget {
             RoundedRectangle(cornerRadius: CardGlass.radius + 3, style: .continuous)
                 .strokeBorder(.white.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
                 .padding(EdgeInsets(top: -3 - StackLayout.bodyLift, leading: -3, bottom: -3, trailing: -3))

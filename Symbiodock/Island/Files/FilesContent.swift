@@ -7,10 +7,12 @@ struct FilesContent: View {
     let shelf: FileShelf
     let conversions: [UUID: FileConversion]
     let notice: ShelfNotice?
-    /// A file drag is over the island.
+    /// A file drag from another app is over the island: the row makes room for it.
     let isDropTarget: Bool
     /// The stack a dragged file would join; nil while it would become a tile of its own.
     let dropStack: UUID?
+    /// The shelf's own files would be set apart if dropped now: shown over the row, not in it.
+    let setsApart: Bool
     /// What the pointer rests on, from the overlay.
     let hover: ShelfHover?
     /// Height of the header band; nothing can be shown behind it.
@@ -33,6 +35,8 @@ struct FilesContent: View {
     private static let headroom = StackLayout.lift
     /// How much of the row's trailing end fades out when there is more to scroll to.
     private static let fade: CGFloat = 48
+    /// How far the set-apart cue stands off the boxes: as far as a drop target's outline.
+    private static let cueOutset: CGFloat = 3
 
     var body: some View {
         // Sized by the island, never by the content: a taller panel would push the header up.
@@ -112,6 +116,16 @@ struct FilesContent: View {
                     Rectangle()
                 }
             }
+            // Over the visible row and outside the fade, so it neither makes room nor moves a
+            // stack; around every stack at once, so it does not read as the target of one.
+            .overlay {
+                ApartCue()
+                    .padding(.top, Self.headroom - Self.cueOutset)
+                    .padding([.leading, .bottom], Self.outset - Self.cueOutset)
+                    .padding(.trailing, 1)
+                    .opacity(setsApart ? 1 : 0)
+                    .animation(.easeOut(duration: 0.12), value: setsApart)
+            }
             // Only the visible part of the row takes a press on a stack.
             .onChange(of: proxy.frame(in: .global), initial: true) { _, frame in
                 geometry?.publishFileDragViewport(frame, by: owner)
@@ -148,6 +162,20 @@ private struct DropSlot: View {
             .overlay {
                 shape.strokeBorder(.white.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
             }
+    }
+}
+
+/// The shelf's own files would come apart from their drawer: the whole row is outlined, the
+/// way a drop target's outline goes around one stack.
+private struct ApartCue: View {
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: CardGlass.radius + 3, style: .continuous)
+        shape
+            .fill(.white.opacity(0.04))
+            .overlay {
+                shape.strokeBorder(.white.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+            }
+            .allowsHitTesting(false)
     }
 }
 

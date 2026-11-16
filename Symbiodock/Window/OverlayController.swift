@@ -29,8 +29,6 @@ final class OverlayController {
     private var screenObserver: NSObjectProtocol?
     private var tracker: MouseTracker?
     var pointerInside = false
-    /// The tab of the bubble the pointer is on (the left bubble's, or Files), as of its last move.
-    private var hoveredBubbleTab: IslandTab?
     var hoverTask: Task<Void, Never>?
     private var dragMonitor: Any?
     /// Where the button went down on the island (panel-local), until it comes up again.
@@ -41,8 +39,9 @@ final class OverlayController {
     /// When the current settle is due to end; the pointer poll enforces it if the timer is lost.
     private var settleDeadline: ContinuousClock.Instant?
 
-    /// Files dropped on the island or on a bubble; with a stack, they join it in front.
-    var onDropFiles: (_ urls: [URL], _ onto: UUID?) -> Void = { _, _ in }
+    /// Files dropped on the island or on a bubble, and where that drop puts them. A drop's
+    /// files can arrive in several calls; each names the same place.
+    var onDropFiles: (_ urls: [URL], _ onto: ShelfDropPlace) -> Void = { _, _ in }
     /// Files dragged within the island: with a stack they join it in front; without, each
     /// becomes a tile of its own.
     var onMoveFiles: (_ ids: [UUID], _ onto: UUID?) -> Void = { _, _ in }
@@ -209,8 +208,15 @@ final class OverlayController {
         state.setFileDragHovering(false)
         state.setHovering(false)
         pointerInside = false
-        hoveredBubbleTab = nil
         tracker?.setSupplementalPolling(false)
+    }
+
+    /// The area in which the pointer counts as on the island, in panel-local coordinates.
+    var islandHitRect: CGRect {
+        IslandLayout.hitRect(
+            anchor: state.anchor, phase: state.phase, notch: geometry.notch,
+            visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
+            showsWings: state.showsWings)
     }
 
     /// The bubble's hover area while there is a bubble.
@@ -275,15 +281,10 @@ final class OverlayController {
             pressedFile = nil
         }
 
-        let hitRect = IslandLayout.hitRect(
-            anchor: state.anchor, phase: state.phase, notch: geometry.notch,
-            visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
-            showsWings: state.showsWings)
+        let hitRect = islandHitRect
         let local = metrics.localPoint(fromGlobal: point)
-        // Read again when the hover fires: the pointer may have moved on to the island.
-        hoveredBubbleTab = bubbleTab(at: local)
         // A bubble takes clicks, hovers and file drops just as the island does.
-        let inside = hoveredBubbleTab != nil || hitRect.contains(local)
+        let inside = bubbleTab(at: local) != nil || hitRect.contains(local)
 
         // Assign only on change: this runs on every mouse move system-wide.
         setAcceptsMouse(inside)
@@ -303,8 +304,20 @@ final class OverlayController {
                 self.pointerInside = false
                 return
             }
+            var tab: IslandTab?
+            if inside {
+                // Read now, not at the last move: the left bubble may have changed its tab
+                // during the delay, or the files bubble gone with the shelf's last file.
+                let local = metrics.localPoint(fromGlobal: NSEvent.mouseLocation)
+                tab = self.bubbleTab(at: local)
+                // A bubble that went away opens nothing; the re-check below lets go.
+                guard tab != nil || self.islandHitRect.contains(local) else {
+                    self.pointerMoved(toGlobal: NSEvent.mouseLocation)
+                    return
+                }
+            }
             // Resting on a bubble opens the island on the bubble's tab.
-            self.state.setHovering(inside, opening: inside ? self.hoveredBubbleTab : nil)
+            self.state.setHovering(inside, opening: tab)
             // The hit rect depends on the phase; re-check. This only schedules new work
             // when the pointer really crossed the (now different) rect edge.
             self.pointerMoved(toGlobal: NSEvent.mouseLocation)

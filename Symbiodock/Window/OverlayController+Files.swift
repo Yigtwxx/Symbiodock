@@ -23,7 +23,7 @@ extension OverlayController {
     /// AppKit may not say that a drag left when the panel stops taking events under it, nor
     /// when it was cancelled over the island: the drop look must not outlive the drag.
     func endStaleFileDragHover(onTarget: Bool) {
-        guard state.isFileDragHovering || state.fileDropTarget != nil,
+        guard state.isFileDragHovering || state.fileDropTarget != nil || state.fileDragSetsApart,
               !onTarget || NSEvent.pressedMouseButtons & 1 == 0 else { return }
         FileDropReader.log.debug("file drag hover ended from the pointer poll")
         state.setFileDragHovering(false)
@@ -43,36 +43,54 @@ extension OverlayController {
     private func fileDragMoved(to point: CGPoint, pasteboard: NSPasteboard, entered: Bool) -> NSDragOperation {
         let isOwn = outgoing != nil
         let readable = FileDropReader.canRead(pasteboard)
-        let onTarget = IslandLayout.hitRect(
-            anchor: state.anchor, phase: state.phase, notch: geometry.notch,
-            visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
-            showsWings: state.showsWings
-        ).contains(point)
+        let onTarget = islandHitRect.contains(point)
             || bubbleHitRect?.contains(point) == true
             || filesBubbleHitRect?.contains(point) == true
         if entered {
             FileDropReader.log.notice(
                 "file drag entered at \(Int(point.x)),\(Int(point.y)); own: \(isOwn), readable: \(readable), resting: \(self.isIdle), on island: \(onTarget)")
         }
-        if isOwn { return ownFilesMoved(to: point) }
+        if isOwn { return ownFilesMoved(to: point, onTarget: onTarget) }
         guard isIdle, readable, onTarget else { return [] }
         if !state.isFileDragHovering {
-            // Open on Files at once: no hover delay for a drag on its way in.
-            hoverTask?.cancel()
-            hoverTask = nil
-            pointerInside = true
+            takeHoverForFileDrag()
             state.setFileDragHovering(true)
             FileDropReader.log.notice("file drag accepted; island opens on Files")
         }
-        setDropTarget(stackBox(at: point)?.id)
+        let stack = stackBox(at: point)?.id
+        // A drawer in its cocoon takes nothing, like the header: no target, no outline.
+        if let stack, isConverting(stack) {
+            setDropTarget(nil)
+            return []
+        }
+        setDropTarget(stack)
         return .copy
+    }
+
+    /// A file drag on its way in opens the island without the hover delay; the pointer counts
+    /// as inside, so the hover rule does not open it again on another tab.
+    private func takeHoverForFileDrag() {
+        hoverTask?.cancel()
+        hoverTask = nil
+        pointerInside = true
+    }
+
+    /// A file of the stack is in its cocoon: the drawer is sealed, nothing goes in or out.
+    private func isConverting(_ stack: UUID) -> Bool {
+        state.shelf.stack(stack)?.items.contains { state.conversions[$0.id] != nil } ?? false
     }
 
     /// The shelf's own files over the island: another stack takes them, and so does the
     /// row's empty part when they would come apart from their stack; anywhere else the drop
-    /// is refused and they go back where they were.
-    private func ownFilesMoved(to point: CGPoint) -> NSDragOperation {
+    /// is refused and they go back where they were. Coming back after the island closed, they
+    /// open it on Files, as files from another app do.
+    private func ownFilesMoved(to point: CGPoint, onTarget: Bool) -> NSDragOperation {
         guard var drag = outgoing else { return [] }
+        if isIdle, onTarget, !filesPageShown {
+            takeHoverForFileDrag()
+            state.openOnFiles()
+            FileDropReader.log.notice("own files came back; island opens on Files")
+        }
         let place = isIdle ? ownDropPlace(at: point, for: drag) : nil
         if place != drag.place {
             FileDropReader.log.debug(
@@ -80,26 +98,20 @@ extension OverlayController {
             drag.place = place
             outgoing = drag
         }
-        switch place {
-        case .stack(let id):
-            setDropTarget(id)
-        case .apart:
-            setDropTarget(nil)
-            // The leading slot shows where the file will stand. The Files page is already
-            // open, so this only adds the slot; it stays until the drag leaves, so the row
-            // does not slide back and forth under the pointer.
-            state.setFileDragHovering(true)
-        case nil:
-            setDropTarget(nil)
-        }
+        if case .stack(let id) = place { setDropTarget(id) } else { setDropTarget(nil) }
+        // Only an indicator that a drop here sets them apart (each lands right after the
+        // drawer it left); drawn over the row, it makes no room, so no stack moves under the
+        // pointer, and it goes wherever the drop would be refused.
+        state.setFileDragSetsApart(place == .apart)
         return place == nil ? [] : .move
     }
 
     /// Where the island would take its own dragged files at a panel-local point.
     private func ownDropPlace(at point: CGPoint, for drag: OutgoingFileDrag) -> OwnDropPlace? {
         if let (id, _) = stackBox(at: point) {
-            // Back on the stack they came from they would change nothing.
-            return id == drag.stack ? nil : .stack(id)
+            // Back on the stack they came from they would change nothing; a drawer in its
+            // cocoon takes nothing.
+            return id == drag.stack || isConverting(id) ? nil : .stack(id)
         }
         guard filesPageShown, geometry.fileDragViewport.contains(point), !drag.isWholeStack else {
             return nil
@@ -114,14 +126,15 @@ extension OverlayController {
 
     private func performFileDrop(_ pasteboard: NSPasteboard) -> Bool {
         if outgoing != nil { return takeBackOwnFiles() }
-        // Taken now: promised files and images that arrive later join the stack that was
-        // shown as the target when the drag was let go.
-        let target = state.fileDropTarget
+        // One drop, one place, decided now: promised files and images arrive one by one,
+        // later, and each joins the stack shown as the target when the drag was let go, or
+        // else the one new stack made for this drop.
+        let place: ShelfDropPlace = state.fileDropTarget.map { .onto($0) } ?? .newStack(UUID())
         let taken = FileDropReader.read(pasteboard, storage: .shared) { [weak self] urls in
-            self?.onDropFiles(urls, target)
+            self?.onDropFiles(urls, place)
         }
         FileDropReader.log.notice(
-            "file drop performed; taken: \(taken), onto stack: \(target.map(Self.shortID) ?? "none", privacy: .public)")
+            "file drop performed; taken: \(taken), \(place.logName, privacy: .public)")
         if taken { Haptics.tick() }
         return taken
     }
@@ -249,8 +262,7 @@ extension OverlayController {
             FileDragSource.log.notice("file drag not started: the stack is gone")
             return false
         }
-        // A drawer with a file in its cocoon is sealed: nothing comes out of it.
-        guard !stack.items.contains(where: { state.conversions[$0.id] != nil }) else {
+        guard !isConverting(stack.id) else {
             FileDragSource.log.notice("file drag not started: a file of the stack is converting")
             return false
         }
@@ -357,6 +369,15 @@ enum OwnDropPlace: Equatable {
         switch self {
         case .stack(let id): "join stack \(OverlayController.shortID(id))"
         case .apart: "set them apart"
+        }
+    }
+}
+
+extension ShelfDropPlace {
+    fileprivate var logName: String {
+        switch self {
+        case .onto(let id): "onto stack \(OverlayController.shortID(id))"
+        case .newStack(let id): "into new stack \(OverlayController.shortID(id))"
         }
     }
 }

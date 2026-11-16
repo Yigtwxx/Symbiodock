@@ -96,7 +96,9 @@ enum FileDropReader {
                     return
                 }
                 guard let kept = settle(url, from: landing, storage: storage) else { return }
-                Task { await deliver([kept]) }
+                // Straight onto the main actor, so the files of one drop reach the shelf in
+                // the order they arrived here (they join one drawer in that order).
+                Task { @MainActor in deliver([kept]) }
             }
         }
         return true

@@ -59,16 +59,20 @@ final class ShelfCoordinator {
         Self.log.notice("restored \(items.count) items")
     }
 
-    /// Puts files and folders on the shelf: onto a stack they join it in front, otherwise
-    /// several make one new stack. One already there moves (to that stack, or to the front).
-    func add(_ urls: [URL], onto stack: UUID? = nil) {
+    /// Puts files and folders on the shelf: onto a stack they join it in front; into a new
+    /// stack the files of one drop gather in the order they arrive, so a drop is one drawer
+    /// even when its files come one by one. One already there moves (to that stack).
+    func add(_ urls: [URL], onto place: ShelfDropPlace = .newStack(UUID())) {
         let items = urls.map { url -> ShelfItem in
             let file = url.standardizedFileURL
             let isDirectory = (try? file.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
             return ShelfItem(url: file, isDirectory: isDirectory)
         }
         guard !items.isEmpty else { return }
-        state.addShelfItems(items, onto: stack)
+        switch place {
+        case .onto(let stack): state.addShelfItems(items, onto: stack)
+        case .newStack(let stack): state.addShelfItems(items, into: stack)
+        }
         changed()
     }
 
@@ -98,6 +102,8 @@ final class ShelfCoordinator {
             removed.map(\.url).forEach(discard)
         case .unstack(let stack):
             guard let held = state.shelf.stack(stack) else { return }
+            FileDropReader.log.notice(
+                "stack \(String(stack.uuidString.prefix(8)), privacy: .public) unstacked from the column; files: \(held.items.count)")
             state.separateShelfItems(held.items.map(\.id))
             changed()
         case .convert(let ids, let label):
@@ -367,4 +373,13 @@ final class ShelfCoordinator {
         guard persists, !isDemo else { return }
         ShelfStore.save(state.shelf.items)
     }
+}
+
+/// Where the files of one drop go. Promised files and images arrive one at a time, each
+/// naming the same place, so that one drop stays one drawer.
+enum ShelfDropPlace: Equatable, Sendable {
+    /// The stack shown as the target when the drop was let go: they join it in front.
+    case onto(UUID)
+    /// A stack made for this drop: the first file to arrive makes it, the next join behind.
+    case newStack(UUID)
 }

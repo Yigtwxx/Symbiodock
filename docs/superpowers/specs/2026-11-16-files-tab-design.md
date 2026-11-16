@@ -99,7 +99,9 @@ sekmelerindeki özen yoktu. Yeni görünüm aşağıdakidir ve "Sekme" bölümü
 
 - Rafın her yeri bir yığındır; tek dosya, tek kartlı yığındır ve bugünkü karo gibi görünür.
 - Yığın oluşur: (1) tek seferde birden fazla dosya bırakılınca (hepsi tek yığın, ilk dosya
-  önde); (2) dışarıdan sürüklenen dosya bir karonun ya da yığının üstüne bırakılınca (öne
+  önde; Fotoğraflar'dan ya da Mail'den gelen söz verilmiş dosyalar tek tek gelse de: bırakma
+  anında bu bırakmaya bir yığın ayrılır, ilk gelen onu kurar, sonrakiler geliş sırasıyla
+  arkasına katılır); (2) dışarıdan sürüklenen dosya bir karonun ya da yığının üstüne bırakılınca (öne
   eklenir); (3) raftaki bir karo ya da yığın başka birinin üstüne sürüklenince. Boş alana
   bırakılan tek dosya ayrı karo olur.
 - Görünüm, dikey çekmece: öndeki kart tam görünür; arkadakilerin yalnızca üst şeridi, her biri
@@ -158,7 +160,11 @@ sekmelerindeki özen yoktu. Yeni görünüm aşağıdakidir ve "Sekme" bölümü
 - Raf dosyayı kopyalamaz, konumunu tutar. Aynı dosya ikinci kez eklenmez, öne gelir (bir
   yığının üstüne bırakıldıysa o yığına geçer).
 - İmleç bir karonun ya da yığının üstündeyken o hedef kesikli beyaz çerçeveyle vurgulanır ve
-  baştaki boş yer tutucu gizlenir: bırakılanlar o yığına katılır.
+  baştaki boş yer tutucu gizlenir (yeri korunur): bırakılanlar o yığına katılır. Yer tutucu
+  sürükleme adaya girdiği anda, imleç henüz bir karonun üstünde değilken yer açar; sonradan
+  imlecin altından karo kaymaz.
+- İçinde çevrilen dosya olan yığın (koza) bırakma almaz: başlık gibi davranır; vurgu yok,
+  kalkmaz, bırakma reddedilir.
 - Bırakma kabul edilince `.levelChange` titreşimi.
 
 ### Dışarı sürükleme
@@ -172,10 +178,15 @@ sekmelerindeki özen yoktu. Yeni görünüm aşağıdakidir ve "Sekme" bölümü
   gider. Görüntü kartın gösterdiğidir: önizleme ya da tür camında tür simgesi, Finder simgesi
   değil.
 - Sürüklenen karo adanın içinde başka bir karoya bırakılırsa yığına katılır (önüne), karo
-  şeridinin boş yerine bırakılırsa (yığından geldiyse) ayrı karo olur; ikisinde de raftan
-  çıkmaz. Hedef yığın kesikli çerçeveyle, boş yer baştaki yer tutucuyla gösterilir. Bütün bir
-  yığını boş yere ya da bir dosyayı kendi yığınına bırakmak hiçbir şey değiştirmez ve
-  reddedilir.
+  şeridinin boş yerine bırakılırsa (yığından geldiyse) ayrı karo olur (ayrıldığı yığının hemen
+  arkasına); ikisinde de raftan çıkmaz. Hedef yığın kesikli çerçeveyle gösterilir; boş yer,
+  satırın tamamını saran kesikli çerçeveyle: satırın üstüne çizilir, yer açmaz, böylece hiçbir
+  karo imlecin altından kaymaz (yığınlar arasındaki 8 pt'lik boşluk da boş yerdir; yer tutucu
+  satırı 72 pt kaydırıyordu ve bırakma komşu yığına düşüyordu). Bırakmanın reddedileceği yerde
+  (sütun, başlık, dosyanın geldiği yığın, çevrilen yığın) çerçeve görünmez. Bütün bir yığını
+  boş yere ya da bir dosyayı kendi yığınına bırakmak hiçbir şey değiştirmez ve reddedilir.
+- Sürükleme adadan çıkıp ada kapandıktan sonra geri gelirse ada, dışarıdan gelen dosyada
+  olduğu gibi beklemeden `Files` ile açılır.
 - Kopya mı taşıma mı olacağına hedef uygulama karar verir (Finder'daki gibi). Çöp Sepeti'ne
   bırakma sunulmaz. Rafın kendi klasöründeki dosyalar (söz verilen, ham görsel) için takma ad
   (`.link`) da sunulmaz: klasör temizlenince takma ad kırılırdı.

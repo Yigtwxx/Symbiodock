@@ -97,12 +97,29 @@ public struct FileShelf: Equatable, Sendable {
     /// that stack in front. A file already held (same standardized path) moves: it keeps its
     /// id and leaves its old stack. Selects them.
     public mutating func add(_ new: [ShelfItem], onto stack: UUID? = nil, newStack: UUID = UUID()) {
-        var seen = Set<String>()
-        var arriving: [ShelfItem] = []
-        for item in new where seen.insert(Self.key(item)).inserted {
-            arriving.append(items.first { Self.key($0) == Self.key(item) } ?? item)
+        place(incoming(new), onto: stack, newStack: newStack)
+    }
+
+    /// Files of one drop that arrive one by one (promised files, an image written later): the
+    /// first to arrive makes the stack `stack` in front of the shelf, even alone; the next ones
+    /// join it behind the files already there, so the drawer keeps the order they came in. A
+    /// file already held moves, keeping its id. Selects the stack's files.
+    public mutating func add(_ new: [ShelfItem], into stack: UUID) {
+        let arriving = incoming(new)
+        guard !arriving.isEmpty else { return }
+        let moving = Set(arriving.map(\.id))
+        var stacks = self.stacks.compactMap { s -> ShelfStack? in
+            let kept = s.items.filter { !moving.contains($0.id) }
+            return kept.isEmpty ? nil : ShelfStack(id: s.id, items: kept)
         }
-        place(arriving, onto: stack, newStack: newStack)
+        if let index = stacks.firstIndex(where: { $0.id == stack }) {
+            stacks[index].items.append(contentsOf: arriving)
+        } else {
+            stacks.insert(ShelfStack(id: stack, items: arriving), at: 0)
+        }
+        set(stacks)
+        selection = Set(self.stack(stack)?.items.map(\.id) ?? [])
+        selectedID = arriving.last?.id
     }
 
     /// A tile dropped on a tile: the files go in front of that stack and are selected.
@@ -215,6 +232,16 @@ public struct FileShelf: Equatable, Sendable {
     }
 
     // MARK: Helpers
+
+    /// Dropped items, each path once; one already held is that held item.
+    private func incoming(_ new: [ShelfItem]) -> [ShelfItem] {
+        var seen = Set<String>()
+        var arriving: [ShelfItem] = []
+        for item in new where seen.insert(Self.key(item)).inserted {
+            arriving.append(items.first { Self.key($0) == Self.key(item) } ?? item)
+        }
+        return arriving
+    }
 
     /// The held items for these ids, in the order given, each once.
     private func held(_ ids: [UUID]) -> [ShelfItem] {

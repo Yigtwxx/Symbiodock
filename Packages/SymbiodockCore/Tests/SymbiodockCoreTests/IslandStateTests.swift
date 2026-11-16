@@ -843,6 +843,50 @@ struct IslandStateTests {
         #expect(!notifies({ _ = state.isFileDragHovering }, whenDoing: { state.setFileDragHovering(true) }))
     }
 
+    @Test func filesOfOneDropArrivingApartFormOneStack() {
+        let state = IslandState()
+        state.addShelfItems([file("/x/a.png")])
+        let drop = UUID()
+        state.addShelfItems([file("/x/b.png")], into: drop)
+        state.addShelfItems([file("/x/c.png")], into: drop)
+        #expect(state.shelf.stacks.map { $0.items.map(\.name) } == [["b.png", "c.png"], ["a.png"]])
+        #expect(state.shelf.stacks[0].id == drop)
+        #expect(!notifies({ _ = state.shelf }, whenDoing: {
+            state.addShelfItems([file("/x/c.png")], into: drop)
+        }))
+    }
+
+    @Test func openingOnFilesOpensOrSwitchesButNeverDuringADrag() {
+        let state = IslandState()
+        state.openOnFiles()
+        #expect(state.phase == .expanded)
+        #expect(state.selectedTab == .files)
+        #expect(!state.isFileDragHovering)
+        state.selectTab(.media)
+        state.openOnFiles()
+        #expect(state.selectedTab == .files)
+        let dragged = IslandState()
+        dragged.beginDrag(at: .zero, from: .zero)
+        dragged.openOnFiles()
+        #expect(dragged.phase == .stretching)
+        #expect(dragged.selectedTab == TabOrder.default[0])
+    }
+
+    @Test func theSetApartCueMakesNoRoomAndEndsWithTheDrag() {
+        let state = IslandState()
+        state.openOnFiles()
+        #expect(notifies({ _ = state.fileDragSetsApart }, whenDoing: { state.setFileDragSetsApart(true) }))
+        #expect(!notifies({ _ = state.fileDragSetsApart }, whenDoing: { state.setFileDragSetsApart(true) }))
+        #expect(state.fileDragSetsApart)
+        #expect(!state.isFileDragHovering)
+        state.setFileDragSetsApart(false)
+        #expect(!state.fileDragSetsApart)
+        state.setFileDragSetsApart(true)
+        state.setFileDragHovering(false)
+        #expect(!state.fileDragSetsApart)
+        #expect(!notifies({ _ = state.fileDragSetsApart }, whenDoing: { state.setFileDragHovering(false) }))
+    }
+
     @Test func hoverIsClearedByLeavingTheFilesTabOrCollapsing() {
         let state = IslandState()
         let a = file("/x/a.png")

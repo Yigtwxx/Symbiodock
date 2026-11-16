@@ -130,6 +130,55 @@ struct FileStacksTests {
         #expect(shelf.stacks[1].id == target)
     }
 
+    // MARK: One drop arriving piece by piece
+
+    @Test func filesArrivingIntoANewStackMakeItInFrontThenJoinBehindInOrder() {
+        var shelf = shelf(["a.png", "b.png"])
+        let drop = UUID()
+        let (c, d, e) = (item("c.png"), item("d.png"), item("e.png"))
+        shelf.add([c], into: drop)
+        #expect(shape(shelf) == [["c.png"], ["a.png", "b.png"]])
+        #expect(shelf.stacks[0].id == drop)
+        #expect(shelf.selection == [c.id])
+        shelf.add([d], into: drop)
+        shelf.add([e], into: drop)
+        #expect(shape(shelf) == [["c.png", "d.png", "e.png"], ["a.png", "b.png"]])
+        #expect(shelf.stacks[0].id == drop)
+        #expect(shelf.selection == [c.id, d.id, e.id])
+        #expect(shelf.selectedID == e.id)
+        #expect(isContiguous(shelf))
+    }
+
+    @Test func oneFileArrivingIntoANewStackIsALoneTile() {
+        var shelf = shelf(["a.png"])
+        let drop = UUID()
+        shelf.add([item("b.png")], into: drop)
+        #expect(shape(shelf) == [["b.png"], ["a.png"]])
+        #expect(shelf.stack(drop)?.items.count == 1)
+    }
+
+    @Test func severalArrivingAtOnceIntoANewStackKeepTheirOrder() {
+        var shelf = FileShelf()
+        let drop = UUID()
+        shelf.add(["a.png", "b.png", "c.png"].map(item), into: drop)
+        #expect(shape(shelf) == [["a.png", "b.png", "c.png"]])
+        #expect(shelf.stacks[0].id == drop)
+        #expect(shelf.selection == Set(shelf.items.map(\.id)))
+    }
+
+    @Test func aHeldFileArrivingIntoTheDropsStackMovesThereAndKeepsItsId() {
+        var shelf = shelf(["a.png", "b.png"])
+        let b = shelf.items[1]
+        let drop = UUID()
+        shelf.add([item("c.png")], into: drop)
+        shelf.add([item("b.png")], into: drop)
+        #expect(shape(shelf) == [["c.png", "b.png"], ["a.png"]])
+        #expect(shelf.items[1].id == b.id)
+        #expect(shelf.count == 3)
+        #expect(isContiguous(shelf))
+        #expect(selectionIsValid(shelf))
+    }
+
     // MARK: Moving
 
     @Test func movingATileOntoAnotherPutsItInFrontAndSelectsIt() {
@@ -389,6 +438,10 @@ struct FileStacksTests {
         shelf.toggle([shelf.items[1].id])
         check()
         shelf.add([item("a.png")], onto: shelf.stacks[0].id)
+        check()
+        let drop = UUID()
+        shelf.add([item("g.png")], into: drop)
+        shelf.add([item("b.png")], into: drop)
         check()
         shelf.replace(shelf.items[0].id, url: URL(fileURLWithPath: "/x/b.png"), isDirectory: false)
         check()
