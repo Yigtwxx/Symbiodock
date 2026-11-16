@@ -11,6 +11,8 @@ public enum NowPlayingOrigin: Equatable, Hashable, Sendable {
 /// An app the system knows plays something, whether or not it is the one it elects.
 public struct NowPlayingClient: Equatable, Sendable {
     public var pid: Int32
+    /// What the list said when it was read; the lineup does not rely on it (it may lag
+    /// behind the system source).
     public var isElected: Bool
     public var info: NowPlayingInfo
 
@@ -52,9 +54,11 @@ public enum NowPlayingLineup {
             slots.append(NowPlayingSlot(info: companion, origin: .companion))
         }
         // The companion comes first: Music is commanded over AppleScript, which is known to
-        // work. An app is not heard while paused, and the elected one is `system` already.
+        // work. An app is not heard while paused. The elected app is left out because it is
+        // `system` already, not by its flag: the list and `system` come from two helpers and
+        // change at different moments, so the flag can be stale.
         for other in others where slots.count < maximumSlots {
-            guard other.info.isPlaying, !other.isElected,
+            guard other.info.isPlaying,
                   !slots.contains(where: { isSameSource($0.info, other.info) })
             else { continue }
             slots.append(NowPlayingSlot(info: other.info, origin: .client(pid: other.pid)))

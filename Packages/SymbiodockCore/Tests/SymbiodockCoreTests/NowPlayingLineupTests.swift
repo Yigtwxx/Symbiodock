@@ -87,16 +87,38 @@ struct NowPlayingLineupTests {
         ])
     }
 
-    @Test func pausedOrElectedAppsAreNotAdded() {
+    @Test func aPausedAppThatIsNotShownIsNotAdded() {
         var pausedSafari = safari
         pausedSafari.isPlaying = false
 
         #expect(NowPlayingLineup.slots(
             system: song, companion: nil, others: [client(pausedSafari, pid: 1)]
         ).map(\.origin) == [.system])
+    }
+
+    @Test func anElectedEntryIsLeftOutWhenItsAppAlreadyHasASlot() {
         #expect(NowPlayingLineup.slots(
-            system: song, companion: nil, others: [client(safari, pid: 1, elected: true)]
+            system: safari, companion: nil, others: [client(safari, pid: 1, elected: true)]
         ).map(\.origin) == [.system])
+    }
+
+    @Test func aPlayingElectedEntryFillsASlotWithoutTheSystemSource() {
+        #expect(NowPlayingLineup.slots(
+            system: nil, companion: nil, others: [client(safari, pid: 1, elected: true)])
+            == [NowPlayingSlot(info: safari, origin: .client(pid: 1))])
+    }
+
+    @Test func aStaleElectedFlagDoesNotHideTheOtherAppWhileTheElectionFlips() {
+        // The two helpers report at different moments: the system already names Music while
+        // the list still calls Safari the elected one.
+        let others = [client(safari, pid: 1, elected: true), client(song, pid: 2)]
+        let expected = [
+            NowPlayingSlot(info: song, origin: .system),
+            NowPlayingSlot(info: safari, origin: .client(pid: 1)),
+        ]
+
+        #expect(NowPlayingLineup.slots(system: song, companion: nil, others: others) == expected)
+        #expect(NowPlayingLineup.slots(system: song, companion: song, others: others) == expected)
     }
 
     @Test func anAppAlreadyShownIsNotAddedAgain() {
