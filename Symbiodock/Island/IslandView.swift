@@ -14,12 +14,16 @@ struct IslandView: View {
 
     var body: some View {
         GeometryReader { _ in
-            switch state.phase {
-            case .collapsed, .expanded:
-                resting
-            case .stretching, .detached, .settling:
-                // Body, root and goo all move per frame; the session draws them together.
-                DragLayer(session: session)
+            ZStack(alignment: .topLeading) {
+                // Below the island, so that it comes out from behind it.
+                bubble
+                switch state.phase {
+                case .collapsed, .expanded:
+                    resting
+                case .stretching, .detached, .settling:
+                    // Body, root and goo all move per frame; the session draws them together.
+                    DragLayer(session: session)
+                }
             }
         }
         .ignoresSafeArea()
@@ -32,6 +36,37 @@ struct IslandView: View {
             try? await Task.sleep(for: .seconds(wait))
             guard !Task.isCancelled else { return }
             state.settleFinished(id)
+        }
+    }
+
+    /// The second face, in a bubble left of the island. It comes out from behind the
+    /// island's left edge and goes back the same way.
+    private var bubble: some View {
+        let frame = IslandLayout.bubbleFrame(notch: geometry.notch, screenSize: geometry.screenSize)
+        let slide = AnyTransition.offset(x: frame.width + IslandLayout.bubbleGap)
+            .combined(with: .scale(scale: 0.6)).combined(with: .opacity)
+        return ZStack {
+            if let content = bubbleContent {
+                SideBubble(content: content, diameter: frame.width)
+                    .transition(reduceMotion ? .opacity : slide)
+            }
+        }
+        .frame(width: frame.width, height: frame.height)
+        .offset(x: frame.minX, y: frame.minY)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .animation(Self.spring, value: state.bubbleTab)
+    }
+
+    private var bubbleContent: SideBubble.Content? {
+        switch state.bubbleTab {
+        case .media:
+            state.nowPlaying.map {
+                .media(front: $0, behind: state.mediaSlots.dropFirst().first?.info)
+            }
+        case .agents:
+            state.board.lead.map { .agent($0) }
+        case nil:
+            nil
         }
     }
 

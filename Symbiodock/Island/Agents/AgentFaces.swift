@@ -80,7 +80,7 @@ struct AgentSideFace: View {
 }
 
 /// What VoiceOver says for a face: the tool, the session and its state.
-private enum AgentFaceLabel {
+enum AgentFaceLabel {
     static func text(for row: AgentRow?) -> String {
         guard let row else { return "No agents running" }
         let state: String = switch row.state {
@@ -97,16 +97,17 @@ private enum AgentFaceLabel {
 
 /// The pet on a collapsed face. A finish that has not settled shows its seal in its place;
 /// a new finish starts a new seal.
-private struct AgentFacePet: View {
+struct AgentFacePet: View {
     let row: AgentRow
+    var size: CGFloat = 24
 
     var body: some View {
         if row.state == .finished, !row.isSettled {
-            FinishSeal(tool: row.session.tool, size: 24)
+            FinishSeal(tool: row.session.tool, size: size)
                 .id(row.id)
         } else {
             // A settled finish has ended its mark: the plain pet, quiet.
-            AgentPet(tool: row.session.tool, state: row.isSettled ? .idle : row.state, size: 24)
+            AgentPet(tool: row.session.tool, state: row.isSettled ? .idle : row.state, size: size)
         }
     }
 }

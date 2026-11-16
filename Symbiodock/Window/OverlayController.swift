@@ -25,6 +25,8 @@ final class OverlayController {
     private var screenObserver: NSObjectProtocol?
     private var tracker: MouseTracker?
     private var pointerInside = false
+    /// Whether the pointer is on the bubble beside the island, as of its last move.
+    private var pointerOnBubble = false
     private var hoverTask: Task<Void, Never>?
     private var dragMonitor: Any?
     /// Where the button went down on the island (panel-local), until it comes up again.
@@ -173,7 +175,16 @@ final class OverlayController {
         hoverTask = nil
         state.setHovering(false)
         pointerInside = false
+        pointerOnBubble = false
         tracker?.setSupplementalPolling(false)
+    }
+
+    /// The bubble's hover area while there is a bubble.
+    private var bubbleHitRect: CGRect? {
+        guard let tab = state.bubbleTab else { return nil }
+        return IslandLayout.bubbleHitRect(
+            notch: geometry.notch, screenSize: geometry.screenSize,
+            hasBehind: tab == .media && state.mediaSlots.count > 1)
     }
 
     /// Re-checks the pointer after something other than pointer movement changed the hit rect.
@@ -218,7 +229,10 @@ final class OverlayController {
             anchor: state.anchor, phase: state.phase, notch: geometry.notch,
             visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
             showsWings: state.showsWings)
-        let inside = hitRect.contains(metrics.localPoint(fromGlobal: point))
+        let local = metrics.localPoint(fromGlobal: point)
+        // Read again when the hover fires: the pointer may have moved on to the island.
+        pointerOnBubble = bubbleHitRect?.contains(local) ?? false
+        let inside = pointerOnBubble || hitRect.contains(local)
 
         // Assign only on change: this runs on every mouse move system-wide.
         setAcceptsMouse(inside)
@@ -236,7 +250,9 @@ final class OverlayController {
                 self.pointerInside = false
                 return
             }
-            self.state.setHovering(inside)
+            // Resting on the bubble opens the island on the bubble's tab.
+            let tab = inside && self.pointerOnBubble ? self.state.bubbleTab : nil
+            self.state.setHovering(inside, opening: tab)
             // The hit rect depends on the phase; re-check. This only schedules new work
             // when the pointer really crossed the (now different) rect edge.
             self.pointerMoved(toGlobal: NSEvent.mouseLocation)

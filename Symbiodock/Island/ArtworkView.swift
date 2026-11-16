@@ -6,6 +6,8 @@ import SymbiodockCore
 struct ArtworkView: View {
     let data: Data?
     let size: CGFloat
+    /// A disc instead of a rounded square: the bubble beside the island.
+    var isRound = false
 
     var body: some View {
         Group {
@@ -23,13 +25,23 @@ struct ArtworkView: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
+        .clipShape(outline)
         // A hairline keeps dark artwork from melting into the black island.
         .overlay {
-            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
-                .strokeBorder(.white.opacity(0.1), lineWidth: 0.5)
+            if isRound {
+                Circle().strokeBorder(.white.opacity(0.1), lineWidth: 0.5)
+            } else {
+                RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                    .strokeBorder(.white.opacity(0.1), lineWidth: 0.5)
+            }
         }
         .accessibilityHidden(true)
+    }
+
+    private var outline: AnyShape {
+        isRound
+            ? AnyShape(Circle())
+            : AnyShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
     }
 }
 

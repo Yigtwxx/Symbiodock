@@ -34,6 +34,9 @@ enum DebugRender {
         write(
             MediaStackGallery(slots: twoSources.mediaSlots), size: CGSize(width: 320, height: 150),
             named: "collapsed-media-two", to: directory)
+        write(
+            BubbleGallery(slots: twoSources.mediaSlots), size: CGSize(width: 380, height: 170),
+            named: "collapsed-bubble", to: directory)
         let empty = IslandState()
         empty.setHovering(true)
         empty.selectTab(.agents)
@@ -296,6 +299,46 @@ private struct MediaStackGallery: View {
                 .frame(width: 200, height: 36)
                 .background(.black, in: Capsule())
         }
+        .padding(16)
+    }
+}
+
+/// The bubble beside the notch: music beside the agents face (one source, two sources),
+/// and an agent beside the media face.
+private struct BubbleGallery: View {
+    let slots: [NowPlayingSlot]
+
+    private var lead: AgentRow {
+        var board = AgentSessionBoard()
+        board.update([
+            AgentSession(
+                id: "x", tool: .claudeCode, title: "fix-login-flow", projectPath: nil,
+                activity: .working, since: Date(), pid: nil)
+        ])
+        return board.rows[0]
+    }
+
+    private func row(_ bubble: SideBubble.Content, _ face: some View) -> some View {
+        HStack(spacing: IslandLayout.bubbleGap) {
+            SideBubble(content: bubble, diameter: 28)
+            face
+                .frame(width: 272, height: 32)
+                .background(
+                    .black,
+                    in: UnevenRoundedRectangle(
+                        bottomLeadingRadius: 10, bottomTrailingRadius: 10, style: .continuous))
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            row(.media(front: slots[0].info, behind: nil), AgentNotchFace(row: lead, notchWidth: 200))
+            row(
+                .media(front: slots[0].info, behind: slots[1].info),
+                AgentNotchFace(row: lead, notchWidth: 200))
+            row(.agent(lead), CollapsedContent(info: slots[0].info, behind: slots[1].info, notchWidth: 200))
+        }
+        .padding(.leading, 24)
         .padding(16)
     }
 }
