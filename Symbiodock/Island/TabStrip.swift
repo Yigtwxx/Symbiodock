@@ -40,8 +40,7 @@ struct TabStrip: View {
 
     private func glyph(_ tab: IslandTab) -> some View {
         VStack(spacing: 2) {
-            Image(systemName: tab.symbol)
-                .font(.system(size: 11, weight: .semibold))
+            TabGlyph(tab: tab)
                 .overlay(alignment: .topTrailing) {
                     // The agents want attention while another tab is looked at.
                     if showsPip(tab) {
@@ -63,14 +62,6 @@ struct TabStrip: View {
 }
 
 extension IslandTab {
-    var symbol: String {
-        switch self {
-        case .agents: "sparkles"
-        case .media: "music.note"
-        case .files: "tray.full"
-        }
-    }
-
     var title: String {
         switch self {
         case .agents: "Agents"

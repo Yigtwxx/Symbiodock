@@ -12,6 +12,7 @@ enum DebugRender {
         guard let path = ProcessInfo.processInfo.environment["SYMBIODOCK_RENDER_DIR"] else { return }
         let directory = URL(fileURLWithPath: path, isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        write(TabGlyphGallery(), size: CGSize(width: 880, height: 290), named: "tab-glyphs", to: directory)
         write(StatusMarkGallery(), size: CGSize(width: 640, height: 150), named: "status-marks", to: directory)
         write(PetGallery(), size: CGSize(width: 800, height: 460), named: "pets", to: directory)
         write(SealGallery(), size: CGSize(width: 640, height: 150), named: "finish-seal", to: directory)
@@ -467,6 +468,83 @@ private struct BubbleGallery: View {
         }
         .padding(.leading, 24)
         .padding(16)
+    }
+}
+
+/// The tab glyphs: large on their grid, in pixels as a 2x screen draws them, at their real
+/// size selected and not, and in the real strip with each tab selected and with the pip.
+private struct TabGlyphGallery: View {
+    private static let large: CGFloat = TabGlyphOutline.grid * 8
+
+    private func caption(_ text: String) -> some View {
+        Text(text).font(.system(size: 9)).foregroundStyle(.white.opacity(0.6))
+    }
+
+    /// The glyph as a 2x backing draws it, enlarged without smoothing so each pixel shows.
+    private func pixels(_ tab: IslandTab) -> some View {
+        let renderer = ImageRenderer(content: TabGlyph(tab: tab).foregroundStyle(.white))
+        renderer.scale = 2
+        return Group {
+            if let image = renderer.cgImage {
+                Image(decorative: image, scale: 1).resizable().interpolation(.none)
+            }
+        }
+        .frame(width: Self.large / 2, height: Self.large / 2)
+        .background(.white.opacity(0.06))
+    }
+
+    /// The grid, a line per point, behind the large drawing.
+    private var grid: some View {
+        Path { path in
+            for index in 0...Int(TabGlyphOutline.grid) {
+                let at = CGFloat(index) * Self.large / TabGlyphOutline.grid
+                path.move(to: CGPoint(x: at, y: 0))
+                path.addLine(to: CGPoint(x: at, y: Self.large))
+                path.move(to: CGPoint(x: 0, y: at))
+                path.addLine(to: CGPoint(x: Self.large, y: at))
+            }
+        }
+        .stroke(.white.opacity(0.1), lineWidth: 0.5)
+    }
+
+    private func strip(_ selected: IslandTab, attention: AgentAttention = .none) -> some View {
+        TabStrip(order: TabOrder.default, selected: selected, attention: attention) { _ in }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top, spacing: 26) {
+                ForEach(IslandTab.allCases, id: \.self) { tab in
+                    VStack(alignment: .leading, spacing: 6) {
+                        caption(tab.title)
+                        HStack(alignment: .top, spacing: 10) {
+                            TabGlyph(tab: tab, size: Self.large)
+                                .foregroundStyle(.white)
+                                .background(grid)
+                            VStack(spacing: 12) {
+                                pixels(tab)
+                                HStack(spacing: 10) {
+                                    TabGlyph(tab: tab).foregroundStyle(.white)
+                                    TabGlyph(tab: tab).foregroundStyle(.white.opacity(0.4))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            HStack(alignment: .center, spacing: 22) {
+                ForEach(IslandTab.allCases, id: \.self) { strip($0) }
+                strip(.media, attention: .needsInput)
+                strip(.files, attention: .finished)
+                // Three times larger, to weigh the glyphs against each other. The strip is
+                // three 28-point buttons 2 apart: 88 points wide.
+                strip(.agents)
+                    .scaleEffect(3, anchor: .leading)
+                    .frame(width: 88 * 3, height: 22 * 3, alignment: .leading)
+            }
+        }
+        .padding(18)
+        .background(.black, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
