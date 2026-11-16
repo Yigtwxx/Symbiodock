@@ -123,4 +123,22 @@ extern void adapter_speed_env();
 // Exits with exit code 0, if it is. Any other exit code means it is not.
 extern void adapter_test();
 
+// Symbiodock patch: every local now playing client, not only the elected one.
+
+// Prints a JSON array with one dictionary per now playing client that has a title.
+// Each holds the keys "get" prints, plus "elected" (the client "get" describes).
+// Prints "[]" when this macOS lacks any of the calls it needs.
+extern void adapter_get_clients();
+extern void adapter_get_clients_env();
+
+// Prints that array as one line at start and whenever it changes.
+// Exits when the process receives a SIGTERM signal.
+extern void adapter_stream_clients();
+extern void adapter_stream_clients_env();
+
+// Sends the given command to the now playing client with the given process
+// identifier. Exits with 1 when no such client exists.
+extern void adapter_send_to(MRACommand command, int pid);
+extern void adapter_send_to_env();
+
 #endif // MEDIAREMOTEADAPTER_ADAPTER_H

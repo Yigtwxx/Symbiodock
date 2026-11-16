@@ -72,6 +72,26 @@ CFStringRef MRMediaRemoteGetNowPlayingClient = CFSTR("MRMediaRemoteGetNowPlaying
 CFStringRef MRMediaRemoteGetNowPlayingInfo = CFSTR("MRMediaRemoteGetNowPlayingInfo");
 CFStringRef MRMediaRemoteGetNowPlayingApplicationIsPlaying = CFSTR("MRMediaRemoteGetNowPlayingApplicationIsPlaying");
 
+// Every now playing client (Symbiodock patch)
+CFStringRef MRMediaRemoteGetNowPlayingClients = CFSTR("MRMediaRemoteGetNowPlayingClients");
+CFStringRef MRMediaRemoteGetLocalOrigin = CFSTR("MRMediaRemoteGetLocalOrigin");
+CFStringRef MRMediaRemoteGetNowPlayingInfoForPlayer = CFSTR("MRMediaRemoteGetNowPlayingInfoForPlayer");
+CFStringRef MRMediaRemoteGetPlaybackStateForPlayer = CFSTR("MRMediaRemoteGetPlaybackStateForPlayer");
+
+// Exported NSString constants, read from the framework because their values are not
+// always their names (kMRMediaRemotePlayerPlaybackStateDidChangeNotification is
+// "_kMRMediaRemotePlayerPlaybackStateDidChangeNotification" on macOS 27).
+static NSArray<NSString *> *clientNotificationSymbols(void) {
+    return @[
+        @"kMRMediaRemotePlayerNowPlayingInfoDidChangeNotification",
+        @"kMRPlayerPlaybackQueueChangedNotification",
+        @"kMRMediaRemoteNowPlayingApplicationClientStateDidChange",
+        @"kMRMediaRemotePlayerIsPlayingDidChangeNotification",
+        @"kMRMediaRemotePlayerPlaybackStateDidChangeNotification",
+        @"kMRMediaRemoteElectedPlayerDidChangeNotification",
+    ];
+}
+
 NSString *kMRNowPlayingClientUserInfoKey = @"kMRNowPlayingClientUserInfoKey";
 
 static NSString *MediaRemoteFrameworkBundleURL = @"/System/Library/PrivateFrameworks/MediaRemote.framework";
@@ -88,6 +108,13 @@ static NSString *MediaRemoteFrameworkBundleURL = @"/System/Library/PrivateFramew
 @synthesize getNowPlayingClient;
 @synthesize getNowPlayingInfo;
 @synthesize getNowPlayingApplicationIsPlaying;
+@synthesize getNowPlayingClients;
+@synthesize getLocalOrigin;
+@synthesize getNowPlayingInfoForPlayer;
+@synthesize getPlaybackStateForPlayer;
+@synthesize playerPathClass;
+@synthesize nowPlayingRequestClass;
+@synthesize clientNotificationNames;
 -(id)init
 {
     if (!(self = [super init])) {
@@ -109,6 +136,26 @@ static NSString *MediaRemoteFrameworkBundleURL = @"/System/Library/PrivateFramew
     getNowPlayingClient = (MRMediaRemoteGetNowPlayingClient_t)CFBundleGetFunctionPointerForName(bundle, MRMediaRemoteGetNowPlayingClient);
     getNowPlayingInfo = (MRMediaRemoteGetNowPlayingInfo_t)CFBundleGetFunctionPointerForName(bundle, MRMediaRemoteGetNowPlayingInfo);
     getNowPlayingApplicationIsPlaying = (MRMediaRemoteGetNowPlayingApplicationIsPlaying_t)CFBundleGetFunctionPointerForName(bundle, MRMediaRemoteGetNowPlayingApplicationIsPlaying);
+
+    getNowPlayingClients = (MRMediaRemoteGetNowPlayingClients_t)CFBundleGetFunctionPointerForName(bundle, MRMediaRemoteGetNowPlayingClients);
+    getLocalOrigin = (MRMediaRemoteGetLocalOrigin_t)CFBundleGetFunctionPointerForName(bundle, MRMediaRemoteGetLocalOrigin);
+    getNowPlayingInfoForPlayer = (MRMediaRemoteGetNowPlayingInfoForPlayer_t)CFBundleGetFunctionPointerForName(bundle, MRMediaRemoteGetNowPlayingInfoForPlayer);
+    getPlaybackStateForPlayer = (MRMediaRemoteGetPlaybackStateForPlayer_t)CFBundleGetFunctionPointerForName(bundle, MRMediaRemoteGetPlaybackStateForPlayer);
+    // CFBundleGetFunctionPointerForName loads the framework, so its classes are registered.
+    playerPathClass = NSClassFromString(@"MRPlayerPath");
+    nowPlayingRequestClass = NSClassFromString(@"MRNowPlayingRequest");
+    NSMutableArray<NSString *> *names = [NSMutableArray array];
+    for (NSString *symbol in clientNotificationSymbols()) {
+        void *pointer = CFBundleGetDataPointerForName(bundle, (__bridge CFStringRef)symbol);
+        if (pointer == NULL) {
+            continue;
+        }
+        id value = (__bridge id)*(CFStringRef *)pointer;
+        if ([value isKindOfClass:[NSString class]] && [value length] > 0) {
+            [names addObject:value];
+        }
+    }
+    clientNotificationNames = [names copy];
     return self;
 }
 @end

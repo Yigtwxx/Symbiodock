@@ -128,6 +128,27 @@ typedef void (*MRMediaRemoteGetNowPlayingClient_t)(dispatch_queue_t queue, MRMed
 typedef void (*MRMediaRemoteGetNowPlayingInfo_t)(dispatch_queue_t queue, MRMediaRemoteGetNowPlayingInfoCompletion_t completion);
 typedef void (*MRMediaRemoteGetNowPlayingApplicationIsPlaying_t)(dispatch_queue_t queue, MRMediaRemoteGetNowPlayingApplicationIsPlayingCompletion_t completion);
 
+#pragma mark Every now playing client (Symbiodock patch)
+
+// The calls above describe only the client the system elects. These ask for every local
+// client and read each one on its own. Signatures as seen on macOS 27.0.1; everything is
+// looked up at run time and is nil when this macOS does not have it.
+extern CFStringRef MRMediaRemoteGetNowPlayingClients;
+extern CFStringRef MRMediaRemoteGetLocalOrigin;
+extern CFStringRef MRMediaRemoteGetNowPlayingInfoForPlayer;
+extern CFStringRef MRMediaRemoteGetPlaybackStateForPlayer;
+
+// MRMediaRemoteGetPlaybackStateForPlayer: 1 playing, 2 paused, 3 stopped, 4 interrupted, 5 seeking.
+#define kMRPlaybackStatePlaying 1
+
+typedef void (^MRMediaRemoteGetNowPlayingClientsCompletion_t)(NSArray *clients);
+typedef void (^MRMediaRemoteGetPlaybackStateForPlayerCompletion_t)(uint32_t state);
+
+typedef void (*MRMediaRemoteGetNowPlayingClients_t)(dispatch_queue_t queue, MRMediaRemoteGetNowPlayingClientsCompletion_t completion);
+typedef id (*MRMediaRemoteGetLocalOrigin_t)(void);
+typedef void (*MRMediaRemoteGetNowPlayingInfoForPlayer_t)(id playerPath, BOOL withArtwork, dispatch_queue_t queue, MRMediaRemoteGetNowPlayingInfoCompletion_t completion);
+typedef void (*MRMediaRemoteGetPlaybackStateForPlayer_t)(id playerPath, dispatch_queue_t queue, MRMediaRemoteGetPlaybackStateForPlayerCompletion_t completion);
+
 #pragma mark Miscellaneous
 
 extern NSString *kMRNowPlayingClientUserInfoKey;
@@ -156,6 +177,18 @@ extern NSString *kMRNowPlayingClientUserInfoKey;
 @property(readonly) MRMediaRemoteGetNowPlayingClient_t getNowPlayingClient;
 @property(readonly) MRMediaRemoteGetNowPlayingInfo_t getNowPlayingInfo;
 @property(readonly) MRMediaRemoteGetNowPlayingApplicationIsPlaying_t getNowPlayingApplicationIsPlaying;
+// Every now playing client (Symbiodock patch); each is nil when missing
+@property(readonly) MRMediaRemoteGetNowPlayingClients_t getNowPlayingClients;
+@property(readonly) MRMediaRemoteGetLocalOrigin_t getLocalOrigin;
+@property(readonly) MRMediaRemoteGetNowPlayingInfoForPlayer_t getNowPlayingInfoForPlayer;
+@property(readonly) MRMediaRemoteGetPlaybackStateForPlayer_t getPlaybackStateForPlayer;
+// MRPlayerPath: -initWithOrigin:client:player:
+@property(readonly) Class playerPathClass;
+// MRNowPlayingRequest: -initWithPlayerPath:, artwork and commands for one client
+@property(readonly) Class nowPlayingRequestClass;
+// Notifications that also arrive for clients the system does not elect; only the ones
+// this macOS exports. Their values are looked up too: one is not spelled like its symbol.
+@property(readonly) NSArray<NSString *> *clientNotificationNames;
 // Constructor
 -(id)init;
 @end

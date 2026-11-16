@@ -32,6 +32,12 @@ FUNCTION:
   speed    Sets the playback speed
   test     Tests if the adapter is entitled to use the MediaRemote framework.
            An exit code other than 0 indicates the adapter is non-functional
+  get-clients     Prints every now playing client once, as a JSON array
+                  (Symbiodock patch)
+  stream-clients  Prints that array as one line whenever it changes
+                  (Symbiodock patch)
+  send-to         Sends a command to the now playing client with the given
+                  process identifier (Symbiodock patch)
 
 PARAMS:
   send(command)
@@ -44,6 +50,9 @@ PARAMS:
     mode: The repeat mode
   speed(speed)
     speed: The playback speed
+  send-to(command, pid)
+    command: The MRCommand ID as a number, as for "send"
+    pid: The "processIdentifier" of a client listed by "get-clients"
 
 OPTIONS:
   get
@@ -124,7 +133,10 @@ fail "Invalid function name: '$function_name'"
   || $function_name eq "shuffle"
   || $function_name eq "repeat"
   || $function_name eq "speed"
-  || $function_name eq "test";
+  || $function_name eq "test"
+  || $function_name eq "get-clients"
+  || $function_name eq "stream-clients"
+  || $function_name eq "send-to";
 
 sub parse_options {
   my ($start_index) = @_;
@@ -184,7 +196,9 @@ sub set_env_option_value {
   set_env_option_unsafe($key, $value);
 }
 
-my $symbol_name = "adapter_$function_name";
+# Command names may contain hyphens; C symbols and Perl subroutines may not.
+(my $function_ident = $function_name) =~ tr/-/_/;
+my $symbol_name = "adapter_$function_ident";
 if ($function_name eq "send") {
   my $id = shift @ARGV;
   fail "Missing ID for '$function_name' command" unless defined $id;
@@ -272,6 +286,19 @@ elsif ($function_name eq "speed") {
 elsif ($function_name eq "test") {
   $symbol_name = "adapter_test";
 }
+elsif ($function_name eq "get-clients" || $function_name eq "stream-clients") {
+  $symbol_name = env_func($symbol_name);
+}
+elsif ($function_name eq "send-to") {
+  my $id = shift @ARGV;
+  fail "Missing ID for '$function_name' command" unless defined $id;
+  my $pid = shift @ARGV;
+  fail "Missing process identifier for '$function_name' command"
+    unless defined $pid;
+  set_env_param($symbol_name, 0, "command", "$id");
+  set_env_param($symbol_name, 1, "pid", "$pid");
+  $symbol_name = env_func($symbol_name);
+}
 
 if (defined shift @ARGV) {
   fail "Too many arguments";
@@ -279,11 +306,11 @@ if (defined shift @ARGV) {
 
 my $symbol = DynaLoader::dl_find_symbol($handle, "$symbol_name")
   or fail "Symbol '$symbol_name' not found in $framework";
-DynaLoader::dl_install_xsub("main::$function_name", $symbol);
+DynaLoader::dl_install_xsub("main::$function_ident", $symbol);
 
 eval {
   no strict "refs";
-  &{"main::$function_name"}();
+  &{"main::$function_ident"}();
 };
 if ($@) {
   fail "Error executing $function_name: $@";
