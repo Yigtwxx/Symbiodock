@@ -18,8 +18,9 @@ struct IslandView: View {
     var body: some View {
         GeometryReader { _ in
             ZStack(alignment: .topLeading) {
-                // Below the island, so that it comes out from behind it.
+                // Below the island, so that they come out from behind it.
                 bubble
+                filesBubble
                 switch state.phase {
                 case .collapsed, .expanded:
                     resting
@@ -74,6 +75,28 @@ struct IslandView: View {
             // Files never has a face, so it never moves out to the bubble.
             nil
         }
+    }
+
+    /// The files held, in a bubble right of the island: the left bubble's mirror. It comes out
+    /// from behind the island's right edge and goes back the same way, and it follows that
+    /// edge with the island's spring when the wings come and go.
+    private var filesBubble: some View {
+        let frame = IslandLayout.filesBubbleFrame(
+            notch: geometry.notch, screenSize: geometry.screenSize, showsWings: state.showsWings)
+        let slide = AnyTransition.offset(x: -(frame.width + IslandLayout.bubbleGap))
+            .combined(with: .scale(scale: 0.6)).combined(with: .opacity)
+        return ZStack {
+            if state.filesBubbleShown {
+                FilesBubble(
+                    count: state.shelf.count, kinds: state.shelf.bubbleKinds, diameter: frame.width)
+                    .transition(reduceMotion ? .opacity : slide)
+            }
+        }
+        .frame(width: frame.width, height: frame.height)
+        .offset(x: frame.minX, y: frame.minY)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .animation(Self.spring, value: state.filesBubbleShown)
+        .animation(Self.spring, value: state.showsWings)
     }
 
     private var resting: some View {

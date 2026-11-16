@@ -29,8 +29,8 @@ final class OverlayController {
     private var screenObserver: NSObjectProtocol?
     private var tracker: MouseTracker?
     var pointerInside = false
-    /// Whether the pointer is on the bubble beside the island, as of its last move.
-    private var pointerOnBubble = false
+    /// The tab of the bubble the pointer is on (the left bubble's, or Files), as of its last move.
+    private var hoveredBubbleTab: IslandTab?
     var hoverTask: Task<Void, Never>?
     private var dragMonitor: Any?
     /// Where the button went down on the island (panel-local), until it comes up again.
@@ -209,7 +209,7 @@ final class OverlayController {
         state.setFileDragHovering(false)
         state.setHovering(false)
         pointerInside = false
-        pointerOnBubble = false
+        hoveredBubbleTab = nil
         tracker?.setSupplementalPolling(false)
     }
 
@@ -219,6 +219,21 @@ final class OverlayController {
         return IslandLayout.bubbleHitRect(
             notch: geometry.notch, screenSize: geometry.screenSize,
             hasBehind: tab == .media && state.mediaSlots.count > 1)
+    }
+
+    /// The files bubble's hover area while it is shown, with the discs behind it.
+    var filesBubbleHitRect: CGRect? {
+        guard state.filesBubbleShown else { return nil }
+        return IslandLayout.filesBubbleHitRect(
+            notch: geometry.notch, screenSize: geometry.screenSize, showsWings: state.showsWings,
+            behind: max(state.shelf.bubbleKinds.count - 1, 0))
+    }
+
+    /// The tab of the bubble under a panel-local point.
+    private func bubbleTab(at point: CGPoint) -> IslandTab? {
+        if bubbleHitRect?.contains(point) == true { return state.bubbleTab }
+        if filesBubbleHitRect?.contains(point) == true { return .files }
+        return nil
     }
 
     /// Re-checks the pointer after something other than pointer movement changed the hit rect.
@@ -266,13 +281,13 @@ final class OverlayController {
             showsWings: state.showsWings)
         let local = metrics.localPoint(fromGlobal: point)
         // Read again when the hover fires: the pointer may have moved on to the island.
-        pointerOnBubble = bubbleHitRect?.contains(local) ?? false
-        let inside = pointerOnBubble || hitRect.contains(local)
-        let takesDrop = inside || dragIsOverFilesBubble(local)
+        hoveredBubbleTab = bubbleTab(at: local)
+        // A bubble takes clicks, hovers and file drops just as the island does.
+        let inside = hoveredBubbleTab != nil || hitRect.contains(local)
 
         // Assign only on change: this runs on every mouse move system-wide.
-        setAcceptsMouse(takesDrop)
-        endStaleFileDragHover(onTarget: takesDrop)
+        setAcceptsMouse(inside)
+        endStaleFileDragHover(onTarget: inside)
         updateFileHover(at: local, onIsland: hitRect.contains(local))
 
         guard inside != pointerInside else { return }
@@ -288,9 +303,8 @@ final class OverlayController {
                 self.pointerInside = false
                 return
             }
-            // Resting on the bubble opens the island on the bubble's tab.
-            let tab = inside && self.pointerOnBubble ? self.state.bubbleTab : nil
-            self.state.setHovering(inside, opening: tab)
+            // Resting on a bubble opens the island on the bubble's tab.
+            self.state.setHovering(inside, opening: inside ? self.hoveredBubbleTab : nil)
             // The hit rect depends on the phase; re-check. This only schedules new work
             // when the pointer really crossed the (now different) rect edge.
             self.pointerMoved(toGlobal: NSEvent.mouseLocation)

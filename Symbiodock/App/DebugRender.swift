@@ -80,6 +80,11 @@ enum DebugRender {
         write(
             BubbleGallery(slots: twoSources.mediaSlots), size: CGSize(width: 380, height: 170),
             named: "collapsed-bubble", to: directory)
+        let held = IslandState()
+        DemoFiles.apply("1", to: held, previews: previews)
+        write(
+            FilesBubbleGallery(shelf: held.shelf, slots: twoSources.mediaSlots),
+            size: CGSize(width: 420, height: 210), named: "collapsed-files-bubble", to: directory)
         let otherApp = IslandState()
         DemoMedia.apply(to: otherApp, twoSources: false, otherApp: true)
         otherApp.setHovering(true)
@@ -558,6 +563,72 @@ private struct BubbleGallery: View {
         }
         .padding(.leading, 24)
         .padding(16)
+    }
+}
+
+/// The files bubble right of the notch, placed by the island's own layout: one file, seven of
+/// three kinds, the demo shelf beside the agents' wings with the music bubble on the left, and
+/// more than 99 beside the media wings.
+private struct FilesBubbleGallery: View {
+    private enum Face { case none, agents, media }
+
+    let shelf: FileShelf
+    let slots: [NowPlayingSlot]
+
+    /// A 200 × 32 camera housing in the middle of a row as wide as the render.
+    private static let notch = CGRect(x: 110, y: 0, width: 200, height: 32)
+    private static let row = CGSize(width: 420, height: 34)
+
+    private var lead: AgentRow {
+        var board = AgentSessionBoard()
+        board.update([
+            AgentSession(
+                id: "x", tool: .claudeCode, title: "fix-login-flow", projectPath: nil,
+                activity: .working, since: Date(), pid: nil)
+        ])
+        return board.rows[0]
+    }
+
+    private func row(_ face: Face, count: Int, kinds: [FileKind], leftBubble: Bool = false) -> some View {
+        let wings = face != .none
+        let island = IslandLayout.frame(
+            phase: .collapsed, notch: Self.notch, screenSize: Self.row, showsWings: wings)
+        let files = IslandLayout.filesBubbleFrame(
+            notch: Self.notch, screenSize: Self.row, showsWings: wings)
+        let left = IslandLayout.bubbleFrame(notch: Self.notch, screenSize: Self.row)
+        return ZStack(alignment: .topLeading) {
+            if leftBubble {
+                SideBubble(content: .media(front: slots[0].info, behind: slots[1].info), diameter: left.width)
+                    .offset(x: left.minX, y: left.minY)
+            }
+            FilesBubble(count: count, kinds: kinds, diameter: files.width)
+                .offset(x: files.minX, y: files.minY)
+            UnevenRoundedRectangle(bottomLeadingRadius: 10, bottomTrailingRadius: 10, style: .continuous)
+                .fill(.black)
+                .overlay { content(face).padding(.bottom, IslandLayout.notchLip) }
+                .frame(width: island.width, height: island.height)
+                .offset(x: island.minX, y: island.minY)
+        }
+        .frame(width: Self.row.width, height: Self.row.height, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private func content(_ face: Face) -> some View {
+        switch face {
+        case .none: EmptyView()
+        case .agents: AgentNotchFace(row: lead, notchWidth: Self.notch.width)
+        case .media: CollapsedContent(info: slots[0].info, notchWidth: Self.notch.width)
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            row(.none, count: 1, kinds: [.image])
+            row(.none, count: 7, kinds: [.pdf, .image, .document])
+            row(.agents, count: shelf.count, kinds: shelf.bubbleKinds, leftBubble: true)
+            row(.media, count: 128, kinds: [.video, .audio])
+        }
+        .padding(.vertical, 16)
     }
 }
 

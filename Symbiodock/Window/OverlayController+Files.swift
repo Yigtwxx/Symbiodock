@@ -20,22 +20,6 @@ extension OverlayController {
         view.performFileDrop = { [weak self] pasteboard in self?.performFileDrop(pasteboard) ?? false }
     }
 
-    /// The files bubble's hover area while it is shown.
-    private var filesBubbleHitRect: CGRect? {
-        guard state.filesBubbleShown else { return nil }
-        return IslandLayout.filesBubbleHitRect(
-            notch: geometry.notch, screenSize: geometry.screenSize, showsWings: state.showsWings,
-            behind: max(state.shelf.bubbleKinds.count - 1, 0))
-    }
-
-    /// A drag carried onto the files bubble may be dropped there, so the panel must take events
-    /// under it while the button is held. It does not open the island: a press that only
-    /// happens to be held there (a menu bar icon) must not, and a file drag opens it on entering.
-    func dragIsOverFilesBubble(_ point: CGPoint) -> Bool {
-        guard filesBubbleHitRect?.contains(point) == true else { return false }
-        return NSEvent.pressedMouseButtons & 1 != 0
-    }
-
     /// AppKit may not say that a drag left when the panel stops taking events under it, nor
     /// when it was cancelled over the island: the drop look must not outlive the drag.
     func endStaleFileDragHover(onTarget: Bool) {
