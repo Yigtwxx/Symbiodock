@@ -228,6 +228,9 @@ v1 bunlarla biter.
 - [x] **Faz 9 — Face ID bitiş efekti ve compact göstergesi.** Kod tamam, elle kontrol bekliyor.
       Spec: `docs/superpowers/specs/2026-11-15-finish-seal-and-compacting-design.md`.
       Plan: `docs/superpowers/plans/2026-11-15-finish-seal-and-compacting.md` (elle kontrol listesi sonunda).
+- [ ] **Faz 10 — Files sekmesi: dosya rafı, format çevirme, venom sarma, dosya baloncuğu.**
+      Spec: `docs/superpowers/specs/2026-11-16-files-tab-design.md`.
+      Plan: `docs/superpowers/plans/2026-11-16-files-tab.md` (8 görev; elle kontrol listesi sonunda).
 
 Sonrası (başka widget'lar, kişiselleştirme, dil desteği, imzalama, site) için sahibi ayrıca
 yön verecek; kendiliğinden başlama.
