@@ -24,6 +24,12 @@ enum DebugRender {
                 ExpandedPreview(state: state), size: CGSize(width: 640, height: 190),
                 named: name, to: directory)
         }
+        let files = IslandState()
+        files.setHovering(true)
+        files.selectTab(.files)
+        write(
+            ExpandedPreview(state: files), size: CGSize(width: 640, height: 190),
+            named: "expanded-files-empty", to: directory)
         let twoSources = IslandState()
         DemoMedia.apply(to: twoSources, twoSources: true)
         twoSources.setHovering(true)

@@ -112,7 +112,8 @@ public final class IslandState {
         if hovering, phase == .collapsed {
             selectedTab = tab ?? TabSelection.tabToOpen(
                 order: tabOrder, attention: board.attention,
-                mediaHasContent: nowPlaying != nil, agentsHasContent: !board.rows.isEmpty)
+                mediaHasContent: nowPlaying != nil, agentsHasContent: !board.rows.isEmpty,
+                filesHasContent: false)
         }
         if !hovering, phase == .expanded { leaveSelectedTab() }
         phase = hovering ? .expanded : .collapsed

@@ -3,30 +3,30 @@ import Testing
 
 struct IslandTabTests {
     @Test func defaultOrderPutsAgentsFirst() {
-        #expect(TabOrder.default == [.agents, .media])
+        #expect(TabOrder.default == [.agents, .media, .files])
     }
 
     @Test func repairKeepsAValidOrder() {
-        #expect(TabOrder.repaired(["media", "agents"]) == [.media, .agents])
+        #expect(TabOrder.repaired(["media", "agents"]) == [.media, .agents, .files])
     }
 
     @Test func repairFillsWhatIsMissing() {
-        #expect(TabOrder.repaired(nil) == [.agents, .media])
-        #expect(TabOrder.repaired([]) == [.agents, .media])
-        #expect(TabOrder.repaired(["media"]) == [.media, .agents])
+        #expect(TabOrder.repaired(nil) == [.agents, .media, .files])
+        #expect(TabOrder.repaired([]) == [.agents, .media, .files])
+        #expect(TabOrder.repaired(["media"]) == [.media, .agents, .files])
     }
 
     @Test func repairDropsUnknownAndRepeatedValues() {
-        #expect(TabOrder.repaired(["weather", "media", "media", "agents"]) == [.media, .agents])
+        #expect(TabOrder.repaired(["weather", "media", "media", "agents"]) == [.media, .agents, .files])
     }
 
     @Test func movingToTheFrontKeepsTheRest() {
-        #expect(TabOrder.moving(.media, toFrontOf: [.agents, .media]) == [.media, .agents])
-        #expect(TabOrder.moving(.agents, toFrontOf: [.agents, .media]) == [.agents, .media])
+        #expect(TabOrder.moving(.media, toFrontOf: [.agents, .media]) == [.media, .agents, .files])
+        #expect(TabOrder.moving(.agents, toFrontOf: [.agents, .media]) == [.agents, .media, .files])
     }
 
     @Test func encodingRoundTrips() {
-        #expect(TabOrder.repaired(TabOrder.encode([.media, .agents])) == [.media, .agents])
+        #expect(TabOrder.repaired(TabOrder.encode([.media, .agents])) == [.media, .agents, .files])
     }
 
     @Test func theFaceIsTheFirstTabThatHasOne() {
@@ -44,7 +44,7 @@ struct IslandTabTests {
             #expect(
                 TabSelection.tabToOpen(
                     order: [.media, .agents], attention: attention,
-                    mediaHasContent: true, agentsHasContent: true) == .agents)
+                    mediaHasContent: true, agentsHasContent: true, filesHasContent: false) == .agents)
         }
     }
 
@@ -54,19 +54,19 @@ struct IslandTabTests {
         #expect(
             TabSelection.tabToOpen(
                 order: mediaFirst, attention: .none,
-                mediaHasContent: true, agentsHasContent: true) == .media)
+                mediaHasContent: true, agentsHasContent: true, filesHasContent: false) == .media)
         #expect(
             TabSelection.tabToOpen(
                 order: agentsFirst, attention: .none,
-                mediaHasContent: true, agentsHasContent: false) == .media)
+                mediaHasContent: true, agentsHasContent: false, filesHasContent: false) == .media)
         #expect(
             TabSelection.tabToOpen(
                 order: mediaFirst, attention: .none,
-                mediaHasContent: false, agentsHasContent: false) == .media)
+                mediaHasContent: false, agentsHasContent: false, filesHasContent: false) == .media)
         #expect(
             TabSelection.tabToOpen(
                 order: agentsFirst, attention: .none,
-                mediaHasContent: false, agentsHasContent: false) == .agents)
+                mediaHasContent: false, agentsHasContent: false, filesHasContent: false) == .agents)
     }
 
     @Test func theBubbleTakesTheSecondTabWhenBothHaveAFace() {
@@ -77,5 +77,35 @@ struct IslandTabTests {
         #expect(TabSelection.bubble(order: agentsFirst, mediaHasFace: true, agentsHasFace: false) == nil)
         #expect(TabSelection.bubble(order: agentsFirst, mediaHasFace: false, agentsHasFace: true) == nil)
         #expect(TabSelection.bubble(order: agentsFirst, mediaHasFace: false, agentsHasFace: false) == nil)
+    }
+
+    @Test func filesIsAlwaysTheLastTab() {
+        #expect(TabOrder.default == [.agents, .media, .files])
+        #expect(TabOrder.repaired(nil) == [.agents, .media, .files])
+        #expect(TabOrder.repaired(["media", "agents"]) == [.media, .agents, .files])
+        #expect(TabOrder.repaired(["files", "media"]) == [.media, .agents, .files])
+    }
+
+    @Test func filesCannotBeMovedToTheFront() {
+        #expect(TabOrder.reorderable == [.agents, .media])
+        #expect(TabOrder.moving(.files, toFrontOf: [.media, .agents, .files]) == [.media, .agents, .files])
+        #expect(TabOrder.moving(.media, toFrontOf: TabOrder.default) == [.media, .agents, .files])
+    }
+
+    @Test func filesOpensOnlyWhenNothingElseHasContent() {
+        func open(_ attention: AgentAttention, media: Bool, agents: Bool, files: Bool) -> IslandTab {
+            TabSelection.tabToOpen(
+                order: TabOrder.default, attention: attention,
+                mediaHasContent: media, agentsHasContent: agents, filesHasContent: files)
+        }
+        #expect(open(.none, media: false, agents: false, files: true) == .files)
+        #expect(open(.none, media: true, agents: false, files: true) == .media)
+        #expect(open(.needsInput, media: false, agents: false, files: true) == .agents)
+        #expect(open(.none, media: false, agents: false, files: false) == .agents)
+    }
+
+    @Test func filesNeverHasAFaceOrTheLeftBubble() {
+        #expect(TabSelection.face(order: TabOrder.default, mediaHasFace: false, agentsHasFace: false) == .none)
+        #expect(TabSelection.bubble(order: TabOrder.default, mediaHasFace: true, agentsHasFace: true) == .media)
     }
 }

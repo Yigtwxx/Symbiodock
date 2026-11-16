@@ -46,7 +46,7 @@ final class IslandMenu: NSObject, NSMenuDelegate {
         menu.addItem(returnToNotchItem)
 
         let tabMenu = NSMenu()
-        for tab in TabOrder.default {
+        for tab in TabOrder.reorderable {
             let item = NSMenuItem(
                 title: tab.title, action: #selector(chooseFirstTab(_:)), keyEquivalent: "")
             item.target = self

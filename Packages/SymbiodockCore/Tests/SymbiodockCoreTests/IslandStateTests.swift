@@ -378,7 +378,7 @@ struct IslandStateTests {
         #expect(state.face == .agents)
         state.setTabOrder([.media, .agents])
         #expect(state.face == .media)
-        #expect(state.tabOrder == [.media, .agents])
+        #expect(state.tabOrder == [.media, .agents, .files])
     }
 
     @Test func hoverOpensTheFirstTabWithContent() {
@@ -449,7 +449,7 @@ struct IslandStateTests {
     @Test func aDamagedTabOrderIsRepaired() {
         let state = IslandState()
         state.setTabOrder([.media])
-        #expect(state.tabOrder == [.media, .agents])
+        #expect(state.tabOrder == [.media, .agents, .files])
     }
 
     @Test func startingADragFromTheExpandedAgentsTabClearsFinishedMarks() {
@@ -476,7 +476,7 @@ struct IslandStateTests {
         let state = IslandState()
         state.setTabOrder([.agents, .media])
         state.setTabOrder([.agents, .media])
-        #expect(state.tabOrder == [.agents, .media])
+        #expect(state.tabOrder == [.agents, .media, .files])
     }
 
     @Test func theBubbleHoldsTheSecondFaceAtTheCollapsedNotch() {

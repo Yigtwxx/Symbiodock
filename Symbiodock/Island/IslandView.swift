@@ -68,7 +68,8 @@ struct IslandView: View {
             }
         case .agents:
             state.board.lead.map { .agent($0) }
-        case nil:
+        case .files, nil:
+            // Files never has a face, so it never moves out to the bubble.
             nil
         }
     }

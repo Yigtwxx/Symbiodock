@@ -33,6 +33,8 @@ struct ExpandedIsland: View {
                 case .agents:
                     AgentsContent(
                         rows: state.board.rows, topInset: metrics.height, onOpen: onOpenSession)
+                case .files:
+                    FilesContent(topInset: metrics.height)
                 }
             }
             .transition(.opacity)

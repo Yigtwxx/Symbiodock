@@ -67,6 +67,7 @@ extension IslandTab {
         switch self {
         case .agents: "sparkles"
         case .media: "music.note"
+        case .files: "tray.full"
         }
     }
 
@@ -74,6 +75,7 @@ extension IslandTab {
         switch self {
         case .agents: "Agents"
         case .media: "Media"
+        case .files: "Files"
         }
     }
 }

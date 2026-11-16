@@ -4,25 +4,32 @@ import Foundation
 public enum IslandTab: String, CaseIterable, Sendable {
     case agents
     case media
+    case files
 }
 
 /// The order of the tabs, as the user chose it. Stored as raw values.
 public enum TabOrder {
-    public static let `default`: [IslandTab] = [.agents, .media]
+    public static let `default`: [IslandTab] = [.agents, .media, .files]
+
+    /// The tabs the user may put first. Files always stays last.
+    public static let reorderable: [IslandTab] = [.agents, .media]
 
     /// Makes any stored list hold every tab exactly once: unknown and repeated values are
-    /// dropped, missing tabs are appended in default order.
+    /// dropped, missing tabs are appended in default order, and Files is always moved last.
     public static func repaired(_ raw: [String]?) -> [IslandTab] {
         var order: [IslandTab] = []
         for value in raw ?? [] {
             if let tab = IslandTab(rawValue: value), !order.contains(tab) { order.append(tab) }
         }
         for tab in `default` where !order.contains(tab) { order.append(tab) }
+        order.removeAll { $0 == .files }
+        order.append(.files)
         return order
     }
 
     public static func moving(_ tab: IslandTab, toFrontOf order: [IslandTab]) -> [IslandTab] {
-        repaired(([tab] + order.filter { $0 != tab }).map(\.rawValue))
+        guard reorderable.contains(tab) else { return repaired(encode(order)) }
+        return repaired(([tab] + order.filter { $0 != tab }).map(\.rawValue))
     }
 
     public static func encode(_ order: [IslandTab]) -> [String] {
@@ -69,13 +76,14 @@ public enum TabSelection {
     /// show; then simply the first tab.
     public static func tabToOpen(
         order: [IslandTab], attention: AgentAttention,
-        mediaHasContent: Bool, agentsHasContent: Bool
+        mediaHasContent: Bool, agentsHasContent: Bool, filesHasContent: Bool
     ) -> IslandTab {
         if attention != .none { return .agents }
         for tab in order {
             switch tab {
             case .media where mediaHasContent: return .media
             case .agents where agentsHasContent: return .agents
+            case .files where filesHasContent: return .files
             default: continue
             }
         }
