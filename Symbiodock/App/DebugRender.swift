@@ -111,6 +111,26 @@ enum DebugRender {
             ExpandedPreview(state: branches), size: CGSize(width: 640, height: 190),
             named: "expanded-agents-branches", to: directory)
         write(CollapsedGallery(), size: CGSize(width: 620, height: 540), named: "collapsed-faces", to: directory)
+        // The goo that swallows a tile while its file changes format, over a photo becoming a
+        // PNG and over a drawer whose documents become PDFs (the slides cannot, but they share
+        // the drawer's cocoon).
+        write(
+            EngulfGallery(names: ["Holiday.heic"], chip: "PNG", previews: previews),
+            size: CGSize(width: 760, height: 260), named: "engulf", to: directory)
+        write(
+            EngulfGallery(names: ["Report.docx", "Notes.docx", "Slides.pptx"], chip: "PDF", previews: previews),
+            size: CGSize(width: 760, height: 260), named: "engulf-stack", to: directory)
+        // The same drawer on its page, as its chip has just been pressed.
+        let converting = IslandState()
+        DemoFiles.apply("1", to: converting, previews: previews)
+        for id in ConversionCatalog.plan(label: "PDF", items: converting.shelf.selectedItems).targets.keys {
+            converting.beginConversion(id, label: "PDF", at: Date())
+        }
+        converting.setHovering(true)
+        converting.selectTab(.files)
+        write(
+            ExpandedPreview(state: converting, previews: previews).environment(\.frozenEngulf, .engulf(0.6)),
+            size: CGSize(width: 640, height: 190), named: "expanded-files-converting", to: directory)
         exit(0)
     }
 
@@ -281,7 +301,7 @@ private struct FileStacksGallery: View {
                 VStack(spacing: 8) {
                     StackTile(
                         stack: sample.stack, selection: sample.selection, hover: sample.hover,
-                        isDropTarget: sample.isDropTarget, previews: previews)
+                        isDropTarget: sample.isDropTarget, conversion: nil, previews: previews)
                     Text(sample.caption)
                         .font(.system(size: 9))
                         .foregroundStyle(.white.opacity(0.6))
@@ -293,6 +313,62 @@ private struct FileStacksGallery: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 22)
+        .background(.black, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+/// A converting stack at moments of its goo's run, picked as it is when its chip is pressed.
+/// Under the reveal lies what the files became: the same pictures, the new badge.
+private struct EngulfGallery: View {
+    private static let phases: [(String, EngulfPhase)] = [
+        ("engulf .20", .engulf(0.2)), ("engulf .45", .engulf(0.45)), ("engulf .70", .engulf(0.7)),
+        ("engulf .90", .engulf(0.9)), ("cocoon", .cocoon), ("reveal .25", .reveal(0.25)),
+        ("reveal .55", .reveal(0.55)), ("reveal .85", .reveal(0.85)),
+    ]
+
+    let previews: FilePreviews
+    /// Made once: staging the pictures while drawing would redraw the gallery for ever.
+    private let before: ShelfStack
+    private let after: ShelfStack
+
+    /// The files `names` as pressing `chip` leaves them: those that offer it in its format.
+    init(names: [String], chip: String, previews: FilePreviews) {
+        self.previews = previews
+        let drawer = names.count > 1 ? UUID() : nil
+        let items = names.map { DemoFiles.item($0, stack: drawer) }
+        DemoFiles.stage(items, in: previews)
+        let plan = ConversionCatalog.plan(label: chip, items: items)
+        let converted = items.map { item -> ShelfItem in
+            guard let target = plan.targets[item.id] else { return item }
+            let new = ShelfItem(
+                url: item.url.deletingPathExtension().appendingPathExtension(target.pathExtension),
+                isDirectory: false, stack: drawer)
+            previews.stage(new, image: previews.image(for: item), bytes: nil)
+            return new
+        }
+        before = FileShelf(items: items).stacks[0]
+        after = FileShelf(items: converted).stacks[0]
+    }
+
+    var body: some View {
+        let conversion = FileConversion(label: "", started: .distantPast)
+        HStack(alignment: .bottom, spacing: 20) {
+            ForEach(Self.phases, id: \.0) { caption, phase in
+                let stack = if case .reveal = phase { after } else { before }
+                VStack(spacing: 12) {
+                    StackTile(
+                        stack: stack, selection: Set(stack.items.map(\.id)), hover: nil,
+                        isDropTarget: false, conversion: conversion, previews: previews)
+                    .environment(\.frozenEngulf, phase)
+                    Text(caption)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .fixedSize()
+                }
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 30)
         .background(.black, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }

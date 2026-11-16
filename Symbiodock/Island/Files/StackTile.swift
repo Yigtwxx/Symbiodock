@@ -7,6 +7,9 @@ import SymbiodockCore
 /// Not a button, and it takes no tap: the overlay's event monitor picks on a click without
 /// travel (where on the stack comes from `StackLayout.hit`) and starts a file drag on travel;
 /// a gesture here would pick twice. For the same reason the hover comes from the overlay too.
+///
+/// While files of the stack convert, one goo swallows the whole box, cards and tabs together
+/// (`EngulfView`), and nothing rises under the pointer.
 struct StackTile: View {
     let stack: ShelfStack
     let selection: Set<UUID>
@@ -14,16 +17,23 @@ struct StackTile: View {
     let hover: StackLayout.Hit?
     /// A dragged file would join this stack.
     let isDropTarget: Bool
+    /// The stack's one cocoon while some of its files convert (`EngulfTiming.cocoon(of:)`).
+    let conversion: FileConversion?
     let previews: FilePreviews?
 
     @Environment(IslandGeometry.self) private var geometry: IslandGeometry?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.frozenEngulf) private var frozenEngulf
     /// Names the rect this view writes, so an older copy that goes away later keeps its hands off it.
     @State private var owner = UUID()
 
     private static let spring = Animation.spring(response: 0.25, dampingFraction: 0.8)
 
     private var count: Int { stack.items.count }
+
+    /// Where the pointer rests, unless the stack is in its cocoon: a sealed drawer does not
+    /// answer the pointer.
+    private var pointer: StackLayout.Hit? { conversion == nil ? hover : nil }
 
     var body: some View {
         let box = StackLayout.boxSize(count: count)
@@ -36,10 +46,14 @@ struct StackTile: View {
                     .frame(width: frame.width, height: frame.height)
                     .offset(x: frame.minX, y: frame.minY - lift(of: index))
             }
+            // Over the whole box, so it rises with the stack.
+            if let conversion {
+                EngulfView(size: box, conversion: conversion, frozen: frozenEngulf)
+            }
         }
         .offset(y: -stackLift)
         .frame(width: box.width, height: box.height, alignment: .topLeading)
-        .animation(reduceMotion ? nil : Self.spring, value: hover)
+        .animation(reduceMotion ? nil : Self.spring, value: pointer)
         .animation(reduceMotion ? nil : Self.spring, value: isDropTarget)
         .background { dropOutline }
         .background {
@@ -61,7 +75,7 @@ struct StackTile: View {
         let item = stack.items[index]
         let look = emphasis(of: index)
         // With Reduce Motion nothing rises: the edge of what would have risen brightens.
-        let isLit = reduceMotion && count > 1 && (hover == .file(index) || (index == 0 && hover == .body))
+        let isLit = reduceMotion && count > 1 && (pointer == .file(index) || (index == 0 && pointer == .body))
         if index == 0 {
             FileCard(
                 item: item, label: labelItem, image: previews?.image(for: item), emphasis: look,
@@ -84,7 +98,7 @@ struct StackTile: View {
 
     /// While a back file's tab is hovered, the name under the picture is that file's.
     private var labelItem: ShelfItem {
-        if case .file(let index) = hover, stack.items.indices.contains(index) {
+        if case .file(let index) = pointer, stack.items.indices.contains(index) {
             return stack.items[index]
         }
         return stack.front
@@ -116,7 +130,7 @@ struct StackTile: View {
     /// right behind keeps a strip of `minPeek`: a card rising into a 7 pt tab would leave
     /// only a sliver of it.
     private func lift(of index: Int) -> CGFloat {
-        guard !reduceMotion, count > 1, case .file(let hovered)? = hover, index >= hovered else {
+        guard !reduceMotion, count > 1, case .file(let hovered)? = pointer, index >= hovered else {
             return 0
         }
         if index == hovered { return StackLayout.lift }
@@ -127,7 +141,7 @@ struct StackTile: View {
     /// dragged file would join. A lone tile does not rise under the pointer.
     private var stackLift: CGFloat {
         guard !reduceMotion else { return 0 }
-        if isDropTarget || (count > 1 && hover == .body) { return StackLayout.bodyLift }
+        if isDropTarget || (count > 1 && pointer == .body) { return StackLayout.bodyLift }
         return 0
     }
 

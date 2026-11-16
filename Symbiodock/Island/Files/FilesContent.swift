@@ -86,7 +86,9 @@ struct FilesContent: View {
                         StackTile(
                             stack: stack, selection: shelf.selection,
                             hover: hover?.stack == stack.id ? hover?.hit : nil,
-                            isDropTarget: dropStack == stack.id, previews: previews
+                            isDropTarget: dropStack == stack.id,
+                            conversion: cocoon(of: stack),
+                            previews: previews
                         )
                         .accessibilityAction(.default) { onSelect(stack.items.map(\.id)) }
                     }
@@ -119,6 +121,11 @@ struct FilesContent: View {
         .padding(.top, -Self.headroom)
         .padding([.leading, .bottom], -Self.outset)
         .onDisappear { geometry?.withdrawFileDragViewport(by: owner) }
+    }
+
+    /// The one goo a stack is swallowed in while files of it convert.
+    private func cocoon(of stack: ShelfStack) -> FileConversion? {
+        EngulfTiming.cocoon(of: stack.items.compactMap { conversions[$0.id] })
     }
 
     /// The width the boxes take, with the slot a drag adds and the outline's room.

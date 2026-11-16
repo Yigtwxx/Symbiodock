@@ -38,4 +38,15 @@ public enum EngulfTiming {
         }
         return elapsed >= engulf ? .cocoon : .engulf(max(elapsed, 0) / engulf)
     }
+
+    /// The one cocoon a stack is swallowed in while some of its files convert: it closes with
+    /// the first of them and opens only once every one of them has its result, at the last.
+    /// Nil when none of them converts.
+    public static func cocoon(of conversions: [FileConversion]) -> FileConversion? {
+        guard let first = conversions.min(by: { $0.started < $1.started }) else { return nil }
+        let reveals = conversions.compactMap(\.revealStarted)
+        return FileConversion(
+            label: first.label, started: first.started,
+            revealStarted: reveals.count == conversions.count ? reveals.max() : nil)
+    }
 }
