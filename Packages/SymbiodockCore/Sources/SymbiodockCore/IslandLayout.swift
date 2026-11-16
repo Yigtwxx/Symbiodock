@@ -200,6 +200,45 @@ extension IslandLayout {
     }
 }
 
+extension IslandLayout {
+    /// Gap (pt) between the island and the bubble beside it.
+    public static let bubbleGap: CGFloat = 6
+    /// The bubble's diameter where the notch is tall enough for it.
+    public static let bubbleMaxDiameter: CGFloat = 28
+    /// Size of the second source's disc behind the bubble, relative to the bubble.
+    public static let bubbleBehindScale: CGFloat = 0.84
+
+    /// The bubble never reaches the edges of the notch band.
+    public static func bubbleDiameter(notch: CGRect) -> CGFloat {
+        min(bubbleMaxDiameter, max(notch.height - 4, 0))
+    }
+
+    /// How far the second source's disc shows past the bubble on the left.
+    public static func bubblePeek(diameter: CGFloat) -> CGFloat {
+        (diameter * 0.36).rounded()
+    }
+
+    /// The bubble: left of the island with its wings, centred in the notch band.
+    public static func bubbleFrame(notch: CGRect, screenSize: CGSize) -> CGRect {
+        let island = frame(phase: .collapsed, notch: notch, screenSize: screenSize, showsWings: true)
+        let diameter = bubbleDiameter(notch: notch)
+        return CGRect(
+            x: island.minX - bubbleGap - diameter, y: notch.minY + (notch.height - diameter) / 2,
+            width: diameter, height: diameter)
+    }
+
+    /// The area in which the pointer counts as hovering the bubble, with the disc behind it.
+    public static func bubbleHitRect(notch: CGRect, screenSize: CGSize, hasBehind: Bool) -> CGRect {
+        var rect = bubbleFrame(notch: notch, screenSize: screenSize)
+        if hasBehind {
+            let peek = bubblePeek(diameter: rect.width)
+            rect.origin.x -= peek
+            rect.size.width += peek
+        }
+        return rect.insetBy(dx: -hitPadding, dy: -hitPadding)
+    }
+}
+
 /// Corner radii of the island's outline, in panel-local terms: leading is the left side.
 public struct IslandCornerRadii: Equatable, Sendable {
     public var topLeading: CGFloat

@@ -478,4 +478,38 @@ struct IslandStateTests {
         state.setTabOrder([.agents, .media])
         #expect(state.tabOrder == [.agents, .media])
     }
+
+    @Test func theBubbleHoldsTheSecondFaceAtTheCollapsedNotch() {
+        let state = IslandState()
+        #expect(state.bubbleTab == nil)
+        state.setNowPlaying(track(playing: true))
+        #expect(state.bubbleTab == nil)
+        state.setAgentSessions([agent("a", .working)])
+        #expect(state.face == .agents)
+        #expect(state.bubbleTab == .media)
+        state.setTabOrder([.media, .agents])
+        #expect(state.face == .media)
+        #expect(state.bubbleTab == .agents)
+    }
+
+    @Test func theBubbleGoesWhileTheIslandIsOpenOrAwayFromTheNotch() {
+        let state = IslandState()
+        state.setNowPlaying(track(playing: true))
+        state.setAgentSessions([agent("a", .working)])
+        state.setHovering(true)
+        #expect(state.bubbleTab == nil)
+        state.setHovering(false)
+        #expect(state.bubbleTab == .media)
+        state.restoreAnchor(.edge(.bottom, fraction: 0.5))
+        #expect(state.bubbleTab == nil)
+    }
+
+    @Test func hoveringTheBubbleOpensItsTabEvenOverAttention() {
+        let state = IslandState()
+        state.setNowPlaying(track(playing: true))
+        state.setAgentSessions([agent("a", .needsInput(prompt: nil))])
+        state.setHovering(true, opening: .media)
+        #expect(state.phase == .expanded)
+        #expect(state.selectedTab == .media)
+    }
 }

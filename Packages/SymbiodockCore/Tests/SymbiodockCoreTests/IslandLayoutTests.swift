@@ -323,4 +323,25 @@ struct IslandLayoutTests {
         #expect(IslandLayout.dockedEdges(anchor: .corner(.topRight)) == [.top, .right])
         #expect(IslandLayout.dockedEdges(anchor: .corner(.bottomLeft)) == [.bottom, .left])
     }
+
+    @Test func theBubbleSitsLeftOfTheWingsCentredInTheNotchBand() {
+        // The island with wings starts at 662 − 36 = 626.
+        #expect(IslandLayout.bubbleFrame(notch: notch, screenSize: screen)
+            == CGRect(x: 592, y: 2, width: 28, height: 28))
+    }
+
+    @Test func theBubbleShrinksWithAShortNotch() {
+        let short = CGRect(x: 662, y: 0, width: 188, height: 24)
+        #expect(IslandLayout.bubbleDiameter(notch: short) == 20)
+        #expect(IslandLayout.bubbleFrame(notch: short, screenSize: screen)
+            == CGRect(x: 600, y: 2, width: 20, height: 20))
+    }
+
+    @Test func theBubbleHitRectCoversTheSourceBehind() {
+        #expect(IslandLayout.bubbleHitRect(notch: notch, screenSize: screen, hasBehind: false)
+            == CGRect(x: 588, y: -2, width: 36, height: 36))
+        // The source behind shows round(28 × 0.36) = 10 pt further left.
+        #expect(IslandLayout.bubbleHitRect(notch: notch, screenSize: screen, hasBehind: true)
+            == CGRect(x: 578, y: -2, width: 46, height: 36))
+    }
 }

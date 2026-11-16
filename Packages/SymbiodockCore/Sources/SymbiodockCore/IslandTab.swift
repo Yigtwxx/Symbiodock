@@ -52,6 +52,19 @@ public enum TabSelection {
         return .none
     }
 
+    /// The tab whose face moves out to the bubble beside the island: the second in order,
+    /// while both have a face. Nil while at most one has.
+    public static func bubble(
+        order: [IslandTab], mediaHasFace: Bool, agentsHasFace: Bool
+    ) -> IslandTab? {
+        guard mediaHasFace, agentsHasFace else { return nil }
+        switch face(order: order, mediaHasFace: true, agentsHasFace: true) {
+        case .agents: return .media
+        case .media: return .agents
+        case .none: return nil
+        }
+    }
+
     /// The tab the island opens on. Attention wins; then the first tab with something to
     /// show; then simply the first tab.
     public static func tabToOpen(

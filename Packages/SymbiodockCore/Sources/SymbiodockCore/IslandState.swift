@@ -68,6 +68,14 @@ public final class IslandState {
             order: tabOrder, mediaHasFace: mediaWings, agentsHasFace: board.hasFace)
     }
 
+    /// The tab shown in the round bubble beside the island: the one that has a face but
+    /// is not the island's. Only at the notch and only while collapsed.
+    public var bubbleTab: IslandTab? {
+        guard anchor == .notch, phase == .collapsed else { return nil }
+        return TabSelection.bubble(
+            order: tabOrder, mediaHasFace: mediaWings, agentsHasFace: board.hasFace)
+    }
+
     /// Where the island rests when it is not being dragged.
     public private(set) var anchor: IslandAnchor = .notch
     /// Pointer position (panel-local) while stretching or detached, otherwise nil.
@@ -93,10 +101,12 @@ public final class IslandState {
 
     /// Called after the hover delay has elapsed, not on every pointer move.
     /// Ignored unless the island is collapsed or expanded, so a late timer cannot cancel a drag.
-    public func setHovering(_ hovering: Bool) {
+    /// `tab` is the tab to open on when the pointer rests on the bubble; nil lets the usual
+    /// rule choose.
+    public func setHovering(_ hovering: Bool, opening tab: IslandTab? = nil) {
         guard phase == .collapsed || phase == .expanded else { return }
         if hovering, phase == .collapsed {
-            selectedTab = TabSelection.tabToOpen(
+            selectedTab = tab ?? TabSelection.tabToOpen(
                 order: tabOrder, attention: board.attention,
                 mediaHasContent: nowPlaying != nil, agentsHasContent: !board.rows.isEmpty)
         }

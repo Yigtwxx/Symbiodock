@@ -68,4 +68,14 @@ struct IslandTabTests {
                 order: agentsFirst, attention: .none,
                 mediaHasContent: false, agentsHasContent: false) == .agents)
     }
+
+    @Test func theBubbleTakesTheSecondTabWhenBothHaveAFace() {
+        let agentsFirst: [IslandTab] = [.agents, .media]
+        let mediaFirst: [IslandTab] = [.media, .agents]
+        #expect(TabSelection.bubble(order: agentsFirst, mediaHasFace: true, agentsHasFace: true) == .media)
+        #expect(TabSelection.bubble(order: mediaFirst, mediaHasFace: true, agentsHasFace: true) == .agents)
+        #expect(TabSelection.bubble(order: agentsFirst, mediaHasFace: true, agentsHasFace: false) == nil)
+        #expect(TabSelection.bubble(order: agentsFirst, mediaHasFace: false, agentsHasFace: true) == nil)
+        #expect(TabSelection.bubble(order: agentsFirst, mediaHasFace: false, agentsHasFace: false) == nil)
+    }
 }
