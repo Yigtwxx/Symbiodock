@@ -47,16 +47,19 @@ static NSString *const kMRATestClientServiceIdentifier =
 
 #pragma mark - Replies
 
+// Gives the reply to one request, from any thread: runs `record` on the group's queue,
+// unless the waiter gave up. Only the first call counts, so a completion that MediaRemote
+// calls twice cannot leave the group twice (libdispatch crashes on an unbalanced leave).
+typedef void (^MRAReply)(dispatch_block_t record);
+
 // The replies to one read, counted with a dispatch group whose waiter may give up after
 // a deadline. Replies that arrive later are dropped, and the group is balanced on giving
 // up: libdispatch crashes when a group is released while still entered, which would
 // happen if MediaRemote let go of a completion block without calling it.
 @interface MRAReplyGroup : NSObject
 - (instancetype)initWithQueue:(dispatch_queue_t)queue;
-// On the group's queue only.
-- (void)enter;
-// From any thread: runs `record` on the group's queue, unless the waiter gave up.
-- (void)reply:(dispatch_block_t)record;
+// On the group's queue only: one more reply to wait for, and the block that gives it.
+- (MRAReply)enter;
 // Not on the group's queue. YES when every reply arrived in time; once this returns,
 // nothing recorded by the replies changes any more.
 - (BOOL)waitWithTimeoutMillis:(int)millis;
@@ -77,20 +80,21 @@ static NSString *const kMRATestClientServiceIdentifier =
     return self;
 }
 
-- (void)enter {
+- (MRAReply)enter {
     _pending++;
     dispatch_group_enter(_group);
-}
-
-- (void)reply:(dispatch_block_t)record {
-    dispatch_async(_queue, ^{
-      if (self->_closed) {
-          return;
-      }
-      record();
-      self->_pending--;
-      dispatch_group_leave(self->_group);
-    });
+    __block BOOL replied = NO; // on _queue
+    return ^(dispatch_block_t record) {
+      dispatch_async(self->_queue, ^{
+        if (replied || self->_closed) {
+            return;
+        }
+        replied = YES;
+        record();
+        self->_pending--;
+        dispatch_group_leave(self->_group);
+      });
+    };
 }
 
 - (BOOL)waitWithTimeoutMillis:(int)millis {
@@ -111,10 +115,21 @@ static NSString *const kMRATestClientServiceIdentifier =
 
 #pragma mark - Reading
 
+// The signatures of the per-player calls (MRMediaRemoteGetNowPlayingInfoForPlayer takes
+// four arguments, MRMediaRemoteGetPlaybackStateForPlayer three) were verified on macOS
+// 27.0.1 only. A symbol that exists with another arity on an older system would crash the
+// helper instead of failing, so older systems are not asked at all.
+static BOOL clientsSupportedByOperatingSystem(void) {
+    NSOperatingSystemVersion verified = {
+        .majorVersion = 27, .minorVersion = 0, .patchVersion = 0};
+    return [[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:verified];
+}
+
 static BOOL clientsSupported(void) {
     SEL initPath = @selector(initWithOrigin:client:player:);
     SEL initRequest = @selector(initWithPlayerPath:);
-    return g_mediaRemote.getNowPlayingClients != NULL &&
+    return clientsSupportedByOperatingSystem() &&
+           g_mediaRemote.getNowPlayingClients != NULL &&
            g_mediaRemote.getNowPlayingClient != NULL &&
            g_mediaRemote.getLocalOrigin != NULL &&
            g_mediaRemote.getNowPlayingInfoForPlayer != NULL &&
@@ -190,23 +205,23 @@ static void requestClient(id client, id origin, NSMutableDictionary *entry,
         return;
     }
 
-    [replies enter];
+    MRAReply stateReply = [replies enter];
     g_mediaRemote.getPlaybackStateForPlayer(path, queue, ^(uint32_t state) {
-      [replies reply:^{
+      stateReply(^{
         entry[@"state"] = @(state);
-      }];
+      });
     });
 
     // The artwork flag is passed as NO: on macOS 27 the info comes back without artwork
     // for Music either way, while the request below has it.
-    [replies enter];
+    MRAReply infoReply = [replies enter];
     g_mediaRemote.getNowPlayingInfoForPlayer(
         path, NO, queue, ^(NSDictionary *information) {
-          [replies reply:^{
+          infoReply(^{
             if ([information isKindOfClass:[NSDictionary class]]) {
                 entry[@"info"] = information;
             }
-          }];
+          });
         });
 
     id request =
@@ -217,9 +232,9 @@ static void requestClient(id client, id origin, NSMutableDictionary *entry,
     }
     // Kept until the read is over, so the request is not released while it waits.
     [requests addObject:request];
-    [replies enter];
+    MRAReply artworkReply = [replies enter];
     void (^artworkReceived)(id, NSError *) = ^(id artwork, NSError *error) {
-      [replies reply:^{
+      artworkReply(^{
         if (![artwork respondsToSelector:@selector(imageData)]) {
             return;
         }
@@ -227,7 +242,7 @@ static void requestClient(id client, id origin, NSMutableDictionary *entry,
         if ([data isKindOfClass:[NSData class]] && data.length > 0) {
             entry[@"artwork"] = data;
         }
-      }];
+      });
     };
     [request requestNowPlayingItemArtworkOnQueue:queue completion:artworkReceived];
 }
@@ -302,15 +317,15 @@ static NSArray<NSDictionary *> *readClients(void) {
     __block id electedClient = nil;
 
     dispatch_sync(queue, ^{
-      [replies enter];
+      MRAReply electedReply = [replies enter];
       g_mediaRemote.getNowPlayingClient(queue, ^(id client) {
-        [replies reply:^{
+        electedReply(^{
           electedClient = client;
-        }];
+        });
       });
-      [replies enter];
+      MRAReply clientsReply = [replies enter];
       g_mediaRemote.getNowPlayingClients(queue, ^(NSArray *clients) {
-        [replies reply:^{
+        clientsReply(^{
           if (![clients isKindOfClass:[NSArray class]]) {
               return;
           }
@@ -321,7 +336,7 @@ static NSArray<NSDictionary *> *readClients(void) {
               [entries addObject:entry];
               requestClient(client, origin, entry, queue, replies, requests);
           }
-        }];
+        });
       });
     });
 
@@ -479,9 +494,9 @@ static id findClient(int pid) {
     MRAReplyGroup *replies = [[MRAReplyGroup alloc] initWithQueue:queue];
     __block id found = nil;
     dispatch_sync(queue, ^{
-      [replies enter];
+      MRAReply clientsReply = [replies enter];
       g_mediaRemote.getNowPlayingClients(queue, ^(NSArray *clients) {
-        [replies reply:^{
+        clientsReply(^{
           if (![clients isKindOfClass:[NSArray class]]) {
               return;
           }
@@ -491,7 +506,7 @@ static id findClient(int pid) {
                   return;
               }
           }
-        }];
+        });
       });
     });
     [replies waitWithTimeoutMillis:CLIENTS_TIMEOUT_MILLIS];

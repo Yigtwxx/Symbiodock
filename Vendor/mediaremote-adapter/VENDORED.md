@@ -24,7 +24,9 @@
      (`MRMediaRemoteGetNowPlayingClients`, `…GetLocalOrigin`, `…GetNowPlayingInfoForPlayer`,
      `…GetPlaybackStateForPlayer`, the `MRPlayerPath` and `MRNowPlayingRequest` classes and
      six notification names). When one is missing, the list commands print `[]` and exit 0
-     and `send-to` exits 1. Signatures are the ones seen on macOS 27.0.1.
+     and `send-to` exits 1. Signatures are the ones seen on macOS 27.0.1, so the commands
+     also require macOS 27.0 or later and behave the same way below it: a per-player call
+     with another arity on an older system would crash the helper instead of failing.
      `bin/mediaremote-adapter.pl` accepts the three commands; `include/MediaRemoteAdapter.h`
      declares their entry points.
 
