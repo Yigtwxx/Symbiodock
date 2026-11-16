@@ -26,9 +26,9 @@ struct VolumeSlider: View {
                 ZStack(alignment: .bottom) {
                     Capsule().fill(.white.opacity(0.16))
                     Capsule().fill(.white.opacity(0.9))
-                        .frame(height: max(proxy.size.height * shown, 4))
+                        .frame(height: max(proxy.size.height * shown, 6))
                 }
-                .frame(width: 4)
+                .frame(width: 6)
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
                 .gesture(
