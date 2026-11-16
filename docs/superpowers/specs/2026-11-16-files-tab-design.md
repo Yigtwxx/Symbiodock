@@ -58,6 +58,36 @@ orijinal kalır; dışarı bırakılan karo raftan çıkar; raf yeniden açılı
 - Boş raf: `tray.and.arrow.down` simgesi ve `Drop files here`. Başlığın sağında `3 items`.
 - Sağ tık menüsünde, raf doluyken `Clear Files`.
 
+### Görünüm (yeniden tasarım, 2026-11-16)
+
+Sahibi ilk raf sayfasını görünce: "dosya sekmesinin genel ui'ı çok hoşuma gitmedi, bi tık daha
+güzel bir şeyler yap." İlk sürümün kusurları: siyah üstünde beyaz Finder belge simgeleri, gri
+hap çipler, ortadan kısalan adlar (`Holi….heic`), düz çizgiyle ayrılmış sütun; adanın diğer
+sekmelerindeki özen yoktu. Yeni görünüm aşağıdakidir ve "Sekme" bölümündeki karo ile sütun
+ölçülerinin yerine geçer (64 × 96 kutu, 168 pt sütun ve davranışlar aynı kalır).
+
+- **Kart, tür renginde cam.** Her dosya 12 pt köşeli bir karttır: zemini tür renginin yukarıdan
+  aşağı %24 → %8 geçişi, kenarı aynı rengin %35'i (0,5 pt). Sistem belge simgesi hiçbir yerde
+  kullanılmaz.
+- **Üst bölüm (önizleme).** Görsel, video ve PDF'te gerçek önizleme kartın üstünü doldurur
+  (aspect fill, üst köşeler kartla aynı). Belgede Quick Look sayfası küçük bir kâğıt gibi,
+  hafif gölgeyle ortada durur. Önizlemesi olmayanlarda (ses, arşiv, klasör, diğer, bulunamayan
+  dosya) tür renginde büyük bir SF Symbols simgesi: `waveform`, `doc.zipper`, `folder.fill`,
+  `doc.fill`, `photo`, `film`, `doc.richtext.fill`, `doc.text.fill`.
+- **Alt bölüm.** Uzantısız ad (10 pt medium, beyaz %90, tek satır, sondan kısalır) ve altında
+  tür renginde uzantı (8 pt heavy, harf aralıklı, hap zemini yok).
+- **Seçili kart:** tür renginde 1,5 pt halka ve daha güçlü zemin (%34 → %14). Gri plaka yok.
+- **Yığın:** arkadaki kartlar kendi tür renklerinde aynı cam yüzeylerdir; çekmece, renkli
+  sekmeli dosyalar gibi okunur.
+- **İşlem sütunu bir panel:** çizgi yerine beyaz %5 zeminli, 12 pt köşeli panel. Ad 12 pt
+  semibold; ayrıntı satırının başında tür renginde nokta; simge düğmeleri 20 pt daire (beyaz
+  %8). `CONVERT TO` küçük, harf aralıklı başlık.
+- **Çipler hedef türünün renginde:** `PDF` kırmızı, `PNG`/`JPEG` mavi, `ZIP` amber…: yazı o
+  renkte, zemin %16, kenar %30, 7 pt köşe, 22 pt yükseklik; basılıyken %55.
+- **Boş raf:** her zaman görünen kesikli bırakma alanı (beyaz %14), ortasında simge, `Drop files
+  here` ve altında `They stay while you switch spaces` (10 pt, beyaz %35). Dosya sürüklenirken
+  alan parlar (beyaz %45) ve `Drop to hold` yazar.
+
 ### Yığınlar (dosya çekmecesi)
 
 - Rafın her yeri bir yığındır; tek dosya, tek kartlı yığındır ve bugünkü karo gibi görünür.
