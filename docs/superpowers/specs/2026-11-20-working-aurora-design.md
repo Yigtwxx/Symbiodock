@@ -160,8 +160,10 @@ Uygulama:
   SwiftUI bir anı çizer. `SharedClock` kullanır: görünüm pencereye dönünce hareket kaldığı
   yerden sürer.
 - `IslandView`: ışık, `resting` adanın altında ayrı bir katmandır (ada içeriğini kırptığı için
-  kırpmanın dışında olmalı); adanın çerçevesinden hesaplanan yere konur ve aynı yayla hareket
-  eder. `RimLight`, `CompactingRim`, `TrackGlowLine` çağrıları değişmez.
+  kırpmanın dışında olmalı); kapalı adanın çerçevesinden hesaplanan yere konur. Kanatlar ya da
+  yer değişince adanın yayıyla taşınır; ada açılıp kapanırken taşınmaz, yerinde söner ve belirir.
+  Kanatlar ışıkla aynı anda beliriyorsa belirme de o yayla olur. `RimLight`, `CompactingRim`,
+  `TrackGlowLine` çağrıları değişmez.
 - `AgentStatusMark`: isteğe bağlı `tool` (renkli yay) ve `orbiters` (uydular). Renkli yay,
   dönen yay maskesinin altındaki sabit bir geçiş katmanıdır. Uydular ayrı bir görünümdür
   (`MarkSatellites`), her nokta kendi dönen katmanında.

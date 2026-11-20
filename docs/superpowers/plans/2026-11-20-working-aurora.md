@@ -60,7 +60,7 @@ Claude-Session: https://claude.ai/code/session_01BW1DAEbG4PxRF2VfV7WUtr
 - Consumes: `IslandState.phase`, `.face`, `.board` (`AgentSessionBoard.lead`, `.attention`), all existing.
 - Produces: `IslandState.showsWorkingAurora: Bool`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add after `theMediaFaceShowsNoCompactingRim` in `IslandStateTests.swift`:
 
@@ -112,12 +112,12 @@ Add after `theMediaFaceShowsNoCompactingRim` in `IslandStateTests.swift`:
     }
 ```
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `swift test --package-path Packages/SymbiodockCore --filter IslandStateTests 2>&1 | tail -5`
 Expected: a compile error, `value of type 'IslandState' has no member 'showsWorkingAurora'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `IslandState.swift`, directly after the `showsCompactingRim` property:
 
@@ -130,12 +130,12 @@ In `IslandState.swift`, directly after the `showsCompactingRim` property:
     }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -2`
 Expected: `Test run with 722 tests in 52 suites passed`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Packages/SymbiodockCore
@@ -163,7 +163,7 @@ git push origin main
   - `band(island: CGRect, edge: ScreenEdge) -> CGRect`
   - `breath(at:) -> Double`, `glowOpacity(at:) -> Double`, `stretch(at:) -> Double`, `flow(at:) -> Double`, each taking a `TimeInterval`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `WorkingAuroraTests.swift`:
 
@@ -237,12 +237,12 @@ struct WorkingAuroraTests {
 }
 ```
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `swift test --package-path Packages/SymbiodockCore --filter WorkingAuroraTests 2>&1 | tail -5`
 Expected: a compile error, `cannot find 'WorkingAurora' in scope`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `WorkingAurora.swift`:
 
@@ -326,12 +326,12 @@ public enum WorkingAurora {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -2`
 Expected: `Test run with 727 tests in 53 suites passed`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Packages/SymbiodockCore
@@ -355,7 +355,7 @@ git push origin main
   - `enum AgentSatellites`: `maximum` (5), `periodRange` (`2.3...4.3`), `toneCount` (4), `orbiters(for: [AgentSubagent], state: AgentRowState) -> [AgentSatellite]`, `period(of: String) -> TimeInterval`, `phase(of: String) -> Double`, `turn(of: AgentSatellite, at: TimeInterval) -> Double`, `stillTurn(index: Int, count: Int) -> Double`
   - `AgentRow.orbiters: [AgentSatellite]`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `AgentSatellitesTests.swift`:
 
@@ -451,12 +451,12 @@ struct AgentSatellitesTests {
 }
 ```
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `swift test --package-path Packages/SymbiodockCore --filter AgentSatellitesTests 2>&1 | tail -5`
 Expected: a compile error, `cannot find 'AgentSatellites' in scope`.
 
-- [ ] **Step 3: Implement the satellites**
+- [x] **Step 3: Implement the satellites**
 
 Create `AgentSatellites.swift`:
 
@@ -545,7 +545,7 @@ public enum AgentSatellites {
 }
 ```
 
-- [ ] **Step 4: Give the row its orbiters**
+- [x] **Step 4: Give the row its orbiters**
 
 In `AgentSessionBoard.swift`, in `struct AgentRow` after `branches`:
 
@@ -562,12 +562,12 @@ In `rebuild(from:)`, add the argument to the `AgentRow(` call after `branches:`:
                     orbiters: AgentSatellites.orbiters(for: session.subagents, state: state))
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -2`
 Expected: `Test run with 736 tests in 54 suites passed`.
 
-- [ ] **Step 6: Correct the spec's line about colour, then commit**
+- [x] **Step 6: Correct the spec's line about colour, then commit**
 
 In `docs/superpowers/specs/2026-11-20-working-aurora-design.md`, replace the line that begins `- **Renk.** Aracın dört ışık rengi, sırayla` (in the section "Alt ajan uyduları") with:
 
@@ -596,7 +596,7 @@ git push origin main
 - Consumes: `AgentPetFigure.figure(for:) -> AgentPetFigure` with `lines: [[Double]]` (0 where a line shows only the ground, `glowShade` where the figure glows).
 - Produces: `AgentPetFigure.shadeLift: Double` (0.62). The other names are unchanged.
 
-- [ ] **Step 1: Render the pets as they are now**
+- [x] **Step 1: Render the pets as they are now**
 
 ```bash
 xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock -configuration Debug -derivedDataPath build build 2>&1 | tail -3
@@ -606,7 +606,7 @@ ls build/render-before/pets.png
 
 Expected: the file is listed. It is the "before" picture for the owner.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Add to `AgentPetFigureTests.swift`, inside the test struct:
 
@@ -630,12 +630,12 @@ Add to `AgentPetFigureTests.swift`, inside the test struct:
     }
 ```
 
-- [ ] **Step 3: Run them and see them fail**
+- [x] **Step 3: Run them and see them fail**
 
 Run: `swift test --package-path Packages/SymbiodockCore --filter AgentPetFigureTests 2>&1 | tail -5`
 Expected: a compile error, `type 'AgentPetFigure' has no member 'shadeLift'`.
 
-- [ ] **Step 4: Change the measures**
+- [x] **Step 4: Change the measures**
 
 In `AgentPetFigure.swift`:
 
@@ -666,12 +666,12 @@ In `enum AgentPetMotion`:
     public static let waveRest = 0.92
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -2`
 Expected: `Test run with 738 tests in 54 suites passed`. If an older test fails because it pinned one of the old values, change its expectation to the new value and say so in the commit body; do not weaken what it checks.
 
-- [ ] **Step 6: Change the colours**
+- [x] **Step 6: Change the colours**
 
 In `AgentPalette.swift`, replace four cases of `run(for:)`:
 
@@ -684,7 +684,7 @@ In `AgentPalette.swift`, replace four cases of `run(for:)`:
 
 Gemini, Cursor and Copilot stay as they are.
 
-- [ ] **Step 7: Build, render, look**
+- [x] **Step 7: Build, render, look**
 
 ```bash
 xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock -configuration Debug -derivedDataPath build build 2>&1 | tail -3
@@ -693,7 +693,7 @@ SYMBIODOCK_RENDER_DIR=build/render build/Build/Products/Debug/Symbiodock.app/Con
 
 Expected: `** BUILD SUCCEEDED **`. Open `build/render-before/pets.png` and `build/render/pets.png` and compare: every pet is brighter, its eyes and other dark details are still dark, and its forms still read as volume (a lit side, a shaded side). Report both paths. If a pet has gone flat, do not tune it in this task: report it.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add Packages/SymbiodockCore Symbiodock/Island/Agents/AgentPalette.swift
@@ -715,7 +715,7 @@ git push origin main
 - Consumes: Task 1 `IslandState.showsWorkingAurora`; Task 2 `WorkingAurora` (all members); `SharedClock.begin(in:)` and `CAKeyframeAnimation.repeating(_:period:begin:value:)` from `LayerAnimation.swift`; `IslandLayout.frame(anchor:phase:notch:visibleFrame:screenSize:showsWings:)`, `IslandLayout.dockedEdges(anchor:)`, `IslandLayout.isSideDocked(_:)`.
 - Produces: `AgentPalette.aurora(for: AgentTool) -> [Color]` (always four); `struct WorkingAuroraLight: View` with `init(tool: AgentTool, edge: ScreenEdge, frozenAt: TimeInterval? = nil)`.
 
-- [ ] **Step 1: The colours**
+- [x] **Step 1: The colours**
 
 In `AgentPalette.swift`, add inside `enum AgentPalette`:
 
@@ -743,7 +743,7 @@ In `AgentPalette.swift`, add inside `enum AgentPalette`:
     }
 ```
 
-- [ ] **Step 2: The view**
+- [x] **Step 2: The view**
 
 Create `Symbiodock/Island/WorkingAuroraLight.swift`:
 
@@ -1042,7 +1042,7 @@ private struct AuroraFlow: NSViewRepresentable {
 }
 ```
 
-- [ ] **Step 3: Put it behind the island**
+- [x] **Step 3: Put it behind the island**
 
 In `IslandView.swift`, in `body`'s `ZStack`, add one line after `filesBubble`:
 
@@ -1087,7 +1087,7 @@ Add the property next to `filesBubble`:
     }
 ```
 
-- [ ] **Step 4: A render to check it**
+- [x] **Step 4: A render to check it**
 
 In `DebugRender.swift`, in `runIfRequested`, after the line that writes `collapsed-faces`:
 
@@ -1168,7 +1168,7 @@ private struct WorkingAuroraGallery: View {
 }
 ```
 
-- [ ] **Step 5: Build and render**
+- [x] **Step 5: Build and render**
 
 ```bash
 xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock -configuration Debug -derivedDataPath build build 2>&1 | tail -3
@@ -1187,7 +1187,7 @@ Expected: `** BUILD SUCCEEDED **` and `build/render/working-aurora.png`. Open th
 
 Report what you see for each point.
 
-- [ ] **Step 6: Run it live**
+- [x] **Step 6: Run it live**
 
 ```bash
 pkill -x Symbiodock; open --env SYMBIODOCK_DEMO_AGENTS=working build/Build/Products/Debug/Symbiodock.app
@@ -1198,7 +1198,7 @@ pkill -x Symbiodock
 
 Expected: the app is still running after 4 seconds (no crash), and the last three CPU samples are about 0 (below 1.0). The first sample of `top` is not meaningful. Report the numbers. If the CPU stays above 1 %, sample it (`sample Symbiodock 3`) and report what the main thread is doing; do not hide it.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add Symbiodock
@@ -1220,7 +1220,7 @@ git push origin main
 - Consumes: Task 5 `AgentPalette.aurora(for:)`.
 - Produces: `SpinningArc.gradient: [Color]?` (nil by default); `AgentStatusMark.tool: AgentTool?` (nil by default). `AgentStatusMark`'s memberwise order becomes `state, size, tool, frozenAt`.
 
-- [ ] **Step 1: Let the spinning arc show a gradient**
+- [x] **Step 1: Let the spinning arc show a gradient**
 
 In `LayerAnimation.swift`, in `struct SpinningArc`, add a property after `color` and pass it on:
 
@@ -1307,7 +1307,7 @@ In `layout()`, replace the line `arc.frame = bounds` with:
 
 (The path is still made in `bounds`' size; the arc's own bounds have that size in both cases.)
 
-- [ ] **Step 2: The mark knows its tool**
+- [x] **Step 2: The mark knows its tool**
 
 In `AgentStatusMark.swift`, add a property after `size`:
 
@@ -1366,7 +1366,7 @@ and give the live arc its colours:
                     .transition(.opacity)
 ```
 
-- [ ] **Step 3: Pass the tool**
+- [x] **Step 3: Pass the tool**
 
 In `AgentFaces.swift`:
 
@@ -1389,7 +1389,7 @@ In `AgentsContent.swift`:
 
 Leave `CollapsedContent.swift`, `SideCollapsedContent.swift` and `FloatingCollapsedContent.swift` alone: their marks show a question or a finish, never work.
 
-- [ ] **Step 4: Show it in the gallery**
+- [x] **Step 4: Show it in the gallery**
 
 In `DebugRender.swift`, `StatusMarkGallery`: add a tool to each entry and two entries.
 
@@ -1420,7 +1420,7 @@ In `DebugRender.swift`, `StatusMarkGallery`: add a tool to each entry and two en
 
 Widen the picture in `runIfRequested`: `StatusMarkGallery()` with `size: CGSize(width: 800, height: 150)`.
 
-- [ ] **Step 5: Build, render, look**
+- [x] **Step 5: Build, render, look**
 
 ```bash
 xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock -configuration Debug -derivedDataPath build build 2>&1 | tail -3
@@ -1430,7 +1430,7 @@ swift test --package-path Packages/SymbiodockCore 2>&1 | tail -1
 
 Expected: `** BUILD SUCCEEDED **`, tests pass. In `build/render/status-marks.png`: `working` is white as before; `claude` is an arc from amber to pink-red whose ends are round and not cut; `codex` is an arc from cyan to purple; the other marks are unchanged. In `build/render/working-aurora.png` and `collapsed-faces.png` the working marks are coloured. Report what you see.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add Symbiodock
@@ -1452,7 +1452,7 @@ git push origin main
 - Consumes: Task 3 `AgentSatellite`, `AgentSatellites.turn(of:at:)`, `AgentSatellites.stillTurn(index:count:)`, `AgentRow.orbiters`; Task 5 `AgentPalette.aurora(for:)`; `AgentPalette.mint`; `SharedClock.begin(in:)`.
 - Produces: `struct MarkSatellites: View` with `init(orbiters: [AgentSatellite], tool: AgentTool, markSize: CGFloat = 14, frozenAt: TimeInterval? = nil)`; `AgentStatusMark.orbiters: [AgentSatellite]?` (nil by default: no satellites at all). `AgentStatusMark`'s memberwise order becomes `state, size, tool, orbiters, frozenAt`.
 
-- [ ] **Step 1: The view**
+- [x] **Step 1: The view**
 
 Create `Symbiodock/Island/Agents/MarkSatellites.swift`:
 
@@ -1671,7 +1671,7 @@ private struct Orbits: NSViewRepresentable {
 }
 ```
 
-- [ ] **Step 2: The mark carries them**
+- [x] **Step 2: The mark carries them**
 
 In `AgentStatusMark.swift`, add a property after `tool`:
 
@@ -1702,7 +1702,7 @@ In `body`, after `.frame(width: size, height: size)`:
 
 `AgentStatusMark` also gets, after `orbiters`, `var sessionID: String?` ("The session the mark speaks for: its satellites belong to it, and a new session's are new."). Only the satellites carry it as their identity; the mark itself does not, or a new lead session would lose the finish ring and the spring between states.
 
-- [ ] **Step 3: The collapsed faces pass them**
+- [x] **Step 3: The collapsed faces pass them**
 
 In `AgentFaces.swift`:
 
@@ -1719,7 +1719,7 @@ In `AgentFaces.swift`:
 
 (the second form twice). `AgentsContent.swift` stays as Task 6 left it: no orbiters in the list.
 
-- [ ] **Step 4: Show them in the galleries**
+- [x] **Step 4: Show them in the galleries**
 
 In `DebugRender.swift`, `StatusMarkGallery`: give the `claude` and `codex` entries satellites. Add a helper and use it:
 
@@ -1764,7 +1764,7 @@ In `WorkingAuroraGallery.row(_:)`, give the session two working sub-agents so th
     }
 ```
 
-- [ ] **Step 5: Build, render, look**
+- [x] **Step 5: Build, render, look**
 
 ```bash
 xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock -configuration Debug -derivedDataPath build build 2>&1 | tail -3
@@ -1780,7 +1780,7 @@ Expected: `** BUILD SUCCEEDED **`, tests pass. Check:
 
 If a dot is cut off by the island's edge on the capsule or the strip, widen that face's padding beside the mark in `AgentFaces.swift` (`.padding(.horizontal, ...)` of `AgentFloatingFace`, `.padding(.vertical, ...)` of `AgentSideFace`) by what is missing, render again, and say what you changed. Report what you see for each point.
 
-- [ ] **Step 6: Run it live**
+- [x] **Step 6: Run it live**
 
 ```bash
 pkill -x Symbiodock; open --env SYMBIODOCK_DEMO_AGENTS=working build/Build/Products/Debug/Symbiodock.app
@@ -1790,7 +1790,7 @@ pkill -x Symbiodock
 
 (The `working` demo's lead is a Codex session with two working sub-agents.) Expected: no crash; the last three CPU samples about 0 (below 1.0). Report the numbers.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add Symbiodock
@@ -1808,7 +1808,7 @@ git push origin main
 
 **Interfaces:** none.
 
-- [ ] **Step 1: The decision record**
+- [x] **Step 1: The decision record**
 
 In `CLAUDE.md`, in the table under `## Karar kaydı`, add these rows after the `Parça ışığı` row:
 
@@ -1820,7 +1820,7 @@ In `CLAUDE.md`, in the table under `## Karar kaydı`, add these rows after the `
 
 In the existing `Alt ajan dalları` row, change the sentence `Kapalı adada gösterge yok (2026-11-15)` to `Kapalı adada 2026-11-20'den beri uydular var (bkz. "Renkli yay ve uydular")`.
 
-- [ ] **Step 2: The status**
+- [x] **Step 2: The status**
 
 In `CLAUDE.md`, under `## Durum`, add after the `Parça ışığı` entry. Fill in the test count from `swift test` and the CPU numbers and render findings from Tasks 5-7; do not write a number you did not measure:
 
@@ -1828,7 +1828,7 @@ In `CLAUDE.md`, under `## Durum`, add after the `Parça ışığı` entry. Fill 
 - **Çalışma ışığı, renkli yay, uydular, canlı pet (2026-11-20, <N> çekirdek testi): kod `main`'de.** Ekran dışı görüntülerde doğrulandı (`working-aurora.png`: çentikte iki araç, nefesin iki ucu, alt kenarda kapsül, sağ kenarda şerit, canlı katmanların duruşu; `status-marks.png`; `pets.png`). Demo ile canlıda çökmeden çalıştı; CPU: <ölçülen>. Canlı görünüm görülemedi (ekran görüntüsü pencereleri göstermiyor): akışın hızı, halenin gücü, uyduların okunurluğu ve pet'in yeni parlaklığı sahibinin elle kontrolüne kaldı. Deneme: `SYMBIODOCK_DEMO_AGENTS=working` (Codex, iki çalışan alt ajan). Liste: `docs/superpowers/plans/2026-11-20-working-aurora.md` sonunda.
 ```
 
-- [ ] **Step 3: Verify everything once more**
+- [x] **Step 3: Verify everything once more**
 
 ```bash
 swift test --package-path Packages/SymbiodockCore 2>&1 | tail -1
@@ -1838,7 +1838,7 @@ git status --short
 
 Expected: all tests pass, `** BUILD SUCCEEDED **`, only `CLAUDE.md` and this plan modified.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add CLAUDE.md docs/superpowers/plans/2026-11-20-working-aurora.md
@@ -1869,4 +1869,5 @@ Uygulama: `open --env SYMBIODOCK_DEMO_AGENTS=working build/Build/Products/Debug/
 15. Pet'ler eskisinden canlı; yine de kabartma hissi (ışık alan ve gölgede kalan taraf) duruyor.
 16. Çalışan pet'in soldan sağa dalgası hâlâ seçiliyor (bekleyen çizgiler artık %92'de duruyor, fark küçüldü).
 17. Sistem Ayarları'nda Hareketi Azalt açıkken ışık sabit duruyor, noktalar dönmüyor.
-18. Agent çalışırken Etkinlik Monitörü'nde Symbiodock'un CPU'su %0-1 civarında.
+18. Agent çalışırken, fare dururken Etkinlik Monitörü'nde Symbiodock'un CPU'su %0 civarında (fare hareket ederken yükselmesi beklenir; uygulama işaretçiyi izliyor).
+19. Codex'in ışığındaki mor, compact'ın mor kesikli çizgisiyle karışmıyor.
