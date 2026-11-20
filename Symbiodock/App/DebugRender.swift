@@ -119,7 +119,7 @@ enum DebugRender {
             ExpandedPreview(state: branches), size: CGSize(width: 640, height: 210),
             named: "expanded-agents-branches", to: directory)
         write(CollapsedGallery(), size: CGSize(width: 620, height: 540), named: "collapsed-faces", to: directory)
-        write(WorkingAuroraGallery(), size: CGSize(width: 900, height: 640), named: "working-aurora", to: directory)
+        write(WorkingAuroraGallery(), size: CGSize(width: 900, height: 700), named: "working-aurora", to: directory)
         // The goo that swallows a tile while its file changes format, over a photo becoming a
         // PNG and over a drawer whose documents become PDFs (the slides cannot, but they share
         // the drawer's cocoon).
@@ -853,10 +853,11 @@ private struct SealGallery: View {
 /// The light of a working agent: at the notch at its dimmest and at its brightest, for a
 /// second tool, then a capsule docked at the bottom and strips docked right and left, each
 /// drawn still (1.2 s in) and as the live layers at rest (`at: nil`) right beside or under
-/// it. The last notch is live too. Compare the pairs: the side, the direction of the fade
-/// and where the line lies must agree.
+/// it. The last notch is live too, and the one after it is a session that has just
+/// finished: its light is mint. Compare the pairs: the side, the direction of the fade and
+/// where the line lies must agree.
 private struct WorkingAuroraGallery: View {
-    private func row(_ tool: AgentTool) -> AgentRow {
+    private func row(_ tool: AgentTool, finished: Bool = false) -> AgentRow {
         let now = Date()
         var session = AgentSession(
             id: "x", tool: tool, title: "fix-login-flow", projectPath: nil,
@@ -867,12 +868,19 @@ private struct WorkingAuroraGallery: View {
         ]
         var board = AgentSessionBoard()
         board.update([session])
+        if finished {
+            // Working, then idle: the row's state is `.finished`.
+            let idle = AgentSession(
+                id: session.id, tool: tool, title: session.title, projectPath: nil, activity: .idle,
+                since: now, pid: nil)
+            board.update([idle])
+        }
         return board.rows[0]
     }
 
     private func island(
         _ anchor: IslandAnchor, _ size: CGSize, tool: AgentTool, at time: TimeInterval?,
-        @ViewBuilder face: () -> some View
+        isFinishing: Bool = false, @ViewBuilder face: () -> some View
     ) -> some View {
         let radii = IslandLayout.cornerRadii(anchor: anchor, radius: IslandLayout.collapsedCornerRadius)
         let shape = UnevenRoundedRectangle(
@@ -885,7 +893,7 @@ private struct WorkingAuroraGallery: View {
         let frame = CGRect(x: margin, y: margin, width: size.width, height: size.height)
         let band = WorkingAurora.band(island: frame, edge: edge)
         return ZStack(alignment: .topLeading) {
-            WorkingAuroraLight(tool: tool, edge: edge, frozenAt: time)
+            WorkingAuroraLight(tool: tool, edge: edge, isFinishing: isFinishing, frozenAt: time)
                 .frame(width: band.width, height: band.height)
                 .offset(x: band.minX, y: band.minY)
             shape.fill(.black)
@@ -900,6 +908,17 @@ private struct WorkingAuroraGallery: View {
     private func notch(_ tool: AgentTool, at time: TimeInterval?) -> some View {
         island(.notch, CGSize(width: 272, height: 32 + IslandLayout.notchLip), tool: tool, at: time) {
             AgentNotchFace(row: row(tool), notchWidth: 200)
+                .padding(.bottom, IslandLayout.notchLip)
+        }
+    }
+
+    /// The notch of a Claude Code session that has just finished: mint light, still.
+    private var finishingNotch: some View {
+        island(
+            .notch, CGSize(width: 272, height: 32 + IslandLayout.notchLip), tool: .claudeCode, at: 1.2,
+            isFinishing: true
+        ) {
+            AgentNotchFace(row: row(.claudeCode, finished: true), notchWidth: 200)
                 .padding(.bottom, IslandLayout.notchLip)
         }
     }
@@ -929,6 +948,7 @@ private struct WorkingAuroraGallery: View {
                 capsule(at: 1.2)
                 capsule(at: nil)
                 notch(.claudeCode, at: nil)
+                finishingNotch
             }
             // Each strip: still, then live layers at rest.
             HStack(alignment: .top, spacing: 8) {

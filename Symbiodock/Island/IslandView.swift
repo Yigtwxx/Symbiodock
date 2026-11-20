@@ -121,7 +121,7 @@ struct IslandView: View {
             if state.showsWorkingAurora, let tool = state.board.lead?.session.tool {
                 // The edge is its identity: if the anchor moves it to another edge, the old
                 // light fades out and a new one fades in, not one stretched between bands.
-                WorkingAuroraLight(tool: tool, edge: edge)
+                WorkingAuroraLight(tool: tool, edge: edge, isFinishing: state.auroraIsFinishing)
                     .id(edge)
                     .transition(.opacity)
             }

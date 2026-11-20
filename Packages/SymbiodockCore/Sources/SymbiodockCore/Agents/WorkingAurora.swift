@@ -12,6 +12,18 @@ public enum WorkingAurora {
     /// Seconds the light takes to appear and to go.
     public static let fade: TimeInterval = 0.35
 
+    /// When, after a finish seal begins, the light starts to turn mint, and how long the turn
+    /// takes: the moments the seal's own frame turns mint (`AgentSealTiming.pose(at:).mint`).
+    public static var finishTintDelay: TimeInterval { AgentSealTiming.rounded }
+    public static var finishTintDuration: TimeInterval { (AgentSealTiming.checked - AgentSealTiming.rounded) / 2 }
+    /// Seconds the light takes to return to a tool's colours when work goes on after a finish.
+    public static let tintBack: TimeInterval = 0.3
+
+    /// How mint the light is `time` seconds into a finish seal: 0 the tool's colours, 1 mint.
+    public static func finishTint(at time: TimeInterval) -> Double {
+        AgentSealTiming.pose(at: time).mint
+    }
+
     /// How far the glow reaches out from the edge at a stretch of 1, in points.
     public static let reach: CGFloat = 9
     public static let lineWidth: CGFloat = 1

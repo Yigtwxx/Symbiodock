@@ -375,20 +375,58 @@ struct IslandStateTests {
         #expect(!state.showsWorkingAurora)
         state.setAgentSessions([agent("a", .working)])
         #expect(state.showsWorkingAurora)
-        // It has finished: the seal plays, not the light.
+        // It has finished: the seal plays and the light turns mint with it.
         state.setAgentSessions([agent("a", .idle)])
+        #expect(state.showsWorkingAurora)
+        #expect(state.auroraIsFinishing)
+        state.settleFinished("a")
         #expect(!state.showsWorkingAurora)
+        #expect(!state.auroraIsFinishing)
     }
 
-    @Test func theWorkingAuroraWaitsBehindAFinishAndAQuestion() {
+    @Test func theLightIsNotFinishingWhileItsSessionWorks() {
+        let state = IslandState()
+        state.setAgentSessions([agent("a", .working)])
+        #expect(state.showsWorkingAurora)
+        #expect(!state.auroraIsFinishing)
+    }
+
+    @Test func aFinishOnTheMediaFaceHasNoLight() {
+        let state = IslandState()
+        state.setTabOrder([.media, .agents])
+        state.setNowPlaying(track(playing: true))
+        state.setAgentSessions([agent("a", .working)])
+        state.setAgentSessions([agent("a", .idle)])
+        #expect(state.face == .media)
+        #expect(!state.showsWorkingAurora)
+        #expect(!state.auroraIsFinishing)
+    }
+
+    @Test func aFinishWhileOpenLightsWhenTheIslandCloses() {
+        let state = IslandState()
+        state.setAgentSessions([agent("a", .working)])
+        // Opened on another tab: leaving the Agents tab would count the finish as seen.
+        state.setHovering(true, opening: .media)
+        state.setAgentSessions([agent("a", .idle)])
+        #expect(!state.showsWorkingAurora)
+        #expect(!state.auroraIsFinishing)
+        state.setHovering(false)
+        #expect(state.showsWorkingAurora)
+        #expect(state.auroraIsFinishing)
+    }
+
+    @Test func theWorkingAuroraTurnsMintForAFinishThenFollowsTheNextLead() {
         let state = IslandState()
         state.setAgentSessions([agent("a", .working), agent("b", .working)])
         state.setAgentSessions([agent("a", .idle), agent("b", .working)])
-        #expect(!state.showsWorkingAurora)
+        #expect(state.showsWorkingAurora)
+        #expect(state.auroraIsFinishing)
         state.settleFinished("a")
         #expect(state.showsWorkingAurora)
+        #expect(!state.auroraIsFinishing)
         state.setAgentSessions([agent("a", .idle), agent("b", .working), agent("c", .needsInput(prompt: nil))])
         #expect(!state.showsWorkingAurora)
+        #expect(!state.auroraIsFinishing)
     }
 
     @Test func theWorkingAuroraDoesNotShowWhileTheIslandIsDragged() {

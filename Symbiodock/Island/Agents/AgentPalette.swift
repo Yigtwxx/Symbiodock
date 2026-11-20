@@ -19,11 +19,17 @@ enum AgentPalette {
             case .aider: [0xD2FA46, 0x39D353, 0x64DC28, 0xF2FF7A]
             case .copilotCLI: [0xA078FF, 0xFF69BE, 0xC86BFF, 0xFF9AD5]
             }
-        return hex.map {
-            Color(
-                red: Double(($0 >> 16) & 0xFF) / 255, green: Double(($0 >> 8) & 0xFF) / 255,
-                blue: Double($0 & 0xFF) / 255)
-        }
+        return hex.map(color(hex:))
+    }
+
+    /// The mint tones the working light turns to while its session's finish seal plays, in
+    /// the order they follow each other along the edge.
+    static let auroraFinish: [Color] = [0x63E6A9, 0x9AEFC8, 0x63E6A9, 0xC9FFE6].map(color(hex:))
+
+    private static func color(hex: UInt32) -> Color {
+        Color(
+            red: Double((hex >> 16) & 0xFF) / 255, green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255)
     }
 
     /// A session waits for the user. #FFD60A, amber: red read as a failure.

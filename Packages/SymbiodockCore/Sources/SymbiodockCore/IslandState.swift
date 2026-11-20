@@ -416,10 +416,21 @@ public final class IslandState {
     }
 
     /// Whether the light of a working agent plays beside the collapsed island: the session
-    /// the agents face speaks for is working, and no session asks for attention.
+    /// the agents face speaks for is working and no session asks for attention, or it has
+    /// just finished and its seal plays (the light then turns mint, `auroraIsFinishing`).
     public var showsWorkingAurora: Bool {
-        phase == .collapsed && face == .agents && board.lead?.state == .working
-            && board.attention == .none
+        guard phase == .collapsed, face == .agents, let lead = board.lead else { return false }
+        switch lead.state {
+        case .working: return board.attention == .none
+        case .finished: return true
+        case .needsInput, .compacting, .running, .idle: return false
+        }
+    }
+
+    /// Whether that light is the mint one of a finish: the session it speaks for has finished
+    /// and its seal plays. (`board.lead` is a finished session only until it settles.)
+    public var auroraIsFinishing: Bool {
+        phase == .collapsed && face == .agents && board.lead?.state == .finished
     }
 
     /// Applies a tab order, repaired if it is damaged. A collapsed island will open on it.

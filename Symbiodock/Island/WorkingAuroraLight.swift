@@ -11,6 +11,8 @@ struct WorkingAuroraLight: View {
     let tool: AgentTool
     /// The island's edge the band lies against.
     let edge: ScreenEdge
+    /// The session has finished and its seal plays; the light turns mint with it.
+    var isFinishing = false
     /// Draws the light as it is this many seconds in and never moves; for renders.
     var frozenAt: TimeInterval?
 
@@ -25,14 +27,17 @@ struct WorkingAuroraLight: View {
             } else if reduceMotion {
                 AuroraStill(colors: colors, edge: edge, flow: 0, glow: WorkingAurora.stillGlow, stretch: 1)
             } else {
-                AuroraFlow(colors: colors.map { NSColor($0).cgColor }, edge: edge)
+                AuroraFlow(
+                    colors: AgentPalette.aurora(for: tool).map { NSColor($0).cgColor },
+                    finishColors: AgentPalette.auroraFinish.map { NSColor($0).cgColor },
+                    edge: edge, isFinishing: isFinishing)
             }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 
-    private var colors: [Color] { AgentPalette.aurora(for: tool) }
+    private var colors: [Color] { isFinishing ? AgentPalette.auroraFinish : AgentPalette.aurora(for: tool) }
 
     /// The colours as they lie along twice the edge: two whole runs that end where they
     /// began, so that a slide of one edge's length brings them back to the start.
@@ -118,12 +123,14 @@ private struct AuroraStill: View {
 /// strength and reach rise and fall. The render server plays all of it.
 private struct AuroraFlow: NSViewRepresentable {
     let colors: [CGColor]
+    let finishColors: [CGColor]
     let edge: ScreenEdge
+    let isFinishing: Bool
 
     func makeNSView(context: Context) -> FlowView { FlowView() }
 
     func updateNSView(_ view: FlowView, context: Context) {
-        view.configure(colors: colors, edge: edge)
+        view.configure(colors: colors, finishColors: finishColors, edge: edge, isFinishing: isFinishing)
     }
 
     static func dismantleNSView(_ view: FlowView, coordinator: ()) {
@@ -144,6 +151,14 @@ private struct AuroraFlow: NSViewRepresentable {
         private var edge: ScreenEdge = .bottom
         /// The edge's length the animations were made for.
         private var playedLength: CGFloat = 0
+        /// The colours the sheet has, or is on its way to, so that a repeated configure with
+        /// the same inputs adds nothing.
+        private var target: Target?
+
+        private enum Target: Equatable {
+            case tool([CGColor])
+            case mint
+        }
 
         override init(frame: NSRect) {
             super.init(frame: frame)
@@ -178,16 +193,50 @@ private struct AuroraFlow: NSViewRepresentable {
 
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
-        func configure(colors: [CGColor], edge: ScreenEdge) {
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            run.colors = WorkingAuroraLight.run(colors)
-            CATransaction.commit()
+        func configure(colors: [CGColor], finishColors: [CGColor], edge: ScreenEdge, isFinishing: Bool) {
+            let wanted: Target = isFinishing ? .mint : .tool(colors)
+            if wanted != target {
+                let toolRun = WorkingAuroraLight.run(colors)
+                if target == nil {
+                    // Born in the tool's colours; a seal that already plays turns them mint below.
+                    setRun(toolRun)
+                    target = .tool(colors)
+                }
+                if wanted != target { turn(to: isFinishing ? WorkingAuroraLight.run(finishColors) : toolRun, finishing: isFinishing) }
+                target = wanted
+            }
             if self.edge != edge {
                 self.edge = edge
                 needsLayout = true
             }
             play()
+        }
+
+        /// Fades the sheet to `colors` from what shows now. Turning mint waits for the moment
+        /// the seal's frame does and takes as long; going back is quick and starts at once.
+        private func turn(to colors: [CGColor], finishing: Bool) {
+            let from = run.presentation()?.colors ?? run.colors
+            setRun(colors)
+            let animation = CABasicAnimation(keyPath: "colors")
+            animation.fromValue = from
+            animation.toValue = colors
+            animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            if finishing {
+                animation.beginTime = run.convertTime(CACurrentMediaTime(), from: nil) + WorkingAurora.finishTintDelay
+                animation.duration = WorkingAurora.finishTintDuration
+                // The old colours hold until it begins.
+                animation.fillMode = .backwards
+            } else {
+                animation.duration = WorkingAurora.tintBack
+            }
+            run.add(animation, forKey: "tint")
+        }
+
+        private func setRun(_ colors: [CGColor]?) {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            run.colors = colors
+            CATransaction.commit()
         }
 
         /// Takes the light down: no animation is left.

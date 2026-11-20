@@ -104,4 +104,20 @@ struct WorkingAuroraTests {
         #expect(WorkingAurora.stillGlow == 0.8)
         #expect(WorkingAurora.fade == 0.35)
     }
+
+    @Test func theLightTurnsMintInStepWithTheSeal() {
+        #expect(WorkingAurora.finishTintDelay == 0.75)
+        #expect(abs(WorkingAurora.finishTintDuration - 0.2) < 1e-9)
+        #expect(WorkingAurora.tintBack == 0.3)
+        #expect(WorkingAurora.finishTint(at: 0) == 0)
+        #expect(WorkingAurora.finishTint(at: 0.75) == 0)
+        #expect(abs(WorkingAurora.finishTint(at: 0.95) - 1) < 1e-9)
+        #expect(WorkingAurora.finishTint(at: 1.7) == 1)
+        var last = 0.0
+        for step in 0...170 {
+            let tint = WorkingAurora.finishTint(at: Double(step) / 100)
+            #expect(tint >= last - 1e-12)
+            last = tint
+        }
+    }
 }
