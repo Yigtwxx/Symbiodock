@@ -74,20 +74,32 @@ public enum AgentBranches {
         return Int(hash % UInt64(count))
     }
 
-    /// The tone of each line's dot. A subagent takes its own tone unless a line above has
-    /// it; then the next free one, so that up to `count` lines never share a colour. The
-    /// count line has none.
-    public static func tones(for lines: [AgentBranch], count: Int) -> [Int?] {
-        guard count > 0 else { return lines.map { _ in nil } }
+    /// The tone of each id in turn: its own (`tone(of:count:)`) unless an id before it has
+    /// it; then the next free one, so that up to `count` ids never share a colour.
+    public static func tones(of ids: [String], count: Int) -> [Int] {
+        guard count > 0 else { return ids.map { _ in 0 } }
         var taken = Set<Int>()
-        return lines.map { line in
-            guard case .subagent(let subagent) = line else { return nil }
-            var pick = Self.tone(of: subagent.id, count: count)
+        return ids.map { id in
+            var pick = tone(of: id, count: count)
             if taken.count < count {
                 while taken.contains(pick) { pick = (pick + 1) % count }
             }
             taken.insert(pick)
             return pick
+        }
+    }
+
+    /// The tone of each line's dot. A subagent takes its own tone unless a line above has
+    /// it; then the next free one, so that up to `count` lines never share a colour. The
+    /// count line has none.
+    public static func tones(for lines: [AgentBranch], count: Int) -> [Int?] {
+        guard count > 0 else { return lines.map { _ in nil } }
+        let ids = lines.compactMap { line -> String? in
+            if case .subagent(let subagent) = line { subagent.id } else { nil }
+        }
+        var picked = tones(of: ids, count: count).makeIterator()
+        return lines.map { line in
+            if case .subagent = line { picked.next() } else { nil }
         }
     }
 

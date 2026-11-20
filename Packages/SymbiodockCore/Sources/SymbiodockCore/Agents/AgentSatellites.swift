@@ -32,21 +32,15 @@ public enum AgentSatellites {
     /// A session that waits, compacts, has finished or idles has none.
     public static func orbiters(for subagents: [AgentSubagent], state: AgentRowState) -> [AgentSatellite] {
         guard state == .working else { return [] }
-        var taken = Set<Int>()
-        return subagents
+        let shown = subagents
             .filter { !$0.isFinished }
             .sorted { ($0.since, $0.id) < ($1.since, $1.id) }
             .prefix(maximum)
-            .map { subagent in
-                // Its own tone unless one shown before it has it; then the next free one.
-                var tone = AgentBranches.tone(of: subagent.id, count: toneCount)
-                if taken.count < toneCount {
-                    while taken.contains(tone) { tone = (tone + 1) % toneCount }
-                }
-                taken.insert(tone)
-                return AgentSatellite(
-                    id: subagent.id, period: period(of: subagent.id), phase: phase(of: subagent.id), tone: tone)
-            }
+        let tones = AgentBranches.tones(of: shown.map(\.id), count: toneCount)
+        return zip(shown, tones).map { subagent, tone in
+            AgentSatellite(
+                id: subagent.id, period: period(of: subagent.id), phase: phase(of: subagent.id), tone: tone)
+        }
     }
 
     /// A sub-agent's time for one turn, from its id: the same in every run.

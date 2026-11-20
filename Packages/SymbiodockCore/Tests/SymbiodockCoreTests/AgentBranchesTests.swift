@@ -86,4 +86,17 @@ struct AgentBranchesTests {
         let lines = [AgentBranch.subagent(sub("c", at: 1)), .more(4)]
         #expect(AgentBranches.tones(for: lines, count: 3) == [0, nil])
     }
+
+    @Test func idsTakeTheirOwnToneOrTheNextFreeOne() {
+        let ids = ["a", "b", "c", "d"]
+        let tones = AgentBranches.tones(of: ids, count: 4)
+        #expect(Set(tones) == [0, 1, 2, 3])
+        #expect(tones[0] == AgentBranches.tone(of: "a", count: 4))
+        // A fifth id has to share a tone; none is out of range.
+        let five = AgentBranches.tones(of: ids + ["e"], count: 4)
+        #expect(Array(five.prefix(4)) == tones)
+        #expect((0..<4).contains(five[4]))
+        #expect(AgentBranches.tones(of: ids, count: 0) == [0, 0, 0, 0])
+        #expect(AgentBranches.tones(of: [], count: 4).isEmpty)
+    }
 }
