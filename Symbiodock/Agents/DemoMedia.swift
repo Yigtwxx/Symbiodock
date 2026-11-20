@@ -46,7 +46,8 @@ enum DemoMedia {
         guard twoSources else {
             state.setNowPlaying(
                 NowPlayingInfo(
-                    title: "Demo track", artist: "Demo", isPlaying: true, sourceName: "Music",
+                    title: "Demo track", artist: "Demo", duration: 226, elapsed: 93,
+                    elapsedAt: Date(), isPlaying: true, sourceName: "Music",
                     sourceBundleIdentifier: "com.apple.Music"))
             return
         }

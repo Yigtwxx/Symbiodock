@@ -17,6 +17,9 @@ struct VolumeSlider: View {
     /// An Apple Event per pointer move would make the drag stutter.
     private static let sendInterval: TimeInterval = 0.06
     static let width: CGFloat = 18
+    /// Bar and glyph together. A taller column gets no longer bar: the slider stays in
+    /// proportion to the rows beside it and is centred by whoever lays it out.
+    static let maxHeight: CGFloat = 72
 
     private var shown: Double { dragged ?? value }
 
@@ -53,6 +56,7 @@ struct VolumeSlider: View {
                 .frame(height: 9)
         }
         .frame(width: Self.width)
+        .frame(maxHeight: Self.maxHeight)
         // A press here moves the level, not the island.
         .background {
             GeometryReader { proxy in

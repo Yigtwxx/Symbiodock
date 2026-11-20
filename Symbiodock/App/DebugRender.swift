@@ -22,14 +22,14 @@ enum DebugRender {
             state.setHovering(true)
             state.selectTab(tab)
             write(
-                ExpandedPreview(state: state), size: CGSize(width: 640, height: 190),
+                ExpandedPreview(state: state), size: CGSize(width: 640, height: 210),
                 named: name, to: directory)
         }
         let files = IslandState()
         files.setHovering(true)
         files.selectTab(.files)
         write(
-            ExpandedPreview(state: files), size: CGSize(width: 640, height: 190),
+            ExpandedPreview(state: files), size: CGSize(width: 640, height: 210),
             named: "expanded-files-empty", to: directory)
         let previews = FilePreviews()
         let shelf = IslandState()
@@ -37,13 +37,13 @@ enum DebugRender {
         shelf.setHovering(true)
         shelf.selectTab(.files)
         write(
-            ExpandedPreview(state: shelf, previews: previews), size: CGSize(width: 640, height: 190),
+            ExpandedPreview(state: shelf, previews: previews), size: CGSize(width: 640, height: 210),
             named: "expanded-files", to: directory)
         // The pointer on the drawer's back tab: the tab rises, clear of the tab strip above.
         if let drawer = shelf.shelf.stacks.first {
             shelf.setHoveredFile(ShelfHover(stack: drawer.id, hit: .file(drawer.items.count - 1)))
             write(
-                ExpandedPreview(state: shelf, previews: previews), size: CGSize(width: 640, height: 190),
+                ExpandedPreview(state: shelf, previews: previews), size: CGSize(width: 640, height: 210),
                 named: "expanded-files-hover", to: directory)
             shelf.setHoveredFile(nil)
         }
@@ -54,25 +54,25 @@ enum DebugRender {
         several.setHovering(true)
         several.selectTab(.files)
         write(
-            ExpandedPreview(state: several, previews: previews), size: CGSize(width: 640, height: 190),
+            ExpandedPreview(state: several, previews: previews), size: CGSize(width: 640, height: 210),
             named: "expanded-files-multi", to: directory)
         write(
             FileStacksGallery(previews: previews), size: CGSize(width: 760, height: 200),
             named: "file-stacks", to: directory)
         shelf.setFileDragHovering(true)
         write(
-            ExpandedPreview(state: shelf, previews: previews), size: CGSize(width: 640, height: 190),
+            ExpandedPreview(state: shelf, previews: previews), size: CGSize(width: 640, height: 210),
             named: "expanded-files-drop", to: directory)
         files.setFileDragHovering(true)
         write(
-            ExpandedPreview(state: files), size: CGSize(width: 640, height: 190),
+            ExpandedPreview(state: files), size: CGSize(width: 640, height: 210),
             named: "expanded-files-empty-drop", to: directory)
         let twoSources = IslandState()
         DemoMedia.apply(to: twoSources, twoSources: true, otherApp: false)
         twoSources.setHovering(true)
         twoSources.selectTab(.media)
         write(
-            ExpandedPreview(state: twoSources), size: CGSize(width: 640, height: 190),
+            ExpandedPreview(state: twoSources), size: CGSize(width: 640, height: 210),
             named: "expanded-media-two", to: directory)
         write(
             MediaStackGallery(slots: twoSources.mediaSlots), size: CGSize(width: 320, height: 150),
@@ -90,7 +90,7 @@ enum DebugRender {
         otherApp.setHovering(true)
         otherApp.selectTab(.media)
         write(
-            ExpandedPreview(state: otherApp), size: CGSize(width: 640, height: 190),
+            ExpandedPreview(state: otherApp), size: CGSize(width: 640, height: 210),
             named: "expanded-media-client", to: directory)
         write(
             MediaStackGallery(slots: otherApp.mediaSlots), size: CGSize(width: 320, height: 150),
@@ -100,20 +100,20 @@ enum DebugRender {
         oneSource.setHovering(true)
         oneSource.selectTab(.media)
         write(
-            ExpandedPreview(state: oneSource), size: CGSize(width: 640, height: 190),
+            ExpandedPreview(state: oneSource), size: CGSize(width: 640, height: 210),
             named: "expanded-media-volume", to: directory)
         let empty = IslandState()
         empty.setHovering(true)
         empty.selectTab(.agents)
         write(
-            ExpandedPreview(state: empty), size: CGSize(width: 640, height: 190),
+            ExpandedPreview(state: empty), size: CGSize(width: 640, height: 210),
             named: "expanded-agents-empty", to: directory)
         let branches = IslandState()
         DemoAgents.apply("branches", to: branches)
         branches.setHovering(true)
         branches.selectTab(.agents)
         write(
-            ExpandedPreview(state: branches), size: CGSize(width: 640, height: 190),
+            ExpandedPreview(state: branches), size: CGSize(width: 640, height: 210),
             named: "expanded-agents-branches", to: directory)
         write(CollapsedGallery(), size: CGSize(width: 620, height: 540), named: "collapsed-faces", to: directory)
         // The goo that swallows a tile while its file changes format, over a photo becoming a
@@ -135,7 +135,7 @@ enum DebugRender {
         converting.selectTab(.files)
         write(
             ExpandedPreview(state: converting, previews: previews).environment(\.frozenEngulf, .engulf(0.6)),
-            size: CGSize(width: 640, height: 190), named: "expanded-files-converting", to: directory)
+            size: CGSize(width: 640, height: 210), named: "expanded-files-converting", to: directory)
         exit(0)
     }
 
@@ -249,7 +249,9 @@ private struct ExpandedPreview: View {
             state: state,
             metrics: ExpandedHeaderMetrics(height: 32, leading: 200, gap: 200, trailing: 200),
             onCommand: { _, _ in }, onOpenSession: { _ in }, previews: previews)
-            .frame(width: 600, height: 150)
+            .frame(
+                width: IslandLayout.expandedSize.width, height: IslandLayout.expandedSize.height
+            )
             .background(.black, in: shape)
             .clipShape(shape)
     }

@@ -17,6 +17,10 @@ struct ExpandedContent: View {
         slots.compactMap { VolumeTarget.target(for: $0.info) }
     }
 
+    /// Room under the last row. The island's bottom corners are round, so what sits right
+    /// above the edge needs about as much air as the sides give it.
+    private static let bottomMargin: CGFloat = 16
+
     private var showsAnyVolume: Bool {
         targets.contains { volumes[$0] != nil }
     }
@@ -31,7 +35,7 @@ struct ExpandedContent: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 2)
-                .padding(.bottom, 8)
+                .padding(.bottom, Self.bottomMargin)
             } else if let slot = slots.first {
                 track(slot)
             } else {
@@ -75,7 +79,7 @@ struct ExpandedContent: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 2)
-        .padding(.bottom, 8)
+        .padding(.bottom, Self.bottomMargin)
     }
 
     private func trackRows(_ slot: NowPlayingSlot) -> some View {
