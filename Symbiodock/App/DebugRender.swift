@@ -13,7 +13,7 @@ enum DebugRender {
         let directory = URL(fileURLWithPath: path, isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         write(TabGlyphGallery(), size: CGSize(width: 880, height: 290), named: "tab-glyphs", to: directory)
-        write(StatusMarkGallery(), size: CGSize(width: 900, height: 150), named: "status-marks", to: directory)
+        write(StatusMarkGallery(), size: CGSize(width: 1060, height: 180), named: "status-marks", to: directory)
         write(PetGallery(), size: CGSize(width: 800, height: 460), named: "pets", to: directory)
         write(SealGallery(), size: CGSize(width: 640, height: 150), named: "finish-seal", to: directory)
         for (name, tab) in [("expanded-agents", IslandTab.agents), ("expanded-media", .media)] {
@@ -177,22 +177,36 @@ private struct StatusMarkGallery: View {
         ("idle", .idle, 0, nil),
     ]
 
+    private static func orbiters(_ count: Int) -> [AgentSatellite] {
+        let start = Date(timeIntervalSince1970: 0)
+        return AgentSatellites.orbiters(
+            for: (0..<count).map {
+                AgentSubagent(id: "sub-\($0)", title: "", isFinished: false, since: start.addingTimeInterval(Double($0)))
+            },
+            state: .working)
+    }
+
     var body: some View {
         VStack(spacing: 14) {
             HStack(spacing: 22) {
                 ForEach(Self.states, id: \.0) { name, state, time, tool in
                     VStack(spacing: 8) {
-                        AgentStatusMark(state: state, size: 42, tool: tool, frozenAt: time)
-                            .frame(width: 60, height: 60)
-                        AgentStatusMark(state: state, tool: tool, frozenAt: time)
+                        AgentStatusMark(
+                            state: state, size: 42, tool: tool, orbiters: tool == nil ? nil : Self.orbiters(3),
+                            frozenAt: time)
+                            .frame(width: 80, height: 80)
+                        AgentStatusMark(
+                            state: state, tool: tool, orbiters: tool == nil ? nil : Self.orbiters(3), frozenAt: time)
+                            .frame(width: 30, height: 30)
                         Text(name).font(.system(size: 9)).foregroundStyle(.white.opacity(0.6))
                     }
                 }
                 // The live arc (Core Animation layers), at rest: the same mark as `claude`.
                 VStack(spacing: 8) {
-                    AgentStatusMark(state: .working, size: 42, tool: .claudeCode)
-                        .frame(width: 60, height: 60)
-                    AgentStatusMark(state: .working, tool: .claudeCode)
+                    AgentStatusMark(state: .working, size: 42, tool: .claudeCode, orbiters: Self.orbiters(3))
+                        .frame(width: 80, height: 80)
+                    AgentStatusMark(state: .working, tool: .claudeCode, orbiters: Self.orbiters(3))
+                        .frame(width: 30, height: 30)
                     Text("claude live").font(.system(size: 9)).foregroundStyle(.white.opacity(0.6))
                 }
             }
@@ -834,12 +848,16 @@ private struct SealGallery: View {
 /// and where the line lies must agree.
 private struct WorkingAuroraGallery: View {
     private func row(_ tool: AgentTool) -> AgentRow {
+        let now = Date()
+        var session = AgentSession(
+            id: "x", tool: tool, title: "fix-login-flow", projectPath: nil,
+            activity: .working, since: now, pid: nil)
+        session.subagents = [
+            AgentSubagent(id: "one", title: "", isFinished: false, since: now.addingTimeInterval(-60)),
+            AgentSubagent(id: "two", title: "", isFinished: false, since: now.addingTimeInterval(-20)),
+        ]
         var board = AgentSessionBoard()
-        board.update([
-            AgentSession(
-                id: "x", tool: tool, title: "fix-login-flow", projectPath: nil,
-                activity: .working, since: Date(), pid: nil)
-        ])
+        board.update([session])
         return board.rows[0]
     }
 

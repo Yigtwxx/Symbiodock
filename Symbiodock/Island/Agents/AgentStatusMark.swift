@@ -12,6 +12,9 @@ struct AgentStatusMark: View {
     /// The session's tool. A working mark then turns in the tool's light colours instead of
     /// white.
     var tool: AgentTool?
+    /// The session's working sub-agents, which circle a working mark. Nil where the mark
+    /// shows none at all (the list, whose rows name their sub-agents below).
+    var orbiters: [AgentSatellite]?
     /// Draws the mark at this moment and never moves; for previews and renders.
     var frozenAt: TimeInterval?
 
@@ -27,6 +30,13 @@ struct AgentStatusMark: View {
     var body: some View {
         mark
             .frame(width: size, height: size)
+            .overlay {
+                // Kept while the session works, even with none: the last one still has to go.
+                if state == .working, let tool, let orbiters {
+                    MarkSatellites(orbiters: orbiters, tool: tool, markSize: size, frozenAt: frozenAt)
+                        .transition(.opacity)
+                }
+            }
             .onChange(of: isFinished) { _, finished in
                 guard finished else {
                     finishedAt = nil
