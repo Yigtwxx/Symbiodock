@@ -13,7 +13,7 @@ enum DebugRender {
         let directory = URL(fileURLWithPath: path, isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         write(TabGlyphGallery(), size: CGSize(width: 880, height: 290), named: "tab-glyphs", to: directory)
-        write(StatusMarkGallery(), size: CGSize(width: 640, height: 150), named: "status-marks", to: directory)
+        write(StatusMarkGallery(), size: CGSize(width: 900, height: 150), named: "status-marks", to: directory)
         write(PetGallery(), size: CGSize(width: 800, height: 460), named: "pets", to: directory)
         write(SealGallery(), size: CGSize(width: 640, height: 150), named: "finish-seal", to: directory)
         for (name, tab) in [("expanded-agents", IslandTab.agents), ("expanded-media", .media)] {
@@ -165,26 +165,35 @@ enum DebugRender {
 
 /// Every look of the status mark, large and at its real size.
 private struct StatusMarkGallery: View {
-    private static let states: [(String, AgentRowState, TimeInterval)] = [
-        ("working", .working, 0.2),
-        ("compacting", .compacting, 0.3),
-        ("knock", .needsInput(prompt: nil), 0.15),
-        ("ripple", .needsInput(prompt: nil), 0.7),
-        ("finished", .finished, 0),
-        ("running", .running, 0),
-        ("idle", .idle, 0),
+    private static let states: [(String, AgentRowState, TimeInterval, AgentTool?)] = [
+        ("working", .working, 0.2, nil),
+        ("claude", .working, 0.2, .claudeCode),
+        ("codex", .working, 0.5, .codex),
+        ("compacting", .compacting, 0.3, nil),
+        ("knock", .needsInput(prompt: nil), 0.15, nil),
+        ("ripple", .needsInput(prompt: nil), 0.7, nil),
+        ("finished", .finished, 0, nil),
+        ("running", .running, 0, nil),
+        ("idle", .idle, 0, nil),
     ]
 
     var body: some View {
         VStack(spacing: 14) {
             HStack(spacing: 22) {
-                ForEach(Self.states, id: \.0) { name, state, time in
+                ForEach(Self.states, id: \.0) { name, state, time, tool in
                     VStack(spacing: 8) {
-                        AgentStatusMark(state: state, size: 42, frozenAt: time)
+                        AgentStatusMark(state: state, size: 42, tool: tool, frozenAt: time)
                             .frame(width: 60, height: 60)
-                        AgentStatusMark(state: state, frozenAt: time)
+                        AgentStatusMark(state: state, tool: tool, frozenAt: time)
                         Text(name).font(.system(size: 9)).foregroundStyle(.white.opacity(0.6))
                     }
+                }
+                // The live arc (Core Animation layers), at rest: the same mark as `claude`.
+                VStack(spacing: 8) {
+                    AgentStatusMark(state: .working, size: 42, tool: .claudeCode)
+                        .frame(width: 60, height: 60)
+                    AgentStatusMark(state: .working, tool: .claudeCode)
+                    Text("claude live").font(.system(size: 9)).foregroundStyle(.white.opacity(0.6))
                 }
             }
         }

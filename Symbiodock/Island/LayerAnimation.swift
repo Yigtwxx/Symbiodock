@@ -48,6 +48,9 @@ extension CAKeyframeAnimation {
 /// frame the way a SwiftUI `Circle` does and starts at 12 o'clock, going clockwise.
 struct SpinningArc: NSViewRepresentable {
     let color: Color
+    /// Colours the arc shows instead of `color`, from the upper left to the lower right.
+    /// They stand still and the arc turns over them, so it changes colour as it goes.
+    var gradient: [Color]? = nil
     let lineWidth: CGFloat
     /// Seconds for one turn.
     let period: TimeInterval
@@ -59,11 +62,16 @@ struct SpinningArc: NSViewRepresentable {
     func makeNSView(context: Context) -> ArcView { ArcView() }
 
     func updateNSView(_ view: ArcView, context: Context) {
-        view.configure(color: NSColor(color), lineWidth: lineWidth, period: period, sweep: sweep, dashCount: dashCount)
+        view.configure(
+            color: NSColor(color), gradient: gradient?.map { NSColor($0).cgColor }, lineWidth: lineWidth,
+            period: period, sweep: sweep, dashCount: dashCount)
     }
 
     final class ArcView: NSView {
         private let arc = CAShapeLayer()
+        private let tint = CAGradientLayer()
+        /// Whether the arc is the mask of `tint` instead of a line of its own.
+        private var isTinted = false
         private var period: TimeInterval = 1
         private var sweep = 0.75
         private var dashCount: Int?
@@ -73,6 +81,9 @@ struct SpinningArc: NSViewRepresentable {
             wantsLayer = true
             arc.fillColor = nil
             arc.lineCap = .round
+            // The layer's coordinates run upward: the upper left is (0, 1).
+            tint.startPoint = CGPoint(x: 0, y: 1)
+            tint.endPoint = CGPoint(x: 1, y: 0)
             layer?.addSublayer(arc)
         }
 
@@ -81,9 +92,34 @@ struct SpinningArc: NSViewRepresentable {
 
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
-        func configure(color: NSColor, lineWidth: CGFloat, period: TimeInterval, sweep: Double, dashCount: Int?) {
-            arc.strokeColor = color.cgColor
+        func configure(
+            color: NSColor, gradient: [CGColor]?, lineWidth: CGFloat, period: TimeInterval, sweep: Double,
+            dashCount: Int?
+        ) {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             arc.lineWidth = lineWidth
+            if let gradient {
+                // The mask only says where the colours show.
+                arc.strokeColor = NSColor.white.cgColor
+                tint.colors = gradient
+            } else {
+                arc.strokeColor = color.cgColor
+            }
+            if isTinted != (gradient != nil) {
+                isTinted = gradient != nil
+                arc.removeFromSuperlayer()
+                tint.removeFromSuperlayer()
+                tint.mask = nil
+                if isTinted {
+                    tint.mask = arc
+                    layer?.addSublayer(tint)
+                } else {
+                    layer?.addSublayer(arc)
+                }
+                needsLayout = true
+            }
+            CATransaction.commit()
             if self.period != period || self.sweep != sweep || self.dashCount != dashCount {
                 self.period = period
                 self.sweep = sweep
@@ -97,7 +133,10 @@ struct SpinningArc: NSViewRepresentable {
             super.layout()
             CATransaction.begin()
             CATransaction.setDisableActions(true)
-            arc.frame = bounds
+            // The line reaches half its width past the circle; the colours have to cover it.
+            let reach = arc.lineWidth
+            tint.frame = bounds.insetBy(dx: -reach, dy: -reach)
+            arc.frame = isTinted ? CGRect(x: reach, y: reach, width: bounds.width, height: bounds.height) : bounds
             let radius = min(bounds.width, bounds.height) / 2
             let path = CGMutablePath()
             // In the layer's own coordinates y points up, so clockwise runs to smaller angles.

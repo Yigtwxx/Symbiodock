@@ -168,7 +168,7 @@ private struct AgentRowView: View {
                 .lineLimit(1)
                 .fixedSize()
             // The status text beside it already speaks; the mark would repeat it.
-            AgentStatusMark(state: row.state)
+            AgentStatusMark(state: row.state, tool: row.session.tool)
                 .accessibilityHidden(true)
         }
         .padding(.horizontal, 10)

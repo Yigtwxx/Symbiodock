@@ -9,6 +9,9 @@ import SymbiodockCore
 struct AgentStatusMark: View {
     let state: AgentRowState
     var size: CGFloat = 14
+    /// The session's tool. A working mark then turns in the tool's light colours instead of
+    /// white.
+    var tool: AgentTool?
     /// Draws the mark at this moment and never moves; for previews and renders.
     var frozenAt: TimeInterval?
 
@@ -78,6 +81,33 @@ struct AgentStatusMark: View {
         }
     }
 
+    /// The colours a working arc runs through, upper left to lower right; nil for white.
+    private var arcColors: [Color]? {
+        guard state == .working, let tool else { return nil }
+        let light = AgentPalette.aurora(for: tool)
+        return [light[0], light[1]]
+    }
+
+    /// The ring drawn still, `turn` degrees round. Colours stand still; the arc is their mask.
+    @ViewBuilder
+    private func ring(turn: Double) -> some View {
+        let arc = Circle()
+            .trim(from: 0, to: state == .working ? 0.75 : 1)
+            .stroke(
+                style: StrokeStyle(
+                    lineWidth: Self.stroke, lineCap: .round,
+                    dash: isCompacting ? [dashLength, dashLength] : []))
+            .rotationEffect(.degrees(turn - 90))
+        if let arcColors {
+            // The line reaches half its width past the circle; the colours are laid wider.
+            LinearGradient(colors: arcColors, startPoint: .topLeading, endPoint: .bottomTrailing)
+                .padding(-Self.stroke)
+                .mask { arc.padding(Self.stroke) }
+        } else {
+            arc.foregroundStyle(color)
+        }
+    }
+
     private var hasDot: Bool {
         isNeedsInput || state == .running
     }
@@ -101,18 +131,11 @@ struct AgentStatusMark: View {
             if finishedAt != nil, animates {
                 MarkPulses(kind: .ripple, color: color, dotSide: dotSide)
             }
-            Circle()
-                .trim(from: 0, to: state == .working ? 0.75 : 1)
-                .stroke(
-                    color,
-                    style: StrokeStyle(
-                        lineWidth: Self.stroke, lineCap: .round,
-                        dash: isCompacting ? [dashLength, dashLength] : []))
-                .rotationEffect(.degrees(turn - 90))
+            ring(turn: turn)
                 .opacity(spins ? 0 : 1)
             if spins {
                 SpinningArc(
-                    color: color, lineWidth: Self.stroke, period: period,
+                    color: color, gradient: arcColors, lineWidth: Self.stroke, period: period,
                     sweep: isCompacting ? 1 : 0.75,
                     dashCount: isCompacting ? Self.compactDashes : nil)
                     .transition(.opacity)
