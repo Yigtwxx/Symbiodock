@@ -13,7 +13,7 @@ enum DebugRender {
         let directory = URL(fileURLWithPath: path, isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         write(TabGlyphGallery(), size: CGSize(width: 880, height: 290), named: "tab-glyphs", to: directory)
-        write(StatusMarkGallery(), size: CGSize(width: 1060, height: 180), named: "status-marks", to: directory)
+        write(StatusMarkGallery(), size: CGSize(width: 1170, height: 180), named: "status-marks", to: directory)
         write(PetGallery(), size: CGSize(width: 800, height: 460), named: "pets", to: directory)
         write(SealGallery(), size: CGSize(width: 640, height: 150), named: "finish-seal", to: directory)
         for (name, tab) in [("expanded-agents", IslandTab.agents), ("expanded-media", .media)] {
@@ -200,6 +200,15 @@ private struct StatusMarkGallery: View {
                             .frame(width: 30, height: 30)
                         Text(name).font(.system(size: 9)).foregroundStyle(.white.opacity(0.6))
                     }
+                }
+                // The same mark, still at time 0: where the live dots stand at rest.
+                VStack(spacing: 8) {
+                    AgentStatusMark(
+                        state: .working, size: 42, tool: .claudeCode, orbiters: Self.orbiters(3), frozenAt: 0)
+                        .frame(width: 80, height: 80)
+                    AgentStatusMark(state: .working, tool: .claudeCode, orbiters: Self.orbiters(3), frozenAt: 0)
+                        .frame(width: 30, height: 30)
+                    Text("claude at 0").font(.system(size: 9)).foregroundStyle(.white.opacity(0.6))
                 }
                 // The live arc (Core Animation layers), at rest: the same mark as `claude`.
                 VStack(spacing: 8) {

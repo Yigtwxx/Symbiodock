@@ -52,7 +52,7 @@ struct MarkSatellites: View {
                     frozenAt.map { AgentSatellites.turn(of: satellite, at: $0) }
                     ?? AgentSatellites.stillTurn(index: index, count: orbiters.count)
                 Circle()
-                    .fill(colors[satellite.tone % colors.count])
+                    .fill(colors.isEmpty ? Color.white : colors[satellite.tone % colors.count])
                     .frame(width: Self.dot, height: Self.dot)
                     .offset(x: radius * sin(2 * .pi * turn), y: -radius * cos(2 * .pi * turn))
                     .transition(.opacity)
@@ -105,6 +105,18 @@ private struct Orbits: NSViewRepresentable {
             // the mark stays has finished.
             for id in carriers.keys where !wanted.contains(id) { finish(id) }
             for satellite in orbiters where carriers[satellite.id] == nil { add(satellite) }
+            // A dot keeps up with its satellite's tone (a carrier that is finishing is no
+            // longer in `carriers` and stays mint).
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            for satellite in orbiters {
+                carriers[satellite.id]?.sublayers?.first?.backgroundColor = color(for: satellite)
+            }
+            CATransaction.commit()
+        }
+
+        private func color(for satellite: AgentSatellite) -> CGColor {
+            colors.isEmpty ? NSColor.white.cgColor : colors[satellite.tone % colors.count]
         }
 
         /// Takes the motion down: no animation is left.
@@ -144,13 +156,16 @@ private struct Orbits: NSViewRepresentable {
         private func add(_ satellite: AgentSatellite) {
             let carrier = CALayer()
             let point = CALayer()
-            point.backgroundColor = colors.isEmpty ? NSColor.white.cgColor : colors[satellite.tone % colors.count]
+            point.backgroundColor = color(for: satellite)
             point.bounds = CGRect(x: 0, y: 0, width: dot, height: dot)
             point.cornerRadius = dot / 2
             CATransaction.begin()
             CATransaction.setDisableActions(true)
             carrier.addSublayer(point)
             place(carrier)
+            // At rest the dot stands at its own starting angle (the layer's y runs up, so a
+            // negative angle is clockwise); the orbit animation turns it on from there.
+            carrier.transform = CATransform3DMakeRotation(CGFloat(-2 * Double.pi * satellite.phase), 0, 0, 1)
             layer?.addSublayer(carrier)
             CATransaction.commit()
             carriers[satellite.id] = carrier
