@@ -21,6 +21,8 @@ struct IslandView: View {
                 // Below the island, so that they come out from behind it.
                 bubble
                 filesBubble
+                // Behind the island too: only what lies outside it shows.
+                workingAurora
                 switch state.phase {
                 case .collapsed, .expanded:
                     resting
@@ -100,6 +102,32 @@ struct IslandView: View {
             // Files never has a face, so it never moves out to the bubble.
             nil
         }
+    }
+
+    /// The light of a working agent, in a band just outside the island's free long edge. It
+    /// is not an overlay of the island, which clips what it holds.
+    private var workingAurora: some View {
+        let frame = IslandLayout.frame(
+            anchor: state.anchor, phase: state.phase, notch: geometry.notch,
+            visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
+            showsWings: state.showsWings)
+        let edge = WorkingAurora.edge(
+            dockedEdges: IslandLayout.dockedEdges(anchor: state.anchor),
+            isVertical: IslandLayout.isSideDocked(state.anchor))
+        let band = WorkingAurora.band(island: frame, edge: edge)
+        return ZStack {
+            if state.showsWorkingAurora, let tool = state.board.lead?.session.tool {
+                WorkingAuroraLight(tool: tool, edge: edge)
+                    .transition(.opacity)
+            }
+        }
+        .frame(width: band.width, height: band.height)
+        .offset(x: band.minX, y: band.minY)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .animation(.easeInOut(duration: WorkingAurora.fade), value: state.showsWorkingAurora)
+        .animation(Self.spring, value: state.phase)
+        .animation(Self.spring, value: state.showsWings)
+        .animation(Self.spring, value: state.anchor)
     }
 
     /// The files held, in a bubble right of the island: the left bubble's mirror. It comes out

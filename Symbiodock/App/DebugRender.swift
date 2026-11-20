@@ -119,6 +119,7 @@ enum DebugRender {
             ExpandedPreview(state: branches), size: CGSize(width: 640, height: 210),
             named: "expanded-agents-branches", to: directory)
         write(CollapsedGallery(), size: CGSize(width: 620, height: 540), named: "collapsed-faces", to: directory)
+        write(WorkingAuroraGallery(), size: CGSize(width: 660, height: 520), named: "working-aurora", to: directory)
         // The goo that swallows a tile while its file changes format, over a photo becoming a
         // PNG and over a drawer whose documents become PDFs (the slides cannot, but they share
         // the drawer's cocoon).
@@ -814,6 +815,75 @@ private struct SealGallery: View {
         }
         .padding(16)
         .background(.black, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+/// The light of a working agent: at the notch at its dimmest and at its brightest, for a
+/// second tool, beside a capsule docked at the bottom and a strip docked right. The last
+/// notch is the live layers at rest, to check that they lie the way the drawing does.
+private struct WorkingAuroraGallery: View {
+    private func row(_ tool: AgentTool) -> AgentRow {
+        var board = AgentSessionBoard()
+        board.update([
+            AgentSession(
+                id: "x", tool: tool, title: "fix-login-flow", projectPath: nil,
+                activity: .working, since: Date(), pid: nil)
+        ])
+        return board.rows[0]
+    }
+
+    private func island(
+        _ anchor: IslandAnchor, _ size: CGSize, tool: AgentTool, at time: TimeInterval?,
+        @ViewBuilder face: () -> some View
+    ) -> some View {
+        let radii = IslandLayout.cornerRadii(anchor: anchor, radius: IslandLayout.collapsedCornerRadius)
+        let shape = UnevenRoundedRectangle(
+            topLeadingRadius: radii.topLeading, bottomLeadingRadius: radii.bottomLeading,
+            bottomTrailingRadius: radii.bottomTrailing, topTrailingRadius: radii.topTrailing,
+            style: .continuous)
+        let edge = WorkingAurora.edge(
+            dockedEdges: IslandLayout.dockedEdges(anchor: anchor), isVertical: IslandLayout.isSideDocked(anchor))
+        let margin = WorkingAurora.depth + 4
+        let frame = CGRect(x: margin, y: margin, width: size.width, height: size.height)
+        let band = WorkingAurora.band(island: frame, edge: edge)
+        return ZStack(alignment: .topLeading) {
+            WorkingAuroraLight(tool: tool, edge: edge, frozenAt: time)
+                .frame(width: band.width, height: band.height)
+                .offset(x: band.minX, y: band.minY)
+            shape.fill(.black)
+                .overlay { face() }
+                .frame(width: size.width, height: size.height)
+                .clipShape(shape)
+                .offset(x: frame.minX, y: frame.minY)
+        }
+        .frame(width: size.width + 2 * margin, height: size.height + 2 * margin, alignment: .topLeading)
+    }
+
+    private func notch(_ tool: AgentTool, at time: TimeInterval?) -> some View {
+        island(.notch, CGSize(width: 272, height: 32 + IslandLayout.notchLip), tool: tool, at: time) {
+            AgentNotchFace(row: row(tool), notchWidth: 200)
+                .padding(.bottom, IslandLayout.notchLip)
+        }
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 20) {
+            VStack(alignment: .leading, spacing: 6) {
+                // Dimmest, brightest, and a quarter of a run on.
+                notch(.claudeCode, at: 0)
+                notch(.claudeCode, at: WorkingAurora.breathPeriod / 2)
+                notch(.claudeCode, at: WorkingAurora.flowPeriod / 4)
+                notch(.codex, at: WorkingAurora.breathPeriod / 2)
+                island(.edge(.bottom, fraction: 0.5), CGSize(width: 200, height: 36), tool: .codex, at: 1.2) {
+                    AgentFloatingFace(row: row(.codex))
+                }
+                notch(.claudeCode, at: nil)
+            }
+            island(.edge(.right, fraction: 0.5), CGSize(width: 36, height: 170), tool: .claudeCode, at: 1.2) {
+                AgentSideFace(row: row(.claudeCode))
+            }
+        }
+        .padding(16)
     }
 }
 

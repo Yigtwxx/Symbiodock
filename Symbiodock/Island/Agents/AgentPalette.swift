@@ -4,6 +4,28 @@ import SymbiodockCore
 /// The colours the agents bring to the black island: two for what a session's state
 /// says, and a run of colours for each tool's pet.
 enum AgentPalette {
+    /// The four colours of a tool's working light, in the order they follow each other
+    /// along the island's edge: the pet's own tones and their neighbours. None is the alert
+    /// amber, the finished mint or the compacting purple. The working arc runs from the
+    /// first to the second; a sub-agent's satellite has one of the four.
+    static func aurora(for tool: AgentTool) -> [Color] {
+        let hex: [UInt32] =
+            switch tool {
+            case .claudeCode: [0xFFB347, 0xFF4D6D, 0xFF7A3D, 0xFFD166]
+            case .codex: [0x39C8FF, 0xA259FF, 0x5B7CFF, 0xE05CFF]
+            case .geminiCLI: [0x3C87FF, 0xFF78A5, 0x9669FF, 0x5CD0FF]
+            case .cursorAgent: [0xFAFAFC, 0xB9C6FF, 0xBEBECC, 0xE6D9FF]
+            case .openCode: [0xFFE8AA, 0xFF9F5A, 0xF0AF4B, 0xFFD98A]
+            case .aider: [0xD2FA46, 0x39D353, 0x64DC28, 0xF2FF7A]
+            case .copilotCLI: [0xA078FF, 0xFF69BE, 0xC86BFF, 0xFF9AD5]
+            }
+        return hex.map {
+            Color(
+                red: Double(($0 >> 16) & 0xFF) / 255, green: Double(($0 >> 8) & 0xFF) / 255,
+                blue: Double($0 & 0xFF) / 255)
+        }
+    }
+
     /// A session waits for the user. #FFD60A, amber: red read as a failure.
     static let alert = Color(red: 1.0, green: 214.0 / 255.0, blue: 10.0 / 255.0)
     /// A session has finished. #63E6A9
