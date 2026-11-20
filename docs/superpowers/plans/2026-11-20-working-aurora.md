@@ -1056,11 +1056,12 @@ In `IslandView.swift`, in `body`'s `ZStack`, add one line after `filesBubble`:
 Add the property next to `filesBubble`:
 
 ```swift
-    /// The light of a working agent, in a band just outside the island's free long edge. It
-    /// is not an overlay of the island, which clips what it holds.
+    /// The light of a working agent, in a band just outside the collapsed island's free long
+    /// edge. The light shows only while the island is collapsed, so the band is always the
+    /// collapsed island's. It is not an overlay of the island, which clips what it holds.
     private var workingAurora: some View {
         let frame = IslandLayout.frame(
-            anchor: state.anchor, phase: state.phase, notch: geometry.notch,
+            anchor: state.anchor, phase: .collapsed, notch: geometry.notch,
             visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
             showsWings: state.showsWings)
         let edge = WorkingAurora.edge(
@@ -1069,17 +1070,20 @@ Add the property next to `filesBubble`:
         let band = WorkingAurora.band(island: frame, edge: edge)
         return ZStack {
             if state.showsWorkingAurora, let tool = state.board.lead?.session.tool {
+                // The edge is its identity: a new edge is a new light, not a stretched one.
                 WorkingAuroraLight(tool: tool, edge: edge)
+                    .id(edge)
                     .transition(.opacity)
             }
         }
         .frame(width: band.width, height: band.height)
         .offset(x: band.minX, y: band.minY)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .animation(.easeInOut(duration: WorkingAurora.fade), value: state.showsWorkingAurora)
-        .animation(Self.spring, value: state.phase)
         .animation(Self.spring, value: state.showsWings)
         .animation(Self.spring, value: state.anchor)
+        // Last, so outermost: the innermost animation of those whose values change in one
+        // update wins, and the fade must win over the springs.
+        .animation(.easeInOut(duration: WorkingAurora.fade), value: state.showsWorkingAurora)
     }
 ```
 
@@ -1682,26 +1686,35 @@ In `body`, after `.frame(width: size, height: size)`:
 ```swift
             .overlay {
                 // Kept while the session works, even with none: the last one still has to go.
-                if state == .working, let tool, let orbiters {
-                    MarkSatellites(orbiters: orbiters, tool: tool, markSize: size, frozenAt: frozenAt)
-                        .transition(.opacity)
+                // The animation is on the container, which stays, so the satellites fade.
+                ZStack {
+                    if state == .working, let tool, let orbiters {
+                        MarkSatellites(orbiters: orbiters, tool: tool, markSize: size, frozenAt: frozenAt)
+                            .id(sessionID)
+                            .transition(.opacity)
+                    }
                 }
+                .animation(.easeOut(duration: 0.2), value: state == .working)
             }
 ```
 
 (An overlay takes no room: the mark's own frame stays `size`.)
+
+`AgentStatusMark` also gets, after `orbiters`, `var sessionID: String?` ("The session the mark speaks for: its satellites belong to it, and a new session's are new."). Only the satellites carry it as their identity; the mark itself does not, or a new lead session would lose the finish ring and the spring between states.
 
 - [ ] **Step 3: The collapsed faces pass them**
 
 In `AgentFaces.swift`:
 
 ```swift
-            AgentStatusMark(state: row.state, tool: row.session.tool, orbiters: row.orbiters)
+            AgentStatusMark(
+                state: row.state, tool: row.session.tool, orbiters: row.orbiters, sessionID: row.id)
 ```
 
 ```swift
                 AgentStatusMark(
-                    state: row.isSettled ? .idle : row.state, tool: row.session.tool, orbiters: row.orbiters)
+                    state: row.isSettled ? .idle : row.state, tool: row.session.tool, orbiters: row.orbiters,
+                    sessionID: row.id)
 ```
 
 (the second form twice). `AgentsContent.swift` stays as Task 6 left it: no orbiters in the list.
@@ -1842,7 +1855,7 @@ Uygulama: `open --env SYMBIODOCK_DEMO_AGENTS=working build/Build/Products/Debug/
 1. Agent çalışırken çentiğin altında renkli bir ışık var; ince çizgi adanın hemen altında, hale aşağı doğru sönüyor.
 2. Renkler soldan sağa akıyor; hale nefes alıyor. Hız ve güç gözü yormuyor.
 3. Işık adanın siyahının üstüne taşmıyor ve altındaki menüye ya da pencereye tıklamayı engellemiyor.
-4. Fareyle adanın üstüne gelince ada açılıyor, ışık sönüyor; ayrılınca geri geliyor.
+4. Fareyle adanın üstüne gelince ada açılıyor, ışık yerinde sönüyor; ayrılınca ışık doğrudan adanın kenarında beliriyor (aşağıdan ya da yandan kayarak gelmiyor).
 5. Claude Code'da ışık turuncu-pembe, Codex'te mavi-mor.
 6. Agent soru sorunca ışık gidiyor, amber ışık geliyor; cevaplayınca geri dönüyor.
 7. Agent bitince ışık gidiyor, Face ID bitiş efekti oynuyor.
@@ -1854,5 +1867,6 @@ Uygulama: `open --env SYMBIODOCK_DEMO_AGENTS=working build/Build/Products/Debug/
 13. Yeni bir alt ajan başlayınca nokta büyüyerek beliriyor; biri bitince noktası yeşile dönüp kayboluyor.
 14. Açık adadaki listede nokta yok, yay orada da renkli.
 15. Pet'ler eskisinden canlı; yine de kabartma hissi (ışık alan ve gölgede kalan taraf) duruyor.
-16. Sistem Ayarları'nda Hareketi Azalt açıkken ışık sabit duruyor, noktalar dönmüyor.
-17. Agent çalışırken Etkinlik Monitörü'nde Symbiodock'un CPU'su %0-1 civarında.
+16. Çalışan pet'in soldan sağa dalgası hâlâ seçiliyor (bekleyen çizgiler artık %92'de duruyor, fark küçüldü).
+17. Sistem Ayarları'nda Hareketi Azalt açıkken ışık sabit duruyor, noktalar dönmüyor.
+18. Agent çalışırken Etkinlik Monitörü'nde Symbiodock'un CPU'su %0-1 civarında.

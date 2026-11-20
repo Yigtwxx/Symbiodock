@@ -35,16 +35,18 @@ Gözler, kılık değiştiren pet ve goo damlaları seçilmedi; kapsam dışı.
 - **Görünüm.** İki parça, aynı renk akışını paylaşır:
   - kenarın hemen dışında 1 pt'lik net çizgi; iki ucu 9 pt içeriden başlar ve uçlara doğru
     söner (köşe yuvarlaklığına girmez);
-  - çizginin altında yumuşak bir hale: kenar boyunca uzanan, kenardan dışarı 9 pt'de sıfıra
-    inen elips biçimli bir parlaklık; uçları kenarın 8 pt içinde biter.
+  - çizginin altında yumuşak bir hale: kenar boyunca uzanan, kenarda en güçlü olup kenardan
+    dışarı 9 pt'de sıfıra inen bir parlaklık; uçları kenarın uçlarından 8 pt içeride biter ve
+    14 pt boyunca söner.
 - **Renk.** Öndeki oturumun aracının dört ışık rengi (aşağıda), sırayla ve kenar boyunca
   kesintisiz dönen bir geçiş olarak.
 - **Hareket.** Renkler kenar boyunca akar: yatayda soldan sağa, dikey şeritte yukarıdan aşağı,
   3,2 sn'de bir tur, sabit hızla. Hale nefes alır: 2,4 sn'de bir, parlaklığı %60 ile %100,
   kenardan uzanışı 0,75 ile 1,3 kat arasında gidip gelir (yavaşlayarak). Net çizgi nefes
   almaz, yalnızca akar.
-- **Belirme.** Koşul sağlanınca 0,35 sn'de belirir, bozulunca 0,35 sn'de söner. Ada boyut ya
-  da yer değiştirirken ışık adanın yayıyla birlikte onu izler.
+- **Belirme.** Koşul sağlanınca 0,35 sn'de belirir, bozulunca 0,35 sn'de söner. Işığın bandı
+  hep kapalı adanın bandıdır: ışık yerinde belirir ve yerinde söner; ada açılırken ya da
+  kapanırken onunla birlikte yol almaz.
 - **Diğer ışıklar.** `RimLight` (amber, nane), `CompactingRim` (mor) ve parça ışığı adanın
   içinde çizilir ve değişmez. Kuzey ışığı onlarla aynı anda görünmez: koşulu hepsini dışlar
   (parça ışığı yalnızca yüz müzikken yanar).
@@ -115,9 +117,9 @@ bitiş, compact, `Running`, boşta) değişmez.
   açısıyla birlikte alt ajanın kimliğinden hesaplanır (aynı alt ajan her çizimde aynı yerde
   ve hızda). Bir yüzde yörünge adanın kenarına taşıyorsa o yüzde işaretin kenar boşluğu
   yörünge sığacak kadar açılır.
-- **Renk.** Aracın dört ışık renginden biri, alt ajanın kimliğinden; aynı anda görünen uydular
-  renk bitene kadar farklı renktedir. Sıraya göre verilseydi biri bitince kalanların rengi
-  değişirdi.
+- **Renk.** Aracın dört ışık renginden biri: uydu, kimliğinin verdiği renkte olur; ondan önce
+  gösterilen biri zaten o renkteyse sıradaki boş renk verilir. Önceki biten olursa sonraki
+  kendi rengine geri döner, yani renk değişimi tamamen yok değildir.
 - **Gelme, gitme.** Yeni alt ajanın noktası 0,4 sn'de büyüyerek belirir. Biten alt ajanın
   noktası olduğu yerde durur, nane yeşiline döner, 2,3 katına büyüyüp 0,9 sn'de kaybolur.
   Öndeki oturum çalışmayı bırakınca (soru, bitiş, compact) bütün uydular işaretle birlikte
@@ -153,8 +155,8 @@ Uygulama:
 
 - `AgentPalette`: yeni pet renkleri; `aurora(for:)` dört ışık rengini verir.
 - `WorkingAuroraLight` (`Symbiodock/Island/`): canlıyken Core Animation katmanları (kenarın iki
-  katı uzunlukta, iki tur renk taşıyan bir geçiş katmanı bir tur kaydırılır; maskesi elips
-  biçimli hale ile ince çizgidir; halenin opaklığı ve ölçeği nefes alır). `frozenAt` ile
+  katı uzunlukta, iki tur renk taşıyan bir geçiş katmanı bir tur kaydırılır; maskesi kenardan
+  dışarı sönen hale ile ince çizgidir; halenin opaklığı ve ölçeği nefes alır). `frozenAt` ile
   SwiftUI bir anı çizer. `SharedClock` kullanır: görünüm pencereye dönünce hareket kaldığı
   yerden sürer.
 - `IslandView`: ışık, `resting` adanın altında ayrı bir katmandır (ada içeriğini kırptığı için
