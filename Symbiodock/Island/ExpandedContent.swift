@@ -54,7 +54,9 @@ struct ExpandedContent: View {
     @ViewBuilder
     private func volume(_ slot: NowPlayingSlot) -> some View {
         if let target = VolumeTarget.target(for: slot.info), let value = volumes[target] {
-            VolumeSlider(target: target, value: value) { onVolume(.set(target, $0)) }
+            VolumeSlider(
+                target: target, value: value, tint: ArtworkCache.tint(for: slot.info.artworkData)
+            ) { onVolume(.set(target, $0)) }
         }
     }
 
@@ -98,7 +100,7 @@ struct ExpandedContent: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
-                LevelBars(isPlaying: info.isPlaying)
+                LevelBars(isPlaying: info.isPlaying, artwork: info.artworkData)
                     .opacity(info.isPlaying ? 1 : 0.4)
             }
             Spacer(minLength: 6)
@@ -132,7 +134,7 @@ struct ExpandedContent: View {
             HStack(spacing: 2) {
                 controls(slot, glyph: 12, width: 30)
             }
-            LevelBars(isPlaying: info.isPlaying)
+            LevelBars(isPlaying: info.isPlaying, artwork: info.artworkData)
                 .opacity(info.isPlaying ? 1 : 0.4)
             if VolumeTarget.target(for: info).flatMap({ volumes[$0] }) != nil {
                 volume(slot)
@@ -212,7 +214,8 @@ private struct ProgressRow: View {
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
                         Capsule().fill(.white.opacity(0.16))
-                        Capsule().fill(.white.opacity(0.9))
+                        BarFill(tint: ArtworkCache.tint(for: info.artworkData))
+                            .clipShape(Capsule())
                             .frame(width: max(proxy.size.width * fraction, 4))
                     }
                 }

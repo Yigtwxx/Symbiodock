@@ -7,6 +7,8 @@ struct VolumeSlider: View {
     let target: VolumeTarget
     /// The player's volume, 0...1.
     let value: Double
+    /// The colours of the cover of what this player plays; white without.
+    var tint: ArtworkTint?
     let onChange: (Double) -> Void
 
     @Environment(IslandGeometry.self) private var geometry: IslandGeometry?
@@ -28,7 +30,8 @@ struct VolumeSlider: View {
             GeometryReader { proxy in
                 ZStack(alignment: .bottom) {
                     Capsule().fill(.white.opacity(0.16))
-                    Capsule().fill(.white.opacity(0.9))
+                    BarFill(tint: tint, isVertical: true)
+                        .clipShape(Capsule())
                         .frame(height: max(proxy.size.height * shown, 6))
                 }
                 .frame(width: 6)

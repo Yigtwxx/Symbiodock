@@ -76,19 +76,57 @@ struct ArtworkStack: View {
     }
 }
 
-/// The last artworks decoded. Views are re-evaluated on every hover and progress tick;
-/// decoding a few hundred kilobytes of JPEG each time would be wasted work. Two sources
-/// can play at once, and a track change shows the old and the new for a moment.
+/// The last artworks decoded, each with the colours it lends to the bars. Views are
+/// re-evaluated on every hover and progress tick; decoding a few hundred kilobytes of JPEG
+/// each time would be wasted work. Two sources can play at once, and a track change shows
+/// the old and the new for a moment.
 @MainActor
-private enum ArtworkCache {
+enum ArtworkCache {
+    private struct Entry {
+        let data: Data
+        let image: NSImage
+        let tint: ArtworkTint?
+    }
+
     private static let capacity = 4
-    private static var recent: [(data: Data, image: NSImage)] = []
+    private static var recent: [Entry] = []
 
     static func image(for data: Data) -> NSImage? {
-        if let hit = recent.first(where: { $0.data == data }) { return hit.image }
+        entry(for: data)?.image
+    }
+
+    /// The cover's colours; nil without a cover, or for one without colour.
+    static func tint(for data: Data?) -> ArtworkTint? {
+        data.flatMap { entry(for: $0)?.tint }
+    }
+
+    private static func entry(for data: Data) -> Entry? {
+        if let hit = recent.first(where: { $0.data == data }) { return hit }
         guard let image = NSImage(data: data) else { return nil }
-        recent.append((data, image))
+        let entry = Entry(data: data, image: image, tint: tint(of: image))
+        recent.append(entry)
         if recent.count > capacity { recent.removeFirst() }
-        return image
+        return entry
+    }
+
+    /// Reads a small copy of the cover; its rows run left to right as the cover's do.
+    private static func tint(of image: NSImage) -> ArtworkTint? {
+        let side = ArtworkPalette.sampleSide
+        guard let source = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(
+                  data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: side * 4,
+                  space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        context.interpolationQuality = .medium
+        context.draw(source, in: CGRect(x: 0, y: 0, width: side, height: side))
+        guard let bytes = context.data else { return nil }
+        let buffer = bytes.bindMemory(to: UInt8.self, capacity: side * side * 4)
+        let pixels = (0..<side * side).map { index in
+            TintColor(
+                red: Double(buffer[index * 4]) / 255, green: Double(buffer[index * 4 + 1]) / 255,
+                blue: Double(buffer[index * 4 + 2]) / 255)
+        }
+        return ArtworkPalette.tint(pixels: pixels, width: side)
     }
 }

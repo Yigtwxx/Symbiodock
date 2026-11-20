@@ -19,7 +19,7 @@ struct SideCollapsedContent: View {
                 if let attention {
                     AgentStatusMark(state: attention)
                 } else {
-                    LevelBars(isPlaying: info.isPlaying)
+                    LevelBars(isPlaying: info.isPlaying, artwork: info.artworkData)
                         .opacity(info.isPlaying ? 1 : 0.4)
                 }
             } else {

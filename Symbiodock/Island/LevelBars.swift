@@ -7,6 +7,8 @@ import SymbiodockCore
 /// animations (`LevelBarsMotion`); the app does no work per frame (see `LayerAnimation.swift`).
 struct LevelBars: View {
     let isPlaying: Bool
+    /// The cover of what plays: the bars take its colours, left to right. White without one.
+    var artwork: Data?
 
     private static let height: CGFloat = 14
     private static let barWidth: CGFloat = 2.5
@@ -14,7 +16,8 @@ struct LevelBars: View {
 
     var body: some View {
         BarsLayer(
-            isPlaying: isPlaying, height: Self.height, barWidth: Self.barWidth, spacing: Self.spacing
+            isPlaying: isPlaying, tint: ArtworkCache.tint(for: artwork), height: Self.height,
+            barWidth: Self.barWidth, spacing: Self.spacing
         )
         .frame(
             width: CGFloat(LevelBarsMotion.barCount) * Self.barWidth
@@ -27,6 +30,7 @@ struct LevelBars: View {
 
 private struct BarsLayer: NSViewRepresentable {
     let isPlaying: Bool
+    let tint: ArtworkTint?
     let height: CGFloat
     let barWidth: CGFloat
     let spacing: CGFloat
@@ -34,7 +38,8 @@ private struct BarsLayer: NSViewRepresentable {
     func makeNSView(context: Context) -> BarsView { BarsView() }
 
     func updateNSView(_ view: BarsView, context: Context) {
-        view.configure(isPlaying: isPlaying, height: height, barWidth: barWidth, spacing: spacing)
+        view.configure(
+            isPlaying: isPlaying, tint: tint, height: height, barWidth: barWidth, spacing: spacing)
     }
 
     static func dismantleNSView(_ view: BarsView, coordinator: ()) {
@@ -44,6 +49,7 @@ private struct BarsLayer: NSViewRepresentable {
     final class BarsView: NSView {
         private let bars = (0..<LevelBarsMotion.barCount).map { _ in CALayer() }
         private var isPlaying = false
+        private var tint: ArtworkTint?
         private var height: CGFloat = 14
         private var barWidth: CGFloat = 2.5
         private var spacing: CGFloat = 2
@@ -53,10 +59,8 @@ private struct BarsLayer: NSViewRepresentable {
             super.init(frame: frame)
             wantsLayer = true
             layer?.masksToBounds = false
-            for bar in bars {
-                bar.backgroundColor = NSColor.white.withAlphaComponent(0.85).cgColor
-                layer?.addSublayer(bar)
-            }
+            for bar in bars { layer?.addSublayer(bar) }
+            recolor()
         }
 
         @available(*, unavailable)
@@ -64,7 +68,14 @@ private struct BarsLayer: NSViewRepresentable {
 
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
-        func configure(isPlaying: Bool, height: CGFloat, barWidth: CGFloat, spacing: CGFloat) {
+        func configure(
+            isPlaying: Bool, tint: ArtworkTint?, height: CGFloat, barWidth: CGFloat, spacing: CGFloat
+        ) {
+            if self.tint != tint {
+                self.tint = tint
+                // Not inside a disabled transaction: a new track's colours fade in.
+                recolor()
+            }
             if self.height != height || self.barWidth != barWidth || self.spacing != spacing {
                 self.height = height
                 self.barWidth = barWidth
@@ -76,6 +87,16 @@ private struct BarsLayer: NSViewRepresentable {
                 needsLayout = true
             }
             play()
+        }
+
+        /// Each bar takes the colour at its place along the cover's run.
+        private func recolor() {
+            for (index, bar) in bars.enumerated() {
+                let position = Double(index) / Double(max(bars.count - 1, 1))
+                bar.backgroundColor =
+                    tint?.color(at: position).cgColor
+                    ?? NSColor.white.withAlphaComponent(0.85).cgColor
+            }
         }
 
         /// Takes the bars down: no animation is left.

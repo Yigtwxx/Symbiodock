@@ -1,4 +1,5 @@
 #if DEBUG
+import AppKit
 import Foundation
 import SymbiodockCore
 
@@ -46,19 +47,39 @@ enum DemoMedia {
         guard twoSources else {
             state.setNowPlaying(
                 NowPlayingInfo(
-                    title: "Demo track", artist: "Demo", duration: 226, elapsed: 93,
+                    title: "Demo track", artist: "Demo", artworkData: cover([0, 0.9, 0.78]),
+                    duration: 226, elapsed: 93,
                     elapsedAt: Date(), isPlaying: true, sourceName: "Music",
                     sourceBundleIdentifier: "com.apple.Music"))
             return
         }
         state.setNowPlaying(
             NowPlayingInfo(
-                title: "Demo stream", artist: "", isPlaying: true, sourceName: "Chrome",
-                sourceBundleIdentifier: "com.google.Chrome"))
+                title: "Demo stream", artist: "", artworkData: cover([0.38]), isPlaying: true,
+                sourceName: "Chrome", sourceBundleIdentifier: "com.google.Chrome"))
         state.setCompanionPlaying(
             NowPlayingInfo(
-                title: "Demo track", artist: "Demo", duration: 200, elapsed: 60, elapsedAt: Date(),
+                title: "Demo track", artist: "Demo", artworkData: cover([0.08, 0.55]),
+                duration: 200, elapsed: 60, elapsedAt: Date(),
                 isPlaying: true, sourceName: "Music", sourceBundleIdentifier: "com.apple.Music"))
+    }
+
+    /// A cover that runs left to right through `hues` (0...1 round the wheel): something for
+    /// the bars to take their colours from.
+    static func cover(_ hues: [Double]) -> Data? {
+        let side = 64
+        let colors = hues.map { NSColor(hue: $0, saturation: 0.8, brightness: 0.85, alpha: 1) }
+        let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { rect in
+            if colors.count > 1 {
+                NSGradient(colors: colors)?.draw(in: rect, angle: 0)
+            } else {
+                colors.first?.setFill()
+                rect.fill()
+            }
+            return true
+        }
+        guard let tiff = image.tiffRepresentation else { return nil }
+        return NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:])
     }
 }
 #endif
