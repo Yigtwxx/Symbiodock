@@ -36,7 +36,10 @@ public enum IslandDrag {
 @Observable
 public final class IslandState {
     public private(set) var phase: IslandPhase = .collapsed {
-        didSet { if phase != .expanded { clearHoveredFile() } }
+        didSet {
+            if phase != .expanded { clearHoveredFile() }
+            dropStrayTrackGlow()
+        }
     }
     /// What plays, the main track first. A second slot is a second source heard at the
     /// same time; the collapsed island shows it peeking out behind the first.
@@ -52,6 +55,15 @@ public final class IslandState {
     /// because the app that takes a retired companion's place can retire in turn.
     private var retiredOrigins: Set<NowPlayingOrigin> = []
 
+    private var trackWatch = TrackChangeWatch()
+    private var trackGlowSerial = 0
+    /// A track that has just changed; its light plays once its cover is there or the wait
+    /// is over. The view keeps the time (`trackGlowSettled`, `trackGlowWaitElapsed`).
+    public private(set) var awaitedTrackGlow: AwaitedTrackGlow?
+    /// The light that greets a new track, while it plays; the view reports its end
+    /// (`trackGlowEnded`).
+    public private(set) var trackGlow: TrackGlow?
+
     /// How loud each player is that has a volume of its own, 0...1. A player is absent
     /// until it has been asked, and when it cannot be asked.
     public private(set) var volumes: [VolumeTarget: Double] = [:]
@@ -59,12 +71,18 @@ public final class IslandState {
     /// Whether the media face is shown collapsed (artwork and level bars).
     /// True while something plays, and for a grace period after it pauses, so a
     /// paused player does not occupy the menu bar all day.
-    public private(set) var mediaWings = false
+    public private(set) var mediaWings = false {
+        didSet { dropStrayTrackGlow() }
+    }
 
     /// The agent sessions, ordered, with what deserves attention.
-    public private(set) var board = AgentSessionBoard()
+    public private(set) var board = AgentSessionBoard() {
+        didSet { dropStrayTrackGlow() }
+    }
     /// The tabs in the order the user chose.
-    public private(set) var tabOrder: [IslandTab] = TabOrder.default
+    public private(set) var tabOrder: [IslandTab] = TabOrder.default {
+        didSet { dropStrayTrackGlow() }
+    }
     /// The tab the expanded island shows.
     public private(set) var selectedTab: IslandTab = TabOrder.default[0] {
         didSet { if selectedTab != .files { clearHoveredFile() } }
@@ -108,7 +126,9 @@ public final class IslandState {
     }
 
     /// Where the island rests when it is not being dragged.
-    public private(set) var anchor: IslandAnchor = .notch
+    public private(set) var anchor: IslandAnchor = .notch {
+        didSet { dropStrayTrackGlow() }
+    }
     /// Pointer position (panel-local) while stretching or detached, otherwise nil.
     public private(set) var dragLocation: CGPoint?
     /// Where the island was attached when the current drag began: the root of the effect.
@@ -249,6 +269,7 @@ public final class IslandState {
             mediaWings = false
         }
         // Paused: keep what is shown; `pausedGraceElapsed()` hides the wings later.
+        noteTrackChanges(in: slots)
     }
 
     /// What plays, with a retired system source, companion or listed app left out before the
@@ -288,6 +309,74 @@ public final class IslandState {
             retiredOrigins.insert(mediaSlots[1].origin)
             refreshMediaSlots()
         }
+    }
+
+    // MARK: Track glow
+
+    /// Where the light of a new track would play now: where the music's face is. Nil when
+    /// the music has no face, the island is not collapsed, or an agent's light is on the
+    /// island's rim.
+    private var trackGlowSurface: TrackGlowSurface? {
+        guard phase == .collapsed else { return nil }
+        if bubbleTab == .media { return .bubble }
+        if face == .media, board.attention == .none { return .island }
+        return nil
+    }
+
+    /// A new track on a source that is shown starts the wait for its light; a further one
+    /// starts it over, so that skipping quickly lights only the last track.
+    private func noteTrackChanges(in slots: [NowPlayingSlot]) {
+        if let change = trackWatch.update(slots).first {
+            trackGlowSerial += 1
+            awaitedTrackGlow = AwaitedTrackGlow(
+                serial: trackGlowSerial, source: change.source, staleArtwork: change.staleArtwork)
+        }
+        playAwaitedGlowIfItsCoverIsThere()
+    }
+
+    private func playAwaitedGlowIfItsCoverIsThere() {
+        guard let awaited = awaitedTrackGlow, awaited.isSettled,
+              let slot = mediaSlots.first(where: { NowPlayingSource($0.info) == awaited.source }),
+              let artwork = slot.info.artworkData, artwork != awaited.staleArtwork
+        else { return }
+        playAwaitedGlow()
+    }
+
+    /// Plays the light where the music's face is now. Without a face for it, or with its
+    /// source gone, the light is dropped, not kept for later.
+    private func playAwaitedGlow() {
+        guard let awaited = awaitedTrackGlow else { return }
+        awaitedTrackGlow = nil
+        guard mediaSlots.contains(where: { NowPlayingSource($0.info) == awaited.source }),
+              let surface = trackGlowSurface
+        else { return }
+        trackGlow = TrackGlow(serial: awaited.serial, surface: surface, source: awaited.source)
+    }
+
+    /// Called `TrackGlowMotion.minimumWait` after a track changed; ignored for any but the
+    /// track that waits now.
+    public func trackGlowSettled(_ serial: Int) {
+        guard awaitedTrackGlow?.serial == serial else { return }
+        awaitedTrackGlow?.isSettled = true
+        playAwaitedGlowIfItsCoverIsThere()
+    }
+
+    /// Called `TrackGlowMotion.maximumWait` after a track changed: the light plays with
+    /// whatever cover there is.
+    public func trackGlowWaitElapsed(_ serial: Int) {
+        guard awaitedTrackGlow?.serial == serial else { return }
+        playAwaitedGlow()
+    }
+
+    /// The light has played to its end.
+    public func trackGlowEnded(_ serial: Int) {
+        if trackGlow?.serial == serial { trackGlow = nil }
+    }
+
+    /// A light whose surface is no longer the music's face (the island opened, an agent's
+    /// light came on, the music moved to the bubble) goes out and does not come back.
+    private func dropStrayTrackGlow() {
+        if let glow = trackGlow, glow.surface != trackGlowSurface { trackGlow = nil }
     }
 
     /// A player reported its volume, or the user set it; nil when it cannot be asked.

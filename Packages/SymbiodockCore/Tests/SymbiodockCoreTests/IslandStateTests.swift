@@ -980,4 +980,175 @@ struct IslandStateTests {
         #expect(state.shelf.items.map(\.id) == [a.id])
         #expect(Set(state.conversions.keys) == [a.id])
     }
+
+    // MARK: Track glow
+
+    private func song(_ title: String, playing: Bool = true, cover: UInt8? = nil) -> NowPlayingInfo {
+        NowPlayingInfo(
+            title: title, artist: "A", artworkData: cover.map { Data([$0]) }, isPlaying: playing,
+            sourceName: "Music", sourceBundleIdentifier: "com.apple.Music")
+    }
+
+    /// Plays the light of the track that waits, as the view does once its wait is over.
+    private func playAwaitedGlow(_ state: IslandState) {
+        guard let serial = state.awaitedTrackGlow?.serial else { return }
+        state.trackGlowSettled(serial)
+        state.trackGlowWaitElapsed(serial)
+    }
+
+    @Test func aNewTrackWaitsForItsCoverThenLightsTheIsland() {
+        let state = IslandState()
+        state.setNowPlaying(song("One", cover: 1))
+        let awaited = state.awaitedTrackGlow
+        #expect(awaited != nil)
+        #expect(state.trackGlow == nil)
+
+        state.trackGlowSettled(awaited?.serial ?? 0)
+        #expect(state.awaitedTrackGlow == nil)
+        #expect(state.trackGlow?.surface == .island)
+        #expect(state.trackGlow?.source == NowPlayingSource(song("One")))
+
+        state.trackGlowEnded(state.trackGlow?.serial ?? 0)
+        #expect(state.trackGlow == nil)
+    }
+
+    @Test func withoutACoverTheLightPlaysWhenTheWaitIsOver() {
+        let state = IslandState()
+        state.setNowPlaying(song("One"))
+        let serial = state.awaitedTrackGlow?.serial ?? 0
+        state.trackGlowSettled(serial)
+        #expect(state.trackGlow == nil)
+        state.trackGlowWaitElapsed(serial)
+        #expect(state.trackGlow?.surface == .island)
+    }
+
+    @Test func theLightWaitsForTheNewCoverNotTheOldOne() {
+        let state = IslandState()
+        state.setNowPlaying(song("One", cover: 1))
+        playAwaitedGlow(state)
+        state.trackGlowEnded(state.trackGlow?.serial ?? 0)
+
+        // The title changes first; the old cover is still there.
+        state.setNowPlaying(song("Two", cover: 1))
+        state.trackGlowSettled(state.awaitedTrackGlow?.serial ?? 0)
+        #expect(state.trackGlow == nil)
+        state.setNowPlaying(song("Two", cover: 2))
+        #expect(state.trackGlow?.surface == .island)
+        #expect(state.awaitedTrackGlow == nil)
+    }
+
+    @Test func aCoverThatArrivesBeforeTheShortestWaitDoesNotPlayEarly() {
+        let state = IslandState()
+        state.setNowPlaying(song("One"))
+        state.setNowPlaying(song("One", cover: 1))
+        #expect(state.trackGlow == nil)
+        #expect(state.awaitedTrackGlow != nil)
+    }
+
+    @Test func skippingQuicklyLightsOnlyTheLastTrack() {
+        let state = IslandState()
+        state.setNowPlaying(song("One", cover: 1))
+        let first = state.awaitedTrackGlow?.serial ?? 0
+        state.setNowPlaying(song("Two", cover: 2))
+        let second = state.awaitedTrackGlow?.serial ?? 0
+        #expect(second != first)
+        // The first track's wait reports late: nothing plays for it.
+        state.trackGlowSettled(first)
+        state.trackGlowWaitElapsed(first)
+        #expect(state.trackGlow == nil)
+        state.trackGlowSettled(second)
+        #expect(state.trackGlow?.serial == second)
+    }
+
+    @Test func pausingAndResumingLightsNothing() {
+        let state = IslandState()
+        state.setNowPlaying(song("One", cover: 1))
+        playAwaitedGlow(state)
+        state.trackGlowEnded(state.trackGlow?.serial ?? 0)
+        state.setNowPlaying(song("One", playing: false, cover: 1))
+        state.setNowPlaying(song("One", cover: 1))
+        #expect(state.awaitedTrackGlow == nil)
+        #expect(state.trackGlow == nil)
+    }
+
+    @Test func musicInTheBubbleLightsTheBubble() {
+        let state = IslandState()
+        state.setAgentSessions([agent("a", .working)])
+        state.setNowPlaying(song("One", cover: 1))
+        #expect(state.bubbleTab == .media)
+        playAwaitedGlow(state)
+        #expect(state.trackGlow?.surface == .bubble)
+    }
+
+    @Test func anAgentLightOnTheIslandKeepsTheTrackLightAway() {
+        let state = IslandState()
+        state.setTabOrder([.media, .agents])
+        state.setAgentSessions([agent("a", .needsInput(prompt: nil))])
+        state.setNowPlaying(song("One", cover: 1))
+        #expect(state.face == .media)
+        playAwaitedGlow(state)
+        #expect(state.trackGlow == nil)
+        #expect(state.awaitedTrackGlow == nil)
+    }
+
+    @Test func noLightWhileTheIslandIsOpenAndNoneLater() {
+        let state = IslandState()
+        state.setHovering(true)
+        state.setNowPlaying(song("One", cover: 1))
+        playAwaitedGlow(state)
+        #expect(state.trackGlow == nil)
+        state.setHovering(false)
+        #expect(state.trackGlow == nil)
+        #expect(state.awaitedTrackGlow == nil)
+    }
+
+    @Test func noLightWhereTheMusicHasNoFace() {
+        let state = IslandState()
+        state.restoreAnchor(.edge(.bottom, fraction: 0.5))
+        state.setAgentSessions([agent("a", .working)])
+        state.setNowPlaying(song("One", cover: 1))
+        #expect(state.face == .agents)
+        playAwaitedGlow(state)
+        #expect(state.trackGlow == nil)
+    }
+
+    @Test func aLightThatLosesItsSurfaceGoesOut() {
+        let state = IslandState()
+        state.setNowPlaying(song("One", cover: 1))
+        playAwaitedGlow(state)
+        #expect(state.trackGlow != nil)
+        state.setHovering(true)
+        #expect(state.trackGlow == nil)
+
+        // On the island, an agent starts to work: the music moves out to the bubble.
+        state.setHovering(false)
+        state.setNowPlaying(song("Two", cover: 2))
+        playAwaitedGlow(state)
+        #expect(state.trackGlow?.surface == .island)
+        state.setAgentSessions([agent("a", .working)])
+        #expect(state.trackGlow == nil)
+    }
+
+    @Test func theSecondSourceLightsWithItsOwnTrack() {
+        let state = IslandState()
+        state.setNowPlaying(
+            NowPlayingInfo(
+                title: "Stream", artist: "", isPlaying: true, sourceName: "Chrome",
+                sourceBundleIdentifier: "com.google.Chrome"))
+        playAwaitedGlow(state)
+        state.trackGlowEnded(state.trackGlow?.serial ?? 0)
+        state.setCompanionPlaying(song("One", cover: 1))
+        #expect(state.mediaSlots.count == 2)
+        playAwaitedGlow(state)
+        #expect(state.trackGlow?.source == NowPlayingSource(song("One")))
+    }
+
+    @Test func anEndedLightOfAnotherSerialIsLeftAlone() {
+        let state = IslandState()
+        state.setNowPlaying(song("One", cover: 1))
+        playAwaitedGlow(state)
+        let serial = state.trackGlow?.serial ?? 0
+        state.trackGlowEnded(serial - 1)
+        #expect(state.trackGlow?.serial == serial)
+    }
 }
