@@ -104,11 +104,13 @@ struct IslandView: View {
         }
     }
 
-    /// The light of a working agent, in a band just outside the island's free long edge. It
-    /// is not an overlay of the island, which clips what it holds.
+    /// The light of a working agent, in a band just outside the collapsed island's free long
+    /// edge. The light shows only while the island is collapsed, so the band is always the
+    /// collapsed island's: it fades out in place as the island opens and fades in in place as
+    /// it closes. It is not an overlay of the island, which clips what it holds.
     private var workingAurora: some View {
         let frame = IslandLayout.frame(
-            anchor: state.anchor, phase: state.phase, notch: geometry.notch,
+            anchor: state.anchor, phase: .collapsed, notch: geometry.notch,
             visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
             showsWings: state.showsWings)
         let edge = WorkingAurora.edge(
@@ -117,17 +119,22 @@ struct IslandView: View {
         let band = WorkingAurora.band(island: frame, edge: edge)
         return ZStack {
             if state.showsWorkingAurora, let tool = state.board.lead?.session.tool {
+                // The edge is its identity: if the anchor moves it to another edge, the old
+                // light fades out and a new one fades in, not one stretched between bands.
                 WorkingAuroraLight(tool: tool, edge: edge)
+                    .id(edge)
                     .transition(.opacity)
             }
         }
         .frame(width: band.width, height: band.height)
         .offset(x: band.minX, y: band.minY)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .animation(.easeInOut(duration: WorkingAurora.fade), value: state.showsWorkingAurora)
-        .animation(Self.spring, value: state.phase)
         .animation(Self.spring, value: state.showsWings)
         .animation(Self.spring, value: state.anchor)
+        // Last, so outermost: of animations whose values change in one update the innermost
+        // wins, and a hover end changes `showsWorkingAurora` with the island's own state.
+        // The fade must win, or the light would slide with a spring while it fades in.
+        .animation(.easeInOut(duration: WorkingAurora.fade), value: state.showsWorkingAurora)
     }
 
     /// The files held, in a bubble right of the island: the left bubble's mirror. It comes out

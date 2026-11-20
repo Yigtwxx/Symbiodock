@@ -53,6 +53,30 @@ public enum WorkingAurora {
         }
     }
 
+    /// The glow as drawn: x along the edge from 0 to `length`, y out from the edge starting
+    /// at 0. It begins `glowInset` inside each end and reaches `reach` times `stretch`.
+    public static func glowRect(length: CGFloat, stretch: Double) -> CGRect {
+        CGRect(x: glowInset, y: 0, width: max(length - 2 * glowInset, 0), height: reach * CGFloat(stretch))
+    }
+
+    /// The fine line as drawn, in the same coordinates as `glowRect`: `lineInset` inside each
+    /// end and `lineWidth` thick.
+    public static func lineRect(length: CGFloat) -> CGRect {
+        CGRect(x: lineInset, y: 0, width: max(length - 2 * lineInset, 0), height: lineWidth)
+    }
+
+    /// Where the line and the glow fade in at their ends, for a piece `length` long:
+    /// gradient locations for clear, full, full, clear. A piece shorter than twice
+    /// `endFade` (or with no length) fades over half of itself at each end.
+    public static func endLocations(length: CGFloat) -> [Double] {
+        let fade = length > 0 ? min(Double(endFade / length), 0.5) : 0.5
+        return [0, fade, 1 - fade, 1]
+    }
+
+    /// How strong the glow is on its way out from the edge: `place` runs 0 at the edge to 1
+    /// at the end of its reach.
+    public static let falloff: [(place: Double, strength: Double)] = [(0, 1), (0.3, 0.5), (0.65, 0.15), (1, 0)]
+
     /// How far through its breath the glow is at `time`: 0 at its dimmest and shortest, 1 at
     /// its brightest and longest, easing in and out.
     public static func breath(at time: TimeInterval) -> Double {

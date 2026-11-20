@@ -15,6 +15,8 @@ struct AgentStatusMark: View {
     /// The session's working sub-agents, which circle a working mark. Nil where the mark
     /// shows none at all (the list, whose rows name their sub-agents below).
     var orbiters: [AgentSatellite]?
+    /// The session the mark speaks for: its satellites belong to it, and a new session's are new.
+    var sessionID: String?
     /// Draws the mark at this moment and never moves; for previews and renders.
     var frozenAt: TimeInterval?
 
@@ -32,10 +34,16 @@ struct AgentStatusMark: View {
             .frame(width: size, height: size)
             .overlay {
                 // Kept while the session works, even with none: the last one still has to go.
-                if state == .working, let tool, let orbiters {
-                    MarkSatellites(orbiters: orbiters, tool: tool, markSize: size, frozenAt: frozenAt)
-                        .transition(.opacity)
+                // The animation sits on the container, which stays, so the satellites fade
+                // with the mark's change instead of vanishing at once.
+                ZStack {
+                    if state == .working, let tool, let orbiters {
+                        MarkSatellites(orbiters: orbiters, tool: tool, markSize: size, frozenAt: frozenAt)
+                            .id(sessionID)
+                            .transition(.opacity)
+                    }
                 }
+                .animation(.easeOut(duration: 0.2), value: state == .working)
             }
             .onChange(of: isFinished) { _, finished in
                 guard finished else {

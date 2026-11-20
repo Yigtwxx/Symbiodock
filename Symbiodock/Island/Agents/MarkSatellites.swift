@@ -163,8 +163,11 @@ private struct Orbits: NSViewRepresentable {
             CATransaction.setDisableActions(true)
             carrier.addSublayer(point)
             place(carrier)
-            // At rest the dot stands at its own starting angle (the layer's y runs up, so a
-            // negative angle is clockwise); the orbit animation turns it on from there.
+            // The model transform is where the dot stands when no animation plays, at its own
+            // starting angle (the layer's y runs up, so a negative angle is clockwise). The
+            // orbit animation is tied to the shared clock and takes over from the clock's
+            // angle, which is unseen: the dot is added before the view is on screen or while
+            // it grows in from nothing.
             carrier.transform = CATransform3DMakeRotation(CGFloat(-2 * Double.pi * satellite.phase), 0, 0, 1)
             layer?.addSublayer(carrier)
             CATransaction.commit()

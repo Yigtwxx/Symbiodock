@@ -391,6 +391,13 @@ struct IslandStateTests {
         #expect(!state.showsWorkingAurora)
     }
 
+    @Test func theWorkingAuroraDoesNotShowWhileTheIslandIsDragged() {
+        let state = stretching()
+        state.setAgentSessions([agent("a", .working)])
+        #expect(state.phase == .stretching)
+        #expect(!state.showsWorkingAurora)
+    }
+
     @Test func theMediaFaceShowsNoWorkingAurora() {
         let state = IslandState()
         state.setTabOrder([.media, .agents])

@@ -16,10 +16,6 @@ struct WorkingAuroraLight: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// How strong the glow is on its way out from the edge: `place` runs 0 at the edge to 1
-    /// at the end of its reach.
-    static let falloff: [(place: Double, strength: Double)] = [(0, 1), (0.3, 0.5), (0.65, 0.15), (1, 0)]
-
     var body: some View {
         Group {
             if let frozenAt {
@@ -41,13 +37,6 @@ struct WorkingAuroraLight: View {
     /// The colours as they lie along twice the edge: two whole runs that end where they
     /// began, so that a slide of one edge's length brings them back to the start.
     static func run<C>(_ colors: [C]) -> [C] { colors + colors + [colors[0]] }
-
-    /// Where the line and the glow fade in at their ends, for a piece `length` long:
-    /// gradient locations for clear, full, full, clear.
-    static func endLocations(length: CGFloat) -> [Double] {
-        let fade = length > 0 ? min(Double(WorkingAurora.endFade / length), 0.5) : 0.5
-        return [0, fade, 1 - fade, 1]
-    }
 }
 
 /// One moment of the light, drawn once. It is drawn as if the edge ran along the top with
@@ -69,14 +58,12 @@ private struct AuroraStill: View {
                 Gradient(colors: WorkingAuroraLight.run(colors)),
                 startPoint: CGPoint(x: (flow - 1) * length, y: 0),
                 endPoint: CGPoint(x: (flow + 1) * length, y: 0))
-            let glowRect = CGRect(
-                x: WorkingAurora.glowInset, y: 0, width: length - 2 * WorkingAurora.glowInset,
-                height: WorkingAurora.reach * stretch)
-            draw(shading, in: glowRect, fallsOff: true, opacity: glow, context: context)
-            let lineRect = CGRect(
-                x: WorkingAurora.lineInset, y: 0, width: length - 2 * WorkingAurora.lineInset,
-                height: WorkingAurora.lineWidth)
-            draw(shading, in: lineRect, fallsOff: false, opacity: 1, context: context)
+            draw(
+                shading, in: WorkingAurora.glowRect(length: length, stretch: stretch), fallsOff: true,
+                opacity: glow, context: context)
+            draw(
+                shading, in: WorkingAurora.lineRect(length: length), fallsOff: false, opacity: 1,
+                context: context)
         }
     }
 
@@ -89,7 +76,7 @@ private struct AuroraStill: View {
         guard rect.width > 0, rect.height > 0 else { return }
         var layer = context
         layer.opacity = opacity
-        let ends = WorkingAuroraLight.endLocations(length: rect.width)
+        let ends = WorkingAurora.endLocations(length: rect.width)
         layer.clipToLayer { mask in
             mask.fill(
                 Path(rect),
@@ -105,7 +92,7 @@ private struct AuroraStill: View {
                 mask.fill(
                     Path(rect),
                     with: .linearGradient(
-                        Gradient(stops: WorkingAuroraLight.falloff.map {
+                        Gradient(stops: WorkingAurora.falloff.map {
                             .init(color: .white.opacity($0.strength), location: $0.place)
                         }),
                         startPoint: CGPoint(x: 0, y: rect.minY), endPoint: CGPoint(x: 0, y: rect.maxY)))
@@ -165,8 +152,8 @@ private struct AuroraFlow: NSViewRepresentable {
             run.endPoint = CGPoint(x: 1, y: 0.5)
             run.anchorPoint = .zero
             // Strongest at the edge (the bottom of the band as laid out), nothing at its reach.
-            glow.colors = WorkingAuroraLight.falloff.map { NSColor.white.withAlphaComponent($0.strength).cgColor }
-            glow.locations = WorkingAuroraLight.falloff.map { NSNumber(value: $0.place) }
+            glow.colors = WorkingAurora.falloff.map { NSColor.white.withAlphaComponent($0.strength).cgColor }
+            glow.locations = WorkingAurora.falloff.map { NSNumber(value: $0.place) }
             glow.startPoint = CGPoint(x: 0.5, y: 0)
             glow.endPoint = CGPoint(x: 0.5, y: 1)
             // It stretches away from the edge, which stays where it is.
@@ -224,15 +211,14 @@ private struct AuroraFlow: NSViewRepresentable {
             shape.frame = band.bounds
             run.bounds = CGRect(x: 0, y: 0, width: 2 * length, height: depth)
             run.position = CGPoint(x: -length, y: 0)
-            let glowLength = max(length - 2 * WorkingAurora.glowInset, 0)
-            glow.bounds = CGRect(x: 0, y: 0, width: glowLength, height: WorkingAurora.reach)
+            let glowSize = WorkingAurora.glowRect(length: length, stretch: 1)
+            glow.bounds = CGRect(x: 0, y: 0, width: glowSize.width, height: glowSize.height)
             glow.position = CGPoint(x: length / 2, y: 0)
             glowEnds.frame = glow.bounds
-            glowEnds.locations = WorkingAuroraLight.endLocations(length: glowLength).map { NSNumber(value: $0) }
-            let lineLength = max(length - 2 * WorkingAurora.lineInset, 0)
-            line.frame = CGRect(
-                x: WorkingAurora.lineInset, y: 0, width: lineLength, height: WorkingAurora.lineWidth)
-            line.locations = WorkingAuroraLight.endLocations(length: lineLength).map { NSNumber(value: $0) }
+            glowEnds.locations = WorkingAurora.endLocations(length: glowSize.width).map { NSNumber(value: $0) }
+            let lineRect = WorkingAurora.lineRect(length: length)
+            line.frame = lineRect
+            line.locations = WorkingAurora.endLocations(length: lineRect.width).map { NSNumber(value: $0) }
             CATransaction.commit()
             play()
         }

@@ -13,8 +13,8 @@ struct AgentNotchFace: View {
                 .frame(maxWidth: .infinity)
             Color.clear
                 .frame(width: notchWidth)
-            AgentStatusMark(state: row.state, tool: row.session.tool, orbiters: row.orbiters)
-                .id(row.id)
+            AgentStatusMark(
+                state: row.state, tool: row.session.tool, orbiters: row.orbiters, sessionID: row.id)
                 .frame(maxWidth: .infinity)
         }
         .accessibilityElement(children: .ignore)
@@ -37,8 +37,8 @@ struct AgentFloatingFace: View {
                     .lineLimit(1)
                 Spacer(minLength: 0)
                 AgentStatusMark(
-                    state: row.isSettled ? .idle : row.state, tool: row.session.tool, orbiters: row.orbiters)
-                .id(row.id)
+                    state: row.isSettled ? .idle : row.state, tool: row.session.tool, orbiters: row.orbiters,
+                    sessionID: row.id)
             } else {
                 // The Agents tab's prompt, as wide as the symbol it replaced so the text beside
                 // it stays where it was.
@@ -68,8 +68,8 @@ struct AgentSideFace: View {
                 RotatedLine(text: row.session.title)
                     .foregroundStyle(.white)
                 AgentStatusMark(
-                    state: row.isSettled ? .idle : row.state, tool: row.session.tool, orbiters: row.orbiters)
-                .id(row.id)
+                    state: row.isSettled ? .idle : row.state, tool: row.session.tool, orbiters: row.orbiters,
+                    sessionID: row.id)
             } else {
                 TabGlyph(tab: .agents)
                     .foregroundStyle(.white.opacity(0.4))
