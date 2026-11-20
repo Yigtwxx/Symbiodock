@@ -39,6 +39,8 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
     public let isSettled: Bool
     /// The lines below the row: its subagents.
     public let branches: [AgentBranch]
+    /// The working sub-agents that circle the row's working mark on a collapsed face.
+    public let orbiters: [AgentSatellite]
     public var id: String { session.id }
 }
 
@@ -162,7 +164,8 @@ public struct AgentSessionBoard: Equatable, Sendable {
                     session: session, state: state,
                     isSettled: state == .finished && settledIDs.contains(session.id),
                     branches: AgentBranches.lines(
-                        for: session.subagents, state: state, turnStart: turnStarts[session.id]))
+                        for: session.subagents, state: state, turnStart: turnStarts[session.id]),
+                    orbiters: AgentSatellites.orbiters(for: session.subagents, state: state))
             }
             .sorted { lhs, rhs in
                 let left = lhs.state.rank(settled: lhs.isSettled)

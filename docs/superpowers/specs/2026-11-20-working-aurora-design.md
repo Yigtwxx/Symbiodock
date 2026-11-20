@@ -115,7 +115,9 @@ bitiş, compact, `Running`, boşta) değişmez.
   açısıyla birlikte alt ajanın kimliğinden hesaplanır (aynı alt ajan her çizimde aynı yerde
   ve hızda). Bir yüzde yörünge adanın kenarına taşıyorsa o yüzde işaretin kenar boşluğu
   yörünge sığacak kadar açılır.
-- **Renk.** Aracın dört ışık rengi, sırayla: birinci uydu birinci renk, ikinci ikinci...
+- **Renk.** Aracın dört ışık renginden biri, alt ajanın kimliğinden; aynı anda görünen uydular
+  renk bitene kadar farklı renktedir. Sıraya göre verilseydi biri bitince kalanların rengi
+  değişirdi.
 - **Gelme, gitme.** Yeni alt ajanın noktası 0,4 sn'de büyüyerek belirir. Biten alt ajanın
   noktası olduğu yerde durur, nane yeşiline döner, 2,3 katına büyüyüp 0,9 sn'de kaybolur.
   Öndeki oturum çalışmayı bırakınca (soru, bitiş, compact) bütün uydular işaretle birlikte
