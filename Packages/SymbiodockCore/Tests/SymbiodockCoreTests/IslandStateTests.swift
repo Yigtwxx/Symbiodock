@@ -398,6 +398,52 @@ struct IslandStateTests {
         #expect(state.selectedTab == .agents)
     }
 
+    @Test func hoverOpensMediaWhileTheAgentIsIdleAndAgentsOnceItWorks() {
+        let state = IslandState()
+        state.setTabOrder([.agents, .media])
+        state.setNowPlaying(track(playing: true))
+        state.setAgentSessions([agent("a", .idle)])
+        state.setHovering(true)
+        #expect(state.selectedTab == .media)
+        state.setHovering(false)
+
+        state.setAgentSessions([agent("a", .working)])
+        state.setHovering(true)
+        #expect(state.selectedTab == .agents)
+        state.setHovering(false)
+    }
+
+    @Test func aFinishKeepsAgentsUntilItsSealHasPlayed() {
+        let state = IslandState()
+        state.setTabOrder([.agents, .media])
+        state.setNowPlaying(track(playing: true))
+        state.setAgentSessions([agent("a", .working)])
+        state.setAgentSessions([agent("a", .idle)])
+        #expect(TabSelection.tabToOpen(
+            order: state.tabOrder, attention: state.board.attention,
+            mediaHasFace: state.mediaWings, agentsHasFace: state.board.hasFace,
+            mediaHasContent: true, agentsHasContent: true, filesHasContent: false) == .agents)
+
+        state.settleFinished("a")
+        state.setHovering(true)
+        #expect(state.selectedTab == .media)
+    }
+
+    @Test func pausedMusicStopsCountingAfterItsGrace() {
+        let state = IslandState()
+        state.setTabOrder([.agents, .media])
+        state.setNowPlaying(track(playing: true))
+        state.setAgentSessions([agent("a", .idle)])
+        state.setNowPlaying(track(playing: false))
+        state.setHovering(true)
+        #expect(state.selectedTab == .media)
+        state.setHovering(false)
+
+        state.pausedGraceElapsed()
+        state.setHovering(true)
+        #expect(state.selectedTab == .agents)
+    }
+
     @Test func aClickChangesTheTabAndNewSessionsDoNot() {
         let state = IslandState()
         state.setTabOrder([.media, .agents])

@@ -72,13 +72,21 @@ public enum TabSelection {
         }
     }
 
-    /// The tab the island opens on. Attention wins; then the first tab with something to
-    /// show; then simply the first tab.
+    /// The tab the island opens on. Attention wins; then the first tab with something going
+    /// on (the same test that gives the collapsed island its face), so that music opens while
+    /// the agents sit idle and the agents open again once one works; then the first tab with
+    /// something to show; then simply the first tab.
     public static func tabToOpen(
         order: [IslandTab], attention: AgentAttention,
+        mediaHasFace: Bool, agentsHasFace: Bool,
         mediaHasContent: Bool, agentsHasContent: Bool, filesHasContent: Bool
     ) -> IslandTab {
         if attention != .none { return .agents }
+        switch face(order: order, mediaHasFace: mediaHasFace, agentsHasFace: agentsHasFace) {
+        case .media: return .media
+        case .agents: return .agents
+        case .none: break
+        }
         for tab in order {
             switch tab {
             case .media where mediaHasContent: return .media

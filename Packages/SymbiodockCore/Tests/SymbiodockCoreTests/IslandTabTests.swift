@@ -44,6 +44,7 @@ struct IslandTabTests {
             #expect(
                 TabSelection.tabToOpen(
                     order: [.media, .agents], attention: attention,
+                    mediaHasFace: false, agentsHasFace: false,
                     mediaHasContent: true, agentsHasContent: true, filesHasContent: false) == .agents)
         }
     }
@@ -54,19 +55,43 @@ struct IslandTabTests {
         #expect(
             TabSelection.tabToOpen(
                 order: mediaFirst, attention: .none,
+                mediaHasFace: false, agentsHasFace: false,
                 mediaHasContent: true, agentsHasContent: true, filesHasContent: false) == .media)
         #expect(
             TabSelection.tabToOpen(
                 order: agentsFirst, attention: .none,
+                mediaHasFace: false, agentsHasFace: false,
                 mediaHasContent: true, agentsHasContent: false, filesHasContent: false) == .media)
         #expect(
             TabSelection.tabToOpen(
                 order: mediaFirst, attention: .none,
+                mediaHasFace: false, agentsHasFace: false,
                 mediaHasContent: false, agentsHasContent: false, filesHasContent: false) == .media)
         #expect(
             TabSelection.tabToOpen(
                 order: agentsFirst, attention: .none,
+                mediaHasFace: false, agentsHasFace: false,
                 mediaHasContent: false, agentsHasContent: false, filesHasContent: false) == .agents)
+    }
+
+    @Test func anActiveTabOpensBeforeOneThatOnlyHasContent() {
+        func open(_ order: [IslandTab], mediaFace: Bool, agentsFace: Bool) -> IslandTab {
+            TabSelection.tabToOpen(
+                order: order, attention: .none,
+                mediaHasFace: mediaFace, agentsHasFace: agentsFace,
+                mediaHasContent: true, agentsHasContent: true, filesHasContent: true)
+        }
+        let agentsFirst: [IslandTab] = [.agents, .media, .files]
+        let mediaFirst: [IslandTab] = [.media, .agents, .files]
+        // An idle agent is still listed, but playing music is what is going on.
+        #expect(open(agentsFirst, mediaFace: true, agentsFace: false) == .media)
+        // The agent works again: back to the first tab.
+        #expect(open(agentsFirst, mediaFace: true, agentsFace: true) == .agents)
+        #expect(open(mediaFirst, mediaFace: false, agentsFace: true) == .agents)
+        #expect(open(mediaFirst, mediaFace: true, agentsFace: true) == .media)
+        // Nothing going on: the first tab with content, as before.
+        #expect(open(agentsFirst, mediaFace: false, agentsFace: false) == .agents)
+        #expect(open(mediaFirst, mediaFace: false, agentsFace: false) == .media)
     }
 
     @Test func theBubbleTakesTheSecondTabWhenBothHaveAFace() {
@@ -96,6 +121,7 @@ struct IslandTabTests {
         func open(_ attention: AgentAttention, media: Bool, agents: Bool, files: Bool) -> IslandTab {
             TabSelection.tabToOpen(
                 order: TabOrder.default, attention: attention,
+                mediaHasFace: false, agentsHasFace: false,
                 mediaHasContent: media, agentsHasContent: agents, filesHasContent: files)
         }
         #expect(open(.none, media: false, agents: false, files: true) == .files)
