@@ -119,7 +119,7 @@ enum DebugRender {
             ExpandedPreview(state: branches), size: CGSize(width: 640, height: 210),
             named: "expanded-agents-branches", to: directory)
         write(CollapsedGallery(), size: CGSize(width: 620, height: 540), named: "collapsed-faces", to: directory)
-        write(WorkingAuroraGallery(), size: CGSize(width: 660, height: 520), named: "working-aurora", to: directory)
+        write(WorkingAuroraGallery(), size: CGSize(width: 900, height: 640), named: "working-aurora", to: directory)
         // The goo that swallows a tile while its file changes format, over a photo becoming a
         // PNG and over a drawer whose documents become PDFs (the slides cannot, but they share
         // the drawer's cocoon).
@@ -819,8 +819,10 @@ private struct SealGallery: View {
 }
 
 /// The light of a working agent: at the notch at its dimmest and at its brightest, for a
-/// second tool, beside a capsule docked at the bottom and a strip docked right. The last
-/// notch is the live layers at rest, to check that they lie the way the drawing does.
+/// second tool, then a capsule docked at the bottom and strips docked right and left, each
+/// drawn still (1.2 s in) and as the live layers at rest (`at: nil`) right beside or under
+/// it. The last notch is live too. Compare the pairs: the side, the direction of the fade
+/// and where the line lies must agree.
 private struct WorkingAuroraGallery: View {
     private func row(_ tool: AgentTool) -> AgentRow {
         var board = AgentSessionBoard()
@@ -866,6 +868,20 @@ private struct WorkingAuroraGallery: View {
         }
     }
 
+    /// The capsule docked at the bottom of the screen.
+    private func capsule(at time: TimeInterval?) -> some View {
+        island(.edge(.bottom, fraction: 0.5), CGSize(width: 200, height: 36), tool: .codex, at: time) {
+            AgentFloatingFace(row: row(.codex))
+        }
+    }
+
+    /// The strip docked at `side` of the screen.
+    private func strip(_ side: ScreenEdge, at time: TimeInterval?) -> some View {
+        island(.edge(side, fraction: 0.5), CGSize(width: 36, height: 170), tool: .claudeCode, at: time) {
+            AgentSideFace(row: row(.claudeCode))
+        }
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 20) {
             VStack(alignment: .leading, spacing: 6) {
@@ -874,13 +890,16 @@ private struct WorkingAuroraGallery: View {
                 notch(.claudeCode, at: WorkingAurora.breathPeriod / 2)
                 notch(.claudeCode, at: WorkingAurora.flowPeriod / 4)
                 notch(.codex, at: WorkingAurora.breathPeriod / 2)
-                island(.edge(.bottom, fraction: 0.5), CGSize(width: 200, height: 36), tool: .codex, at: 1.2) {
-                    AgentFloatingFace(row: row(.codex))
-                }
+                capsule(at: 1.2)
+                capsule(at: nil)
                 notch(.claudeCode, at: nil)
             }
-            island(.edge(.right, fraction: 0.5), CGSize(width: 36, height: 170), tool: .claudeCode, at: 1.2) {
-                AgentSideFace(row: row(.claudeCode))
+            // Each strip: still, then live layers at rest.
+            HStack(alignment: .top, spacing: 8) {
+                strip(.right, at: 1.2)
+                strip(.right, at: nil)
+                strip(.left, at: 1.2)
+                strip(.left, at: nil)
             }
         }
         .padding(16)
