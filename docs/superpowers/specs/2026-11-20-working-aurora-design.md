@@ -50,6 +50,15 @@ Gözler, kılık değiştiren pet ve goo damlaları seçilmedi; kapsam dışı.
 - **Diğer ışıklar.** `RimLight` (amber, nane), `CompactingRim` (mor) ve parça ışığı adanın
   içinde çizilir ve değişmez. Kuzey ışığı onlarla aynı anda görünmez: koşulu hepsini dışlar
   (parça ışığı yalnızca yüz müzikken yanar).
+- **Bitişte yeşil (2026-11-20, sonradan).** Sahibi: "sönerken de yeşil olsun face id ile senkron
+  bir şekilde". Öndeki oturum bitince ışık hemen sönmez: bitiş efekti (Face ID mührü, 1,7 sn)
+  boyunca kalır, akmaya ve nefes almaya devam eder. Mührün çerçevesi yeşile döndüğü anda
+  (efektin 0,75. saniyesi) ışık da 0,2 sn'de nane tonlarına döner (`#63E6A9` `#9AEFC8` `#63E6A9`
+  `#C9FFE6`), efekt bitene kadar yeşil kalır, oturum yerleşince 0,35 sn'de söner. O sırada başka
+  bir oturum çalışıyorsa ışık sönmez, 0,3 sn'de onun renklerine döner. Oturum ada açıkken
+  bittiyse ve efekt ada kapanınca oynuyorsa ışık da o zaman araç renginde belirip efektle
+  birlikte yeşile döner. Agents sekmesi açılıp kapanınca bitiş görülmüş sayıldığı için efekt
+  de ışık da oynamaz (eski kural). Reduce Motion'da ışık bitişte baştan yeşildir.
 - **Reduce Motion.** Akış ve nefes yok: ışık %80 parlaklıkta, tek kat uzanışla sabit durur.
 - **Fare.** Işık tıklama ve hover almaz; altındaki uygulamaya geçer. Adanın hover alanı
   değişmez.

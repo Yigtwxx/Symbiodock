@@ -1858,7 +1858,7 @@ Uygulama: `open --env SYMBIODOCK_DEMO_AGENTS=working build/Build/Products/Debug/
 4. Fareyle adanın üstüne gelince ada açılıyor, ışık yerinde sönüyor; ayrılınca ışık doğrudan adanın kenarında beliriyor (aşağıdan ya da yandan kayarak gelmiyor).
 5. Claude Code'da ışık turuncu-pembe, Codex'te mavi-mor.
 6. Agent soru sorunca ışık gidiyor, amber ışık geliyor; cevaplayınca geri dönüyor.
-7. Agent bitince ışık gidiyor, Face ID bitiş efekti oynuyor.
+7. Agent bitince ışık hemen sönmüyor: Face ID çerçevesi yeşile döndüğü anda ışık da yeşile dönüyor, efekt bitince sönüyor. (Deneme: `SYMBIODOCK_DEMO_AGENTS=finished`.)
 8. `/compact` sırasında ışık yok, mor kesikli çizgi var.
 9. Müzik de çalıyorsa ve agent sol baloncuktaysa ışık yok.
 10. Adayı alt kenara sürükle: ışık kapsülün üst kenarında. Sağ ya da sol kenara sürükle: ışık şeridin içeri bakan kenarında, renkler yukarıdan aşağı akıyor.
