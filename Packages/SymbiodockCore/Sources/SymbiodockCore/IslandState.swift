@@ -415,6 +415,13 @@ public final class IslandState {
         phase == .collapsed && face == .agents && board.lead?.state == .compacting
     }
 
+    /// Whether the light of a working agent plays beside the collapsed island: the session
+    /// the agents face speaks for is working, and no session asks for attention.
+    public var showsWorkingAurora: Bool {
+        phase == .collapsed && face == .agents && board.lead?.state == .working
+            && board.attention == .none
+    }
+
     /// Applies a tab order, repaired if it is damaged. A collapsed island will open on it.
     public func setTabOrder(_ order: [IslandTab]) {
         let repaired = TabOrder.repaired(TabOrder.encode(order))

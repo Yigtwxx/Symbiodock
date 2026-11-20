@@ -354,6 +354,52 @@ struct IslandStateTests {
         #expect(!state.showsCompactingRim)
     }
 
+    @Test func theWorkingAuroraShowsWhileTheAgentsFaceWorks() {
+        let state = IslandState()
+        #expect(!state.showsWorkingAurora)
+        state.setAgentSessions([agent("a", .working)])
+        #expect(state.showsWorkingAurora)
+        state.setHovering(true)
+        #expect(!state.showsWorkingAurora)
+        state.setHovering(false)
+        #expect(state.showsWorkingAurora)
+    }
+
+    @Test func theWorkingAuroraIsOnlyForWork() {
+        let state = IslandState()
+        state.setAgentSessions([agent("a", .needsInput(prompt: nil))])
+        #expect(!state.showsWorkingAurora)
+        state.setAgentSessions([agent("a", .compacting)])
+        #expect(!state.showsWorkingAurora)
+        state.setAgentSessions([agent("a", .running)])
+        #expect(!state.showsWorkingAurora)
+        state.setAgentSessions([agent("a", .working)])
+        #expect(state.showsWorkingAurora)
+        // It has finished: the seal plays, not the light.
+        state.setAgentSessions([agent("a", .idle)])
+        #expect(!state.showsWorkingAurora)
+    }
+
+    @Test func theWorkingAuroraWaitsBehindAFinishAndAQuestion() {
+        let state = IslandState()
+        state.setAgentSessions([agent("a", .working), agent("b", .working)])
+        state.setAgentSessions([agent("a", .idle), agent("b", .working)])
+        #expect(!state.showsWorkingAurora)
+        state.settleFinished("a")
+        #expect(state.showsWorkingAurora)
+        state.setAgentSessions([agent("a", .idle), agent("b", .working), agent("c", .needsInput(prompt: nil))])
+        #expect(!state.showsWorkingAurora)
+    }
+
+    @Test func theMediaFaceShowsNoWorkingAurora() {
+        let state = IslandState()
+        state.setTabOrder([.media, .agents])
+        state.setNowPlaying(track(playing: true))
+        state.setAgentSessions([agent("a", .working)])
+        #expect(state.face == .media)
+        #expect(!state.showsWorkingAurora)
+    }
+
     private func agent(_ id: String, _ activity: AgentActivity) -> AgentSession {
         AgentSession(
             id: id, tool: .claudeCode, title: id, projectPath: nil, activity: activity,
