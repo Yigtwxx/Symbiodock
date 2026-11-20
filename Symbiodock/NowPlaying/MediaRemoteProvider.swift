@@ -150,21 +150,10 @@ struct MediaRemoteProvider: NowPlayingProvider {
         defer { helpers.unregister(process) }
 
         await withTaskCancellationHandler {
-            do {
-                // Cut lines at 0x0A only: `.lines` also splits at U+2028, U+2029 and U+0085,
-                // which the helper writes unescaped inside titles.
-                var buffer = Data()
-                for try await byte in pipe.fileHandleForReading.bytes {
-                    guard byte == 0x0A else {
-                        buffer.append(byte)
-                        continue
-                    }
-                    defer { buffer.removeAll(keepingCapacity: true) }
-                    if buffer.isEmpty { continue }
-                    onLine(buffer)
-                }
-            } catch {
-                logger.error("Reading from the \(label, privacy: .public) failed.")
+            // Two helpers are read at once; `PipeLines` keeps a quiet one from holding back
+            // the other's lines.
+            for await line in PipeLines.lines(from: pipe.fileHandleForReading) {
+                onLine(line)
             }
         } onCancel: {
             HelperProcesses.terminateEscalating(process)
