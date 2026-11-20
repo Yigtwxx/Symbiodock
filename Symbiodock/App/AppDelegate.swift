@@ -69,6 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #if DEBUG
         if DemoMedia.requested {
             DemoMedia.apply(to: state)
+            if DemoMedia.cyclesTracks { DemoMedia.cycleTracks(on: state) }
             overlayController.refreshPointer()
             return
         }

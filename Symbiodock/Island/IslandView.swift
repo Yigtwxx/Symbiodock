@@ -43,6 +43,24 @@ struct IslandView: View {
             guard !Task.isCancelled else { return }
             state.settleFinished(id)
         }
+        // A new track waits a moment for its cover, then its light plays; the state decides
+        // when, this only keeps the time. A further track cancels the wait and starts another.
+        .task(id: state.awaitedTrackGlow?.serial) {
+            guard let serial = state.awaitedTrackGlow?.serial else { return }
+            try? await Task.sleep(for: .seconds(TrackGlowMotion.minimumWait))
+            guard !Task.isCancelled else { return }
+            state.trackGlowSettled(serial)
+            try? await Task.sleep(for: .seconds(TrackGlowMotion.maximumWait - TrackGlowMotion.minimumWait))
+            guard !Task.isCancelled else { return }
+            state.trackGlowWaitElapsed(serial)
+        }
+        // When the light is over its view goes, so nothing is left at rest.
+        .task(id: state.trackGlow?.serial) {
+            guard let serial = state.trackGlow?.serial else { return }
+            try? await Task.sleep(for: .seconds(TrackGlowMotion.duration + 0.1))
+            guard !Task.isCancelled else { return }
+            state.trackGlowEnded(serial)
+        }
     }
 
     /// The second face, in a bubble left of the island. It comes out from behind the
@@ -54,6 +72,13 @@ struct IslandView: View {
         return ZStack {
             if let content = bubbleContent {
                 SideBubble(content: content, diameter: frame.width)
+                    .overlay {
+                        if let glow = state.trackGlow, glow.surface == .bubble {
+                            TrackGlowLine(outline: .bubble, tint: tint(of: glow))
+                                .clipShape(Circle())
+                                .id(glow.serial)
+                        }
+                    }
                     .transition(reduceMotion ? .opacity : slide)
             }
         }
@@ -133,6 +158,15 @@ struct IslandView: View {
                         radii: radii, dockedEdges: IslandLayout.dockedEdges(anchor: state.anchor))
                 }
             }
+            .overlay {
+                if let glow = state.trackGlow, glow.surface == .island {
+                    TrackGlowLine(
+                        outline: .island(
+                            radii: radii, dockedEdges: IslandLayout.dockedEdges(anchor: state.anchor)),
+                        tint: tint(of: glow), isVertical: IslandLayout.isSideDocked(state.anchor))
+                        .id(glow.serial)
+                }
+            }
             .frame(width: frame.width, height: frame.height)
             // Content must not draw outside the shape while it springs between sizes.
             .clipShape(shape)
@@ -142,6 +176,12 @@ struct IslandView: View {
             .animation(Self.spring, value: state.showsWings)
             .animation(Self.spring, value: state.anchor)
             .animation(Self.spring, value: state.face)
+    }
+
+    /// The colours of the cover of the track the light greets.
+    private func tint(of glow: TrackGlow) -> ArtworkTint? {
+        let slot = state.mediaSlots.first { NowPlayingSource($0.info) == glow.source }
+        return ArtworkCache.tint(for: slot?.info.artworkData)
     }
 
     @ViewBuilder

@@ -10,6 +10,9 @@ import SymbiodockCore
 /// elects (so system and companion agree), and a browser plays as one of the other apps.
 /// The real now-playing coordinator is not started. It may be combined with
 /// `SYMBIODOCK_DEMO_AGENTS`.
+/// With `SYMBIODOCK_DEMO_TRACKS=1` as well (and `SYMBIODOCK_DEMO_MEDIA` 1 or 2), the Music track
+/// changes every four seconds, each with another cover: for looking at the light that greets a
+/// new track.
 @MainActor
 enum DemoMedia {
     static var requested: Bool {
@@ -22,6 +25,32 @@ enum DemoMedia {
 
     static var wantsOtherApp: Bool {
         ProcessInfo.processInfo.environment["SYMBIODOCK_DEMO_MEDIA"] == "3"
+    }
+
+    static var cyclesTracks: Bool {
+        ProcessInfo.processInfo.environment["SYMBIODOCK_DEMO_TRACKS"] == "1" && !wantsOtherApp
+    }
+
+    /// Changes the Music track every four seconds for as long as the app runs.
+    static func cycleTracks(on state: IslandState, twoSources: Bool = wantsTwoSources) {
+        Task { @MainActor in
+            let covers: [[Double]] = [[0.55, 0.7], [0.08], [0.3, 0.45, 0.6], [0, 0.9, 0.78]]
+            var number = 2
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(4))
+                let track = NowPlayingInfo(
+                    title: "Demo track \(number)", artist: "Demo",
+                    artworkData: cover(covers[number % covers.count]), duration: 226, elapsed: 0,
+                    elapsedAt: Date(), isPlaying: true, sourceName: "Music",
+                    sourceBundleIdentifier: "com.apple.Music")
+                if twoSources {
+                    state.setCompanionPlaying(track)
+                } else {
+                    state.setNowPlaying(track)
+                }
+                number += 1
+            }
+        }
     }
 
     static func apply(

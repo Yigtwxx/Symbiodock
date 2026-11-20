@@ -1161,7 +1161,13 @@ Before `content(atNotch:frame:)`, add:
 
 - [ ] **Step 3: A demo that changes track — `DemoMedia.swift` and `AppDelegate.swift`**
 
-In `DemoMedia`'s doc comment, add a line: `/// With SYMBIODOCK_DEMO_TRACKS=1 as well (and DEMO_MEDIA 1 or 2), the Music track changes every four seconds, each with another cover: for looking at the light that greets a new track.`
+In `DemoMedia`'s doc comment, add at its end (wrapped like the lines above it):
+
+```swift
+/// With `SYMBIODOCK_DEMO_TRACKS=1` as well (and `SYMBIODOCK_DEMO_MEDIA` 1 or 2), the Music track
+/// changes every four seconds, each with another cover: for looking at the light that greets a
+/// new track.
+```
 
 Add to `DemoMedia`:
 
@@ -1205,7 +1211,7 @@ In `runIfRequested()`, after the `expanded-media-volume` write (where `oneSource
 
 ```swift
         write(
-            TrackGlowGallery(info: oneSource.mediaSlots[0].info), size: CGSize(width: 760, height: 420),
+            TrackGlowGallery(info: oneSource.mediaSlots[0].info), size: CGSize(width: 760, height: 500),
             named: "track-glow", to: directory)
 ```
 

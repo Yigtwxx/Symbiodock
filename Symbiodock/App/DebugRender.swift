@@ -102,6 +102,9 @@ enum DebugRender {
         write(
             ExpandedPreview(state: oneSource), size: CGSize(width: 640, height: 210),
             named: "expanded-media-volume", to: directory)
+        write(
+            TrackGlowGallery(info: oneSource.mediaSlots[0].info), size: CGSize(width: 760, height: 500),
+            named: "track-glow", to: directory)
         let empty = IslandState()
         empty.setHovering(true)
         empty.selectTab(.agents)
@@ -523,6 +526,88 @@ private struct MediaStackGallery: View {
             FloatingCollapsedContent(info: slots[0].info, behind: slots[1].info)
                 .frame(width: 200, height: 36)
                 .background(.black, in: Capsule())
+        }
+        .padding(16)
+    }
+}
+
+/// The light that greets a new track at four moments (spreading, arriving, whole, fading): at
+/// the notch, round the bubble, on a capsule docked at the bottom and on a strip docked right.
+private struct TrackGlowGallery: View {
+    let info: NowPlayingInfo
+
+    private static let times: [TimeInterval] = [0.08, 0.25, 0.75, 1.25]
+
+    private var tint: ArtworkTint? { ArtworkCache.tint(for: info.artworkData) }
+
+    private var lead: AgentRow {
+        var board = AgentSessionBoard()
+        board.update([
+            AgentSession(
+                id: "x", tool: .claudeCode, title: "fix-login-flow", projectPath: nil,
+                activity: .working, since: Date(), pid: nil)
+        ])
+        return board.rows[0]
+    }
+
+    private func island(
+        _ anchor: IslandAnchor, _ size: CGSize, at time: TimeInterval, @ViewBuilder face: () -> some View
+    ) -> some View {
+        let radii = IslandLayout.cornerRadii(anchor: anchor, radius: IslandLayout.collapsedCornerRadius)
+        let shape = UnevenRoundedRectangle(
+            topLeadingRadius: radii.topLeading, bottomLeadingRadius: radii.bottomLeading,
+            bottomTrailingRadius: radii.bottomTrailing, topTrailingRadius: radii.topTrailing,
+            style: .continuous)
+        return shape.fill(.black)
+            .overlay { face() }
+            .overlay {
+                TrackGlowLine(
+                    outline: .island(radii: radii, dockedEdges: IslandLayout.dockedEdges(anchor: anchor)),
+                    tint: tint, isVertical: IslandLayout.isSideDocked(anchor), frozenAt: time)
+            }
+            .frame(width: size.width, height: size.height)
+            .clipShape(shape)
+    }
+
+    private func notch(at time: TimeInterval) -> some View {
+        island(.notch, CGSize(width: 272, height: 32 + IslandLayout.notchLip), at: time) {
+            CollapsedContent(info: info, notchWidth: 200)
+                .padding(.bottom, IslandLayout.notchLip)
+        }
+    }
+
+    private func bubble(at time: TimeInterval) -> some View {
+        HStack(spacing: IslandLayout.bubbleGap) {
+            SideBubble(content: .media(front: info, behind: nil), diameter: 28)
+                .overlay {
+                    TrackGlowLine(outline: .bubble, tint: tint, frozenAt: time)
+                        .clipShape(Circle())
+                }
+            AgentNotchFace(row: lead, notchWidth: 200)
+                .frame(width: 272, height: 32)
+                .background(
+                    .black,
+                    in: UnevenRoundedRectangle(
+                        bottomLeadingRadius: 10, bottomTrailingRadius: 10, style: .continuous))
+        }
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 24) {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(Self.times, id: \.self) { notch(at: $0) }
+                ForEach(Self.times, id: \.self) { bubble(at: $0) }
+                ForEach([0.25, 0.75], id: \.self) { time in
+                    island(.edge(.bottom, fraction: 0.5), IslandLayout.floatingCollapsedSize, at: time) {
+                        FloatingCollapsedContent(info: info)
+                    }
+                }
+            }
+            ForEach([0.25, 0.75], id: \.self) { time in
+                island(.edge(.right, fraction: 0.5), IslandLayout.sideCollapsedSize, at: time) {
+                    SideCollapsedContent(info: info)
+                }
+            }
         }
         .padding(16)
     }
