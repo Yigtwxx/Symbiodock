@@ -23,11 +23,15 @@ public struct AgentPetFigure: Equatable, Sendable {
     public static let pitch = 1.0 / (Double(lineCount - 1) + barShare)
     /// A line is a little wider than the gap beside it, so the colour stays strong.
     public static let barWidth = barShare * pitch
-    private static let barShare = 0.6
+    private static let barShare = 0.68
     /// How bright the lines are where there is no figure: the ground it stands out from.
-    public static let groundStrength = 0.085
-    /// The dimmest a part of a figure can be, so that it always stands out from the ground.
+    public static let groundStrength = 0.12
+    /// The dimmest the relief can make a part of a figure, before the lift.
     public static let faintestShade = 0.36
+    /// How much of its distance from the full colour a shaded part keeps: every shade is
+    /// drawn towards the full colour, so the pet shows more of it and its forms still read.
+    /// 1 is no lift.
+    public static let shadeLift = 0.62
     /// The brightness of a part that gives off light of its own: most of the way to white.
     public static let glowShade = 1.8
 
@@ -120,7 +124,8 @@ extension AgentPetFigure {
         // What stands farther back is dimmer. The shading is kept gentle: the figure should
         // read as a form, and still show its tool's colour at full strength where lit.
         let nearness = 0.68 + 0.32 * min(height / peak, 1)
-        return min(max(pow((0.52 + 0.48 * facing) * nearness, 0.62), faintestShade), 1)
+        let shade = min(max(pow((0.52 + 0.48 * facing) * nearness, 0.62), faintestShade), 1)
+        return 1 - (1 - shade) * shadeLift
     }
 
     private static func clamp(_ slope: Double) -> Double {
@@ -135,7 +140,7 @@ public enum AgentPetMotion {
     public static let waveGrowth = 0.10
     /// How strongly a line shows while it waits for the crest; at the crest it shows in
     /// full. What is nearer is brighter, in the pet's own colours: nothing white is added.
-    public static let waveRest = 0.82
+    public static let waveRest = 0.92
     /// Seconds from the start of one crest to the start of the next.
     public static let wavePeriod: TimeInterval = 2.4
     /// Seconds a crest takes to cross the pet, from entering at the left to leaving at the

@@ -45,9 +45,10 @@ struct AgentPetFigureTests {
     @Test func everyFigureHasLightAndShade() {
         for tool in AgentTool.allCases {
             // What the light does, leaving aside the parts that glow by themselves.
+            // The lift squeezes the range, so the old 0.3 is scaled by it.
             let shades = ink(AgentPetFigure.figure(for: tool)).filter { $0 <= 1 }
             let range = (shades.max() ?? 0) - (shades.min() ?? 0)
-            #expect(range >= 0.3, "\(tool): \(range)")
+            #expect(range >= 0.3 * AgentPetFigure.shadeLift, "\(tool): \(range)")
             #expect((shades.max() ?? 0) >= 0.9, "\(tool)")
         }
     }
@@ -202,5 +203,23 @@ struct AgentPetFigureTests {
             }
         }
         #expect(AgentPetMotion.wave(column: 10, at: -AgentPetMotion.wavePeriod + 0.65) > 0)
+    }
+
+    @Test func shadesAreLiftedTowardsTheFullColour() {
+        #expect(AgentPetFigure.shadeLift == 0.62)
+        let floor = 1 - (1 - AgentPetFigure.faintestShade) * AgentPetFigure.shadeLift
+        #expect(abs(floor - 0.6032) < 0.0001)
+        for tool in AgentTool.allCases {
+            let shades = AgentPetFigure.figure(for: tool).lines.flatMap { $0 }
+                .filter { $0 > 0 && $0 != AgentPetFigure.glowShade }
+            #expect(!shades.isEmpty)
+            #expect(shades.allSatisfy { $0 >= floor - 1e-9 && $0 <= 1 })
+        }
+    }
+
+    @Test func thePetsStandOutMore() {
+        #expect(AgentPetFigure.groundStrength == 0.12)
+        #expect(AgentPetMotion.waveRest == 0.92)
+        #expect(abs(AgentPetFigure.barWidth / AgentPetFigure.pitch - 0.68) < 1e-9)
     }
 }
