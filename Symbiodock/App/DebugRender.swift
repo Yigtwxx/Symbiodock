@@ -118,7 +118,10 @@ enum DebugRender {
         write(
             ExpandedPreview(state: branches), size: CGSize(width: 640, height: 210),
             named: "expanded-agents-branches", to: directory)
-        for (name, set) in [("expanded-system", "1"), ("expanded-system-hot", "hot")] {
+        for (name, set) in [
+            ("expanded-system", "1"), ("expanded-system-hot", "hot"),
+            ("expanded-system-scanning", "scanning"), ("expanded-system-denied", "denied"),
+        ] {
             let system = IslandState()
             DemoSystem.apply(set, to: system)
             system.setHovering(true)

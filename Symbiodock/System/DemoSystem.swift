@@ -4,7 +4,8 @@ import SymbiodockCore
 
 /// Fixed measures for looking at the System tab without measuring:
 /// `open --env SYMBIODOCK_DEMO_SYSTEM=1 build/Build/Products/Debug/Symbiodock.app`.
-/// `1` is a calm Mac, `hot` a busy and warm one. The tab does not open by itself: click it.
+/// `1` is a calm Mac, `hot` a busy and warm one, `scanning` a scan in flight, `denied` a scan
+/// macOS kept back. The tab does not open by itself: click it.
 @MainActor
 enum DemoSystem {
     static var requested: String? {
@@ -30,6 +31,17 @@ enum DemoSystem {
                 temperatures: Temperatures(cpu: hot ? 96 : 45, gpu: hot ? 83 : 46),
                 network: history.samples.last, isOnline: true),
             history: history)
+        func device(_ last: UInt8, _ name: String? = nil, _ kind: LANDevice.Kind = .other) -> LANDevice {
+            LANDevice(address: LANAddress(192, 168, 1, last), name: name, kind: kind)
+        }
+        let everyone = [
+            device(1, nil, .router), device(104, nil, .thisMac), device(101, "iPad"), device(100, "iPhone"),
+            device(107, "Living Room TV"), device(110, "Printer"), device(102),
+        ]
+        // Without a scan the Mac knows only whom it has talked to.
+        state.setLANDevices(set == "1" || set == "hot" ? everyone : Array(everyone.prefix(3)), canScan: true)
+        if set == "scanning" || set == "denied" { state.requestLANScan() }
+        if set == "denied" { state.finishLANScan(blocked: true) }
     }
 }
 

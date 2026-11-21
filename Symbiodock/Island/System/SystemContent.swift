@@ -9,8 +9,13 @@ import SymbiodockCore
 struct SystemContent: View {
     let snapshot: SystemSnapshot?
     let history: NetworkHistory
+    var devices: [LANDevice] = []
+    var scan: LANScanState = .idle
+    var canScan = false
     /// The header band's height; the page starts below it.
     let topInset: CGFloat
+    /// `Scan` was pressed.
+    var onScan: () -> Void = {}
 
     private static let topGap: CGFloat = 2
     private static let sideMargin: CGFloat = 16
@@ -24,7 +29,7 @@ struct SystemContent: View {
             meters
             NetworkPanel(snapshot: snapshot, history: history)
                 .frame(width: Self.networkWidth)
-            DevicesPanel()
+            DevicesPanel(devices: devices, scan: scan, canScan: canScan, onScan: onScan)
                 .frame(width: Self.devicesWidth)
         }
         .padding(.top, topInset + Self.topGap)
@@ -261,22 +266,128 @@ private struct GraphLine: Shape {
     }
 }
 
-/// The devices on the network. Finding them needs the Local Network permission; until that
-/// part is built the panel holds its place with a dash.
+/// The devices on the network: those the Mac already knows, and after `Scan` everything that
+/// answered. The list changes only when a new one arrives.
 private struct DevicesPanel: View {
+    let devices: [LANDevice]
+    let scan: LANScanState
+    let canScan: Bool
+    let onScan: () -> Void
+
+    private static let rowHeight: CGFloat = 20
+    /// More rows than this are scrolled, and the list fades out at its lower edge.
+    private static let visibleRows = 4
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            PanelCaption("DEVICES")
-            Spacer(minLength: 0)
-            Text(SystemLabels.missing)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.35))
-                .frame(maxWidth: .infinity)
-            Spacer(minLength: 0)
+            HStack(spacing: 6) {
+                PanelCaption("DEVICES")
+                if !devices.isEmpty { count }
+                Spacer(minLength: 0)
+                if canScan { scanButton }
+            }
+            .frame(height: 16)
+            if devices.isEmpty {
+                Spacer(minLength: 0)
+                Text(SystemLabels.missing)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.35))
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel("No devices known")
+                Spacer(minLength: 0)
+            } else {
+                list.padding(.top, 3)
+            }
+            if scan == .blocked {
+                Text("Local Network access needed")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.5))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .padding(.top, 2)
+            }
         }
         .systemPanel()
+    }
+
+    private var count: some View {
+        Text("\(devices.count)")
+            .font(.system(size: 10, weight: .semibold).monospacedDigit())
+            .foregroundStyle(.white.opacity(0.8))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .accessibilityLabel(LANLabels.count(devices.count))
+    }
+
+    private var scanButton: some View {
+        Button(action: onScan) {
+            Text(scan == .scanning ? "Scanning…" : "Scan")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.white.opacity(scan == .scanning ? 0.4 : 0.85))
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(.white.opacity(0.12), in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(scan == .scanning)
+        .accessibilityHint("Looks for every device on this network")
+    }
+
+    private var list: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 0) {
+                ForEach(devices) { device in
+                    row(device)
+                }
+            }
+        }
+        .mask {
+            // Fading out at the lower edge says that the list goes on.
+            if devices.count > Self.visibleRows {
+                LinearGradient(
+                    stops: [
+                        .init(color: .black, location: 0),
+                        .init(color: .black, location: 0.78),
+                        .init(color: .black.opacity(0.2), location: 1),
+                    ],
+                    startPoint: .top, endPoint: .bottom)
+            } else {
+                Rectangle()
+            }
+        }
+    }
+
+    private func row(_ device: LANDevice) -> some View {
+        HStack(spacing: 6) {
+            dot(device.kind)
+                .frame(width: 5, height: 5)
+            Text(device.title)
+                .font(.system(size: 11, weight: device.isNamed ? .medium : .regular).monospacedDigit())
+                .foregroundStyle(.white.opacity(device.isNamed ? 1 : 0.55))
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 0)
+            if device.isNamed {
+                // The end of the address tells two devices of the same name apart.
+                Text(device.address.suffix)
+                    .font(.system(size: 10).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.38))
+            }
+        }
+        .frame(height: Self.rowHeight)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Devices")
-        .accessibilityValue("Unknown")
+        .accessibilityLabel(device.title)
+        .accessibilityValue(device.address.text)
+    }
+
+    @ViewBuilder
+    private func dot(_ kind: LANDevice.Kind) -> some View {
+        switch kind {
+        case .router: Circle().strokeBorder(SystemPalette.down, lineWidth: 1.2)
+        case .thisMac: Circle().fill(.white)
+        case .other: Circle().fill(.white.opacity(0.35))
+        }
     }
 }

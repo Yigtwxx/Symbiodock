@@ -38,7 +38,8 @@ struct ExpandedIsland: View {
                 case .system:
                     SystemContent(
                         snapshot: state.system, history: state.networkHistory,
-                        topInset: metrics.height)
+                        devices: state.lanDevices, scan: state.lanScan, canScan: state.canScanLAN,
+                        topInset: metrics.height, onScan: { state.requestLANScan() })
                 case .files:
                     FilesContent(
                         shelf: state.shelf, conversions: state.conversions,
@@ -84,6 +85,11 @@ struct ExpandedIsland: View {
         if state.selectedTab == .files, !state.shelf.isEmpty {
             Text(state.shelf.count == 1 ? "1 item" : "\(state.shelf.count) items")
                 .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.5))
+                .lineLimit(1)
+        } else if state.selectedTab == .system, !state.lanDevices.isEmpty {
+            Text(LANLabels.count(state.lanDevices.count))
+                .font(.system(size: 10, weight: .medium).monospacedDigit())
                 .foregroundStyle(.white.opacity(0.5))
                 .lineLimit(1)
         } else if state.selectedTab == .agents,
