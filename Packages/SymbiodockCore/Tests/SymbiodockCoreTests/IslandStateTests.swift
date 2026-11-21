@@ -1242,4 +1242,19 @@ struct IslandStateTests {
         state.trackGlowEnded(serial - 1)
         #expect(state.trackGlow?.serial == serial)
     }
+
+    @Test func theSystemSnapshotIsKept() {
+        let state = IslandState()
+        #expect(state.system == nil)
+        #expect(state.networkHistory.samples.isEmpty)
+        var history = NetworkHistory()
+        history.append(NetworkSpeed(down: 2_000, up: 200))
+        let snapshot = SystemSnapshot(
+            cpu: 0.3, gpu: 0.2, memory: MemoryUse(used: 20, total: 48),
+            temperatures: Temperatures(cpu: 44, gpu: 37), network: NetworkSpeed(down: 2_000, up: 200),
+            isOnline: true)
+        state.setSystem(snapshot, history: history)
+        #expect(state.system == snapshot)
+        #expect(state.networkHistory == history)
+    }
 }

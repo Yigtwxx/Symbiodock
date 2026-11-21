@@ -68,6 +68,11 @@ public final class IslandState {
     /// until it has been asked, and when it cannot be asked.
     public private(set) var volumes: [VolumeTarget: Double] = [:]
 
+    /// This Mac's last measures, for the System tab; nil until the first has been taken.
+    public private(set) var system: SystemSnapshot?
+    /// The network speeds of the last minute the System tab was looked at.
+    public private(set) var networkHistory = NetworkHistory()
+
     /// Whether the media face is shown collapsed (artwork and level bars).
     /// True while something plays, and for a grace period after it pauses, so a
     /// paused player does not occupy the menu bar all day.
@@ -384,6 +389,13 @@ public final class IslandState {
         let value = fraction.map { VolumeLevel.fraction(percent: VolumeLevel.percent($0)) }
         // Assign only on change: every assignment redraws the island.
         if volumes[target] != value { volumes[target] = value }
+    }
+
+    /// A new measure of this Mac, with the graph it belongs to.
+    public func setSystem(_ snapshot: SystemSnapshot, history: NetworkHistory) {
+        // Assign only on change: every assignment redraws the island.
+        if system != snapshot { system = snapshot }
+        if networkHistory != history { networkHistory = history }
     }
 
     public func setAgentSessions(_ sessions: [AgentSession]) {
