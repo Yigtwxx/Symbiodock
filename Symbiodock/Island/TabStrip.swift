@@ -66,6 +66,7 @@ extension IslandTab {
         switch self {
         case .agents: "Agents"
         case .media: "Media"
+        case .system: "System"
         case .files: "Files"
         }
     }

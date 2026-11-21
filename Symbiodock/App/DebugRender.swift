@@ -12,7 +12,7 @@ enum DebugRender {
         guard let path = ProcessInfo.processInfo.environment["SYMBIODOCK_RENDER_DIR"] else { return }
         let directory = URL(fileURLWithPath: path, isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        write(TabGlyphGallery(), size: CGSize(width: 880, height: 290), named: "tab-glyphs", to: directory)
+        write(TabGlyphGallery(), size: CGSize(width: 1300, height: 290), named: "tab-glyphs", to: directory)
         write(StatusMarkGallery(), size: CGSize(width: 1170, height: 180), named: "status-marks", to: directory)
         write(PetGallery(), size: CGSize(width: 800, height: 460), named: "pets", to: directory)
         write(SealGallery(), size: CGSize(width: 640, height: 150), named: "finish-seal", to: directory)
@@ -273,7 +273,7 @@ private struct PetGallery: View {
     }
 }
 
-/// The open island as it is at the notch: 600 × 150, with a 200 × 32 camera housing.
+/// The open island as it is at the notch: 600 × 170, with a 200 × 32 camera housing.
 private struct ExpandedPreview: View {
     let state: IslandState
     var previews: FilePreviews?
@@ -818,10 +818,10 @@ private struct TabGlyphGallery: View {
                 strip(.media, attention: .needsInput)
                 strip(.files, attention: .finished)
                 // Three times larger, to weigh the glyphs against each other. The strip is
-                // three 28-point buttons 2 apart: 88 points wide.
+                // four 28-point buttons 2 apart: 118 points wide.
                 strip(.agents)
                     .scaleEffect(3, anchor: .leading)
-                    .frame(width: 88 * 3, height: 22 * 3, alignment: .leading)
+                    .frame(width: 118 * 3, height: 22 * 3, alignment: .leading)
             }
         }
         .padding(18)

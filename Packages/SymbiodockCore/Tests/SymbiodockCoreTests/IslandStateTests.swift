@@ -469,7 +469,7 @@ struct IslandStateTests {
         #expect(state.face == .agents)
         state.setTabOrder([.media, .agents])
         #expect(state.face == .media)
-        #expect(state.tabOrder == [.media, .agents, .files])
+        #expect(state.tabOrder == [.media, .agents, .system, .files])
     }
 
     @Test func hoverOpensTheFirstTabWithContent() {
@@ -586,7 +586,7 @@ struct IslandStateTests {
     @Test func aDamagedTabOrderIsRepaired() {
         let state = IslandState()
         state.setTabOrder([.media])
-        #expect(state.tabOrder == [.media, .agents, .files])
+        #expect(state.tabOrder == [.media, .agents, .system, .files])
     }
 
     @Test func startingADragFromTheExpandedAgentsTabClearsFinishedMarks() {
@@ -613,7 +613,7 @@ struct IslandStateTests {
         let state = IslandState()
         state.setTabOrder([.agents, .media])
         state.setTabOrder([.agents, .media])
-        #expect(state.tabOrder == [.agents, .media, .files])
+        #expect(state.tabOrder == [.agents, .media, .system, .files])
     }
 
     @Test func theBubbleHoldsTheSecondFaceAtTheCollapsedNotch() {
@@ -1256,5 +1256,16 @@ struct IslandStateTests {
         state.setSystem(snapshot, history: history)
         #expect(state.system == snapshot)
         #expect(state.networkHistory == history)
+    }
+
+    @Test func theSystemTabIsLeftWhenTheIslandCloses() {
+        let state = IslandState()
+        state.setHovering(true)
+        state.selectTab(.system)
+        #expect(state.selectedTab == .system)
+        state.setHovering(false)
+        state.setHovering(true)
+        // It never opens by itself: the usual rule chooses again.
+        #expect(state.selectedTab == .agents)
     }
 }

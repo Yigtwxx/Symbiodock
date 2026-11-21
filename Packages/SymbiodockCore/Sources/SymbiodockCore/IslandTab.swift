@@ -4,14 +4,15 @@ import Foundation
 public enum IslandTab: String, CaseIterable, Sendable {
     case agents
     case media
+    case system
     case files
 }
 
 /// The order of the tabs, as the user chose it. Stored as raw values.
 public enum TabOrder {
-    public static let `default`: [IslandTab] = [.agents, .media, .files]
+    public static let `default`: [IslandTab] = [.agents, .media, .system, .files]
 
-    /// The tabs the user may put first. Files always stays last.
+    /// The tabs the user may put first. System and Files keep their places at the end.
     public static let reorderable: [IslandTab] = [.agents, .media]
 
     /// Makes any stored list hold every tab exactly once: unknown and repeated values are

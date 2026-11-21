@@ -28,7 +28,7 @@ private struct GridOutline: Shape {
     }
 }
 
-/// The three drawings, as filled outlines in grid units (y down).
+/// The four drawings, as filled outlines in grid units (y down).
 ///
 /// Straight strokes run along quarter points (2.25, 10.75…): at 2x a 1.5-point stroke is
 /// 3 pixels, and centred there it covers whole pixels instead of smearing over four.
@@ -44,6 +44,7 @@ enum TabGlyphOutline {
         switch tab {
         case .agents: agents
         case .media: media
+        case .system: system
         case .files: files
         }
     }
@@ -72,6 +73,26 @@ enum TabGlyphOutline {
     /// Both are tall like the shelf's cards. The fold is what makes them documents: plain
     /// rounded squares read as "copy" or a chain link, and a card with the top of another
     /// straight above it reads as a padlock or a bag.
+    /// A chip: the processor the tab measures. A small rounded square with two legs on each
+    /// side; the legs end on the square's own line, so they join it.
+    static let system: Path = {
+        var legs = Path()
+        for at in [5.75, 8.25] as [CGFloat] {
+            legs.move(to: CGPoint(x: at, y: 2.25))
+            legs.addLine(to: CGPoint(x: at, y: 4.25))
+            legs.move(to: CGPoint(x: at, y: 9.75))
+            legs.addLine(to: CGPoint(x: at, y: 11.75))
+            legs.move(to: CGPoint(x: 2.25, y: at))
+            legs.addLine(to: CGPoint(x: 4.25, y: at))
+            legs.move(to: CGPoint(x: 9.75, y: at))
+            legs.addLine(to: CGPoint(x: 11.75, y: at))
+        }
+        return outline(of: [
+            Part(card(x0: 4.25, y0: 4.25, x1: 9.75, y1: 9.75, folded: 0)),
+            Part(legs),
+        ])
+    }()
+
     static let files = outline(of: [
         Part(card(x0: 5.75, y0: 2.25, x1: 11.25, y1: 9.25, folded: 0)),
         Part(card(x0: 2.75, y0: 4.75, x1: 8.25, y1: 11.75, folded: 2.25), hidesBehind: true),

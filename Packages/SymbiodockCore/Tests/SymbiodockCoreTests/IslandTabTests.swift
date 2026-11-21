@@ -3,30 +3,30 @@ import Testing
 
 struct IslandTabTests {
     @Test func defaultOrderPutsAgentsFirst() {
-        #expect(TabOrder.default == [.agents, .media, .files])
+        #expect(TabOrder.default == [.agents, .media, .system, .files])
     }
 
     @Test func repairKeepsAValidOrder() {
-        #expect(TabOrder.repaired(["media", "agents"]) == [.media, .agents, .files])
+        #expect(TabOrder.repaired(["media", "agents"]) == [.media, .agents, .system, .files])
     }
 
     @Test func repairFillsWhatIsMissing() {
-        #expect(TabOrder.repaired(nil) == [.agents, .media, .files])
-        #expect(TabOrder.repaired([]) == [.agents, .media, .files])
-        #expect(TabOrder.repaired(["media"]) == [.media, .agents, .files])
+        #expect(TabOrder.repaired(nil) == [.agents, .media, .system, .files])
+        #expect(TabOrder.repaired([]) == [.agents, .media, .system, .files])
+        #expect(TabOrder.repaired(["media"]) == [.media, .agents, .system, .files])
     }
 
     @Test func repairDropsUnknownAndRepeatedValues() {
-        #expect(TabOrder.repaired(["weather", "media", "media", "agents"]) == [.media, .agents, .files])
+        #expect(TabOrder.repaired(["weather", "media", "media", "agents"]) == [.media, .agents, .system, .files])
     }
 
     @Test func movingToTheFrontKeepsTheRest() {
-        #expect(TabOrder.moving(.media, toFrontOf: [.agents, .media]) == [.media, .agents, .files])
-        #expect(TabOrder.moving(.agents, toFrontOf: [.agents, .media]) == [.agents, .media, .files])
+        #expect(TabOrder.moving(.media, toFrontOf: [.agents, .media]) == [.media, .agents, .system, .files])
+        #expect(TabOrder.moving(.agents, toFrontOf: [.agents, .media]) == [.agents, .media, .system, .files])
     }
 
     @Test func encodingRoundTrips() {
-        #expect(TabOrder.repaired(TabOrder.encode([.media, .agents])) == [.media, .agents, .files])
+        #expect(TabOrder.repaired(TabOrder.encode([.media, .agents])) == [.media, .agents, .system, .files])
     }
 
     @Test func theFaceIsTheFirstTabThatHasOne() {
@@ -81,8 +81,8 @@ struct IslandTabTests {
                 mediaHasFace: mediaFace, agentsHasFace: agentsFace,
                 mediaHasContent: true, agentsHasContent: true, filesHasContent: true)
         }
-        let agentsFirst: [IslandTab] = [.agents, .media, .files]
-        let mediaFirst: [IslandTab] = [.media, .agents, .files]
+        let agentsFirst: [IslandTab] = [.agents, .media, .system, .files]
+        let mediaFirst: [IslandTab] = [.media, .agents, .system, .files]
         // An idle agent is still listed, but playing music is what is going on.
         #expect(open(agentsFirst, mediaFace: true, agentsFace: false) == .media)
         // The agent works again: back to the first tab.
@@ -105,16 +105,16 @@ struct IslandTabTests {
     }
 
     @Test func filesIsAlwaysTheLastTab() {
-        #expect(TabOrder.default == [.agents, .media, .files])
-        #expect(TabOrder.repaired(nil) == [.agents, .media, .files])
-        #expect(TabOrder.repaired(["media", "agents"]) == [.media, .agents, .files])
-        #expect(TabOrder.repaired(["files", "media"]) == [.media, .agents, .files])
+        #expect(TabOrder.default == [.agents, .media, .system, .files])
+        #expect(TabOrder.repaired(nil) == [.agents, .media, .system, .files])
+        #expect(TabOrder.repaired(["media", "agents"]) == [.media, .agents, .system, .files])
+        #expect(TabOrder.repaired(["files", "media"]) == [.media, .agents, .system, .files])
     }
 
     @Test func filesCannotBeMovedToTheFront() {
         #expect(TabOrder.reorderable == [.agents, .media])
-        #expect(TabOrder.moving(.files, toFrontOf: [.media, .agents, .files]) == [.media, .agents, .files])
-        #expect(TabOrder.moving(.media, toFrontOf: TabOrder.default) == [.media, .agents, .files])
+        #expect(TabOrder.moving(.files, toFrontOf: [.media, .agents, .system, .files]) == [.media, .agents, .system, .files])
+        #expect(TabOrder.moving(.media, toFrontOf: TabOrder.default) == [.media, .agents, .system, .files])
     }
 
     @Test func filesOpensOnlyWhenNothingElseHasContent() {
@@ -133,5 +133,28 @@ struct IslandTabTests {
     @Test func filesNeverHasAFaceOrTheLeftBubble() {
         #expect(TabSelection.face(order: TabOrder.default, mediaHasFace: false, agentsHasFace: false) == .none)
         #expect(TabSelection.bubble(order: TabOrder.default, mediaHasFace: true, agentsHasFace: true) == .media)
+    }
+
+    @Test func systemSitsBetweenMediaAndFiles() {
+        #expect(TabOrder.default == [.agents, .media, .system, .files])
+        // An order saved before the tab existed gains it in its place.
+        #expect(TabOrder.repaired(["agents", "media", "files"]) == [.agents, .media, .system, .files])
+        #expect(TabOrder.repaired(["media", "agents", "files"]) == [.media, .agents, .system, .files])
+    }
+
+    @Test func systemCannotBeMovedToTheFront() {
+        #expect(TabOrder.reorderable == [.agents, .media])
+        #expect(TabOrder.moving(.system, toFrontOf: TabOrder.default) == TabOrder.default)
+    }
+
+    @Test func nothingOpensOnTheSystemTabByItself() {
+        func open(media: Bool, agents: Bool, files: Bool) -> IslandTab {
+            TabSelection.tabToOpen(
+                order: TabOrder.default, attention: .none, mediaHasFace: false, agentsHasFace: false,
+                mediaHasContent: media, agentsHasContent: agents, filesHasContent: files)
+        }
+        #expect(open(media: false, agents: false, files: false) == .agents)
+        #expect(open(media: false, agents: false, files: true) == .files)
+        #expect(open(media: true, agents: false, files: true) == .media)
     }
 }
