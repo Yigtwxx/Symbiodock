@@ -88,16 +88,18 @@ söner.
 
 - Yalnızca `System` sekmesi görünürken ölçülür. Sekme gizlenince ya da ada kapanınca durur; ada
   kapalıyken hiçbir şey çalışmaz. Son değerler saklanır, sekme yeniden açılınca hemen görünür.
-- Kullanım, sıcaklık ve ağ hızı 2 sn'de bir. CPU ve ağ hızı iki örnek ister; ilk iki örnek
-  0,5 sn arayla alınır.
+- Kullanım ve ağ hızı 2 sn'de bir, sıcaklık 6 sn'de bir (her üçüncü örnekte). CPU ve ağ hızı iki
+  örnek ister; ilk iki örnek 0,5 sn arayla alınır.
 - İki örnek arası 10 sn'yi geçerse (uyku) ya da sayaç geri giderse o tur hız ve CPU değeri
   verilmez, grafik sıfırlanır.
 - Çubuklar ve grafik yalnızca yeni örnekle değişir; çubuk geçişi Core Animation'da (0,6 sn).
   Kare kare çizim yok.
 - CPU: çekirdeklerin toplam meşguliyeti (user + system + nice). RAM: uygulama + wired +
   sıkıştırılmış bellek (Activity Monitor'ün "Memory Used"ı). GPU: `Device Utilization %`.
-- Sıcaklık: CPU için çekirdek sensörlerinin, GPU için GPU sensörlerinin ortalaması; 10-120 °C
-  dışındaki okumalar atılır. Intel Mac'te bu fazda `—`.
+- Sıcaklık: CPU için `Tp**` ve `Te**`, GPU için `Tg**` anahtarlarının **ortancası**; 10-120 °C
+  dışındaki okumalar atılır. Ortalama değil, çünkü çoğu anahtar 40 °C'nin altını göstermiyor ve
+  bazıları tepe değerini tutuyor. Bir anahtarı okumak ~170 µs sürdüğü için ilk okumada geçerli
+  çıkanlardan eşit aralıklı en fazla 24 CPU ve 8 GPU anahtarı seçilir. Intel Mac'te bu fazda `—`.
 - Ağ hızı: birincil arayüzün (varsayılan rota) bayt sayaçları.
 
 ### Ağdaki cihazlar
@@ -136,13 +138,15 @@ söner.
 - `SystemSnapshot`: `cpu`, `gpu`, `memory`, `temperatures`, `network`; `Sendable`, `Equatable`.
 - `CPUUsage`: tick farkından kullanım. `MemoryUsage`: sayfa sayılarından kullanılan bayt.
 - `NetworkRate`: sayaç farkından bayt/sn, sıfırlama kuralıyla. `ByteRateFormat`: `1.7 MB/s`.
-- `SMCTemperatureKeys`: anahtar adını CPU / GPU diye sınıflar, aralık dışını atar, ortalar.
-- `ARPTableParser`: `sysctl` rota dökümünün bayt ayrıştırması (kaydedilmiş örnekle test).
-- `LANDevices`: birleştirme, eleme, ad temizleme, sıralama, sayım, 3 dk kuralı.
-- `SubnetSweep`: taranacak adresler ve /22 sınırı.
-- `SystemHistory`: grafiğin son 30 örneği ve ortak ölçeği.
-- `IslandTab.system`; `IslandState`: `system`, `networkHistory`, `lanDevices`,
-  `localNetworkDenied` ve setter'ları ("yalnızca değişince ata").
+- `TemperatureKeys`: anahtar adını CPU / GPU diye sınıflar, aralık dışını atar, ortancayı alır,
+  eşit aralıklı alt küme seçer.
+- `SystemLabels`: `31%`, `45°`, `1.7 MB/s`, `18.5`; sıcaklık kademesi (80 ve 95 °C).
+- `SystemMeter`: ham okumalardan `SystemSnapshot` üretir (uyku ve sayaç sıfırlama kuralı) ve
+  `NetworkHistory`'yi (son 30 örnek, ortak ölçek) tutar.
+- `IslandTab.system`; `IslandState`: `system`, `networkHistory`, `setSystem(_:history:)`
+  ("yalnızca değişince ata").
+- Bölüm B'de: cihaz listesi (birleştirme, eleme, ad temizleme, sıralama, sayım, 3 dk kuralı),
+  `SubnetSweep` (taranacak adresler, /22 sınırı), `lanDevices`, `localNetworkDenied`.
 
 **Uygulama** (`Symbiodock/System/`):
 
@@ -150,9 +154,11 @@ söner.
   `SMCReader` (`AppleSMC`; anahtarlar bir kez sayılır), `ThermalFallback`
   (`IOHIDEventSystemClient`, `DockProbe` gibi `dlsym` ile), `NetworkCounterReader`
   (`NET_RT_IFLIST2`, birincil arayüz `SCDynamicStore`'dan).
-- `LANScanner`: ARP okuma, tarama, ad çözme.
-- `SystemCoordinator` (`@MainActor`, `AgentSessionCoordinator` kalıbı): `setVisible(_:)`.
-- `DemoSystem`: `SYMBIODOCK_DEMO_SYSTEM=1|denied` (yalnızca Debug).
+- `SystemReader` (actor): bunları tek okumada toplar. `SystemCoordinator` (`@MainActor`):
+  `IslandState`'i gözler (`withObservationTracking`), sekme görünürken döngüyü çalıştırır.
+- Bölüm B'de: `LANScanner` (komşu tablosu, tarama, ad çözme).
+- `DemoSystem`: `SYMBIODOCK_DEMO_SYSTEM=1|hot` (Bölüm B'de `denied`); `SYMBIODOCK_PRINT_SYSTEM=1`
+  pencere açmadan dört okuma yazdırır (ikisi de yalnızca Debug).
 - Görünüm: `Symbiodock/Island/System/SystemContent.swift`; çubuk için Core Animation katmanı.
 - Bağlantılar: `TabStrip`, `TabGlyph`, `ExpandedIsland`, `IslandView`, `AppDelegate`,
   `IslandMenu`, `DebugRender`, `project.yml`, `Info.plist`.
@@ -160,13 +166,15 @@ söner.
 ## Sıra
 
 - **Bölüm A (izin gerektirmez):** sekme, simge, CPU / GPU / RAM, sıcaklıklar, ağ hızı ve grafiği;
-  `Devices` paneli yalnızca ARP'de duranları IP ile gösterir. Sonunda sahibi dener.
-- **Bölüm B (izinli):** tarama, adlar, izin reddi durumu, menü maddesi.
+  `Devices` paneli başlığıyla durur, içinde `—`. Sonunda sahibi dener.
+  Plan: `docs/superpowers/plans/2026-11-21-system-tab-a.md`.
+- **Bölüm B (izinli):** cihaz listesi, tarama, adlar, izin reddi durumu, menü maddesi. Planı,
+  aşağıdaki varsayımlar sahibinin izin penceresine basmasıyla denendikten sonra yazılır.
 
 ## Doğrulama
 
-- Çekirdek testleri; ekran dışı görüntüler `expanded-system.png`, `expanded-system-denied.png`,
-  `tab-glyphs.png`.
+- Çekirdek testleri; ekran dışı görüntüler `expanded-system.png`, `expanded-system-hot.png`,
+  `expanded-system-empty.png`, `tab-glyphs.png` (Bölüm B'de `expanded-system-denied.png`).
 - Canlı karşılaştırma: CPU ve RAM Activity Monitor ile, GPU `ioreg` ile, sıcaklık bağımsız bir SMC
   okumasıyla, cihazlar `arp -an` ile.
 - CPU maliyeti (`top` + `sample`): sekme kapalıyken %0; açıkken ortalama %1'in altı hedef.
@@ -175,11 +183,20 @@ söner.
 
 Her biri ilgili görevin ilk işi olarak denenir; sonucu `CLAUDE.md`'ye yazılır.
 
-- **SMC anahtarları.** Adlar çipe göre değişiyor, yalnızca M4 Pro'da görüldü; hangi anahtarın
-  hangi çekirdek olduğu yük altında denenecek (çoğu `Tp0*` boşta tam 40,0 okuyor, yer tutucu
-  olabilir). Yedek: `tdie` sensörlerinin ortalaması, CPU ve GPU'da aynı değer.
-- **ARP okuma.** Tablo Terminal'den okundu; uygulamanın içinden izinsiz okunduğu denenmedi.
-  Yedek: Bölüm A'da panel boş kalır, liste Bölüm B'de izinle gelir.
+- **SMC anahtarları (2026-11-21'de yük altında denendi).** 14 `yes` süreciyle 14 sn: `Tp**`
+  anahtarlarının 90'ı 6 °C'den çok yükseldi; boşta tam 40,0 okuyan `Tp0*` anahtarları 50-58'e
+  çıktı (40 taban değeri, yer tutucu değil), `Tp1i` gibi tabansız olanlar 34'ten 46'ya. Swift'ten
+  okuma: 3462 anahtarın sayımı 24 ms, 134 anahtarın okunması 23 ms; ortanca CPU 44,0 °C, GPU
+  36,6 °C (ortalama 47,2 / 38,7; en yüksek 75,0 / 44,7). Adlar çipe göre değişiyor, başka çipte
+  denenmedi; GPU yükü altında denenmedi. Yedek: `tdie` sensörlerinin ortalaması, CPU ve GPU'da
+  aynı değer.
+- **Komşu tablosu (2026-11-21'de denendi, varsayım yanlış çıktı).** `arp -an` 4 cihaz
+  gösterirken Terminal'den çalışan sıradan bir süreç `sysctl`'den (`NET_RT_FLAGS` +
+  `RTF_LLINFO`, `AF_INET`) 0 bayt alıyor; `NET_RT_DUMP` de IPv4 komşularını vermiyor. `arp`'ın
+  özel yetkisi (entitlement) yok, yani çekirdek tabloyu Apple'ın kendi araçları dışındakilerden
+  saklıyor. İzin verilince uygulamanın okuyup okuyamadığı Bölüm B'nin ilk denemesi. Yedekler:
+  izin verildikten sonra `/usr/sbin/arp -an` çıktısını okumak (izin reddedilmişse kullanılmaz);
+  o da olmazsa cihazları kendi yoklamamızın cevaplarından (ICMP) ve Bonjour'dan bulmak.
 - **Tarama.** UDP paketinin izin penceresini açtığı ve tabloyu doldurduğu denenmedi. Yedek: ICMP
   (`SOCK_DGRAM`).
 - **Adlar.** Ters DNS ve mDNS ters sorgusunun ad döndürdüğü denenmedi. Yedek: Bonjour servis
