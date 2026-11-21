@@ -86,17 +86,33 @@ public enum LANDevices {
 
 /// Device names: from the wire, and into what a person would call the device.
 public enum LANNames {
+    /// A shown name is never longer than this.
+    public static let maximumLength = 40
+
     /// "Living-Room-TV.local." → "Living Room TV": the first label, its hyphens as spaces.
     /// Nil when nothing readable is left.
+    ///
+    /// The name comes from another device on the network, so it is not trusted: control and
+    /// format characters (line breaks, direction overrides) are dropped and the length is
+    /// capped before it is shown.
     public static func display(_ host: String) -> String? {
         let label = host.split(separator: ".", omittingEmptySubsequences: false).first.map(String.init) ?? ""
-        let words = label.split(separator: "-", omittingEmptySubsequences: true)
+        let safe = String(String.UnicodeScalarView(label.unicodeScalars.filter { scalar in
+            switch scalar.properties.generalCategory {
+            case .control, .format, .surrogate, .privateUse, .unassigned, .lineSeparator, .paragraphSeparator:
+                false
+            default:
+                true
+            }
+        }))
+        let words = safe.split(separator: "-", omittingEmptySubsequences: true)
         let name = words.joined(separator: " ").trimmingCharacters(in: .whitespaces)
-        return name.isEmpty ? nil : name
+        return name.isEmpty ? nil : String(name.prefix(maximumLength))
     }
 
     /// A domain name as DNS carries it: labels, each led by its length, up to a zero.
-    /// Nil for an empty name, a label that runs past the end, or a compression pointer.
+    /// Nil for an empty name, a label that runs past the end, a name cut off before its
+    /// closing zero, or a compression pointer.
     public static func host(fromWire bytes: [UInt8]) -> String? {
         var labels: [String] = []
         var index = 0
@@ -106,7 +122,9 @@ public enum LANNames {
             labels.append(String(decoding: bytes[(index + 1)..<(index + 1 + count)], as: UTF8.self))
             index += 1 + count
         }
-        return labels.isEmpty ? nil : labels.joined(separator: ".")
+        // The bytes ran out before the closing zero: the answer was cut short.
+        guard index < bytes.count, !labels.isEmpty else { return nil }
+        return labels.joined(separator: ".")
     }
 
     /// The name to ask for to learn an address's host name: "7.1.168.192.in-addr.arpa".

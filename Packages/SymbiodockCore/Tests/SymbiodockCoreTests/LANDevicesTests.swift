@@ -68,6 +68,18 @@ struct LANDevicesTests {
         // A label that runs past the end, and a compression pointer, are not read.
         #expect(LANNames.host(fromWire: [9, 0x61, 0x62]) == nil)
         #expect(LANNames.host(fromWire: [0xC0, 0x0C]) == nil)
+        // Cut off before its closing zero.
+        #expect(LANNames.host(fromWire: [5] + Array("phone".utf8)) == nil)
+    }
+
+    /// The name comes from another device: it cannot break a line, turn the text around or
+    /// fill the row.
+    @Test func aNameFromTheNetworkIsMadeHarmless() {
+        #expect(LANNames.display("TV\u{202E}evil\nline\u{0}\u{200B}.local") == "TVevilline")
+        #expect(LANNames.display("\u{202E}\u{200F}.local") == nil)
+        let long = String(repeating: "a", count: 63)
+        #expect(LANNames.display(long + ".local")?.count == 40)
+        #expect(LANNames.display("Zoë's-Büro.local") == "Zoë's Büro")
     }
 
     @Test func theReverseQuestionSpellsTheAddressBackwards() {

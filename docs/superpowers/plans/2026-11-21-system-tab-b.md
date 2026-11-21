@@ -624,6 +624,8 @@ public enum LANLabels {
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -5`
 Expected: all tests pass (802 + 21 = 823).
 
+After the review two things were hardened in `LANNames` (see the file; this plan's listing above is the first version): a wire name cut off before its closing zero is refused, and `display` drops control and format characters and caps the name at 40 characters, because the name comes from another device. One test was added: 824.
+
 - [ ] **Step 5: Commit**
 
 ```bash
@@ -766,7 +768,7 @@ After `setSystem(_:history:)`:
 - [ ] **Step 4: Run the tests and see them pass**
 
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -5`
-Expected: all tests pass (823 + 5 = 828).
+Expected: all tests pass (824 + 5 = 829).
 
 - [ ] **Step 5: Build the app and commit**
 
@@ -1544,7 +1546,7 @@ xcodegen generate && xcodebuild -project Symbiodock.xcodeproj -scheme Symbiodock
 SYMBIODOCK_RENDER_DIR=build/render build/Build/Products/Debug/Symbiodock.app/Contents/MacOS/Symbiodock
 ```
 
-Expected: 828 tests pass, `** BUILD SUCCEEDED **`, the renders are written.
+Expected: 829 tests pass, `** BUILD SUCCEEDED **`, the renders are written.
 
 - [ ] **Step 2: Write the status**
 
