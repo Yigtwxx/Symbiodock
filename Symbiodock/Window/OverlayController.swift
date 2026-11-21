@@ -137,12 +137,12 @@ final class OverlayController {
         // Nothing changed (e.g. unrelated screen-parameter notification): keep the panel.
         if panel != nil, metrics == self.metrics { return }
         // Only the visible frame moved (Dock or menu bar auto-hide): rebuilding would collapse
-        // the island. A floating island follows through the observable geometry instead.
+        // the island. An island on the Dock follows through the observable geometry instead.
         if panel != nil, var stored = self.metrics {
             stored.visibleFrame = metrics.visibleFrame
             if stored == metrics {
                 self.metrics = metrics
-                geometry.visibleFrame = metrics.localVisibleFrame
+                geometry.visibleFrame = metrics.localDockFrame
                 refreshPointer()
                 return
             }
@@ -155,7 +155,7 @@ final class OverlayController {
 
         self.metrics = metrics
         geometry.notch = NotchGeometry.notchRect(for: metrics)
-        geometry.visibleFrame = metrics.localVisibleFrame
+        geometry.visibleFrame = metrics.localDockFrame
         geometry.screenSize = metrics.frame.size
         geometry.hasPhysicalNotch = metrics.hasNotch
 

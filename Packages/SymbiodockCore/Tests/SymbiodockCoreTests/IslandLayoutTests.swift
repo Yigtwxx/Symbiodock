@@ -267,27 +267,56 @@ struct IslandLayoutTests {
         #expect(isFinite(frame(.edge(.top, fraction: 0.5), visible: .zero)))
     }
 
-    @Test func floatingIslandNeverSitsUnderTheNotch() {
-        // With the menu bar hidden the visible frame reaches the top of the display.
+    @Test func islandOnTheTopEdgeSlidesAsideFromTheNotch() {
+        // Docked against the whole display, the top edge runs through the camera housing.
         let full = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        func top(_ fraction: Double, _ phase: IslandPhase) -> CGRect {
+            IslandLayout.frame(
+                anchor: .edge(.top, fraction: fraction), phase: phase, notch: notch,
+                visibleFrame: full, screenSize: screen, showsWings: false)
+        }
 
-        let middle = IslandLayout.frame(
-            anchor: .edge(.top, fraction: 0.5), phase: .collapsed, notch: notch,
-            visibleFrame: full, screenSize: screen, showsWings: false)
-        #expect(!middle.intersects(notch))
-        #expect(middle == CGRect(x: 656, y: 40, width: 200, height: 36))
+        // Left of the notch's middle it stays on the bezel and stops 8 pt short of the notch.
+        #expect(top(0.4, .collapsed) == CGRect(x: 454, y: 0, width: 200, height: 36))
+        #expect(top(0.4, .expanded) == CGRect(x: 54, y: 0, width: 600, height: 170))
+        // Right of it, the same on the other side.
+        #expect(top(0.6, .collapsed) == CGRect(x: 858, y: 0, width: 200, height: 36))
+        #expect(top(0.6, .expanded) == CGRect(x: 858, y: 0, width: 600, height: 170))
 
-        let expanded = IslandLayout.frame(
-            anchor: .edge(.top, fraction: 0.5), phase: .expanded, notch: notch,
-            visibleFrame: full, screenSize: screen, showsWings: false)
-        #expect(!expanded.intersects(notch))
-        #expect(expanded.minY == 40)
+        // Clear of the notch when closed, it does not move; only the open island shifts.
+        #expect(top(0.25, .collapsed) == CGRect(x: 278, y: 0, width: 200, height: 36))
+        #expect(top(0.25, .expanded).maxX == 654)
 
-        // Away from the notch the top edge is still the top edge.
-        let aside = IslandLayout.frame(
-            anchor: .edge(.top, fraction: 0.1), phase: .collapsed, notch: notch,
-            visibleFrame: full, screenSize: screen, showsWings: false)
-        #expect(aside.minY == 0)
+        // Away from the notch nothing changes.
+        #expect(top(0.1, .collapsed).minY == 0)
+        #expect(top(0.1, .expanded).minX == 0)
+    }
+
+    @Test func islandHangsBelowTheNotchWhenItCannotOpenBesideIt() {
+        // A scaled-down display: 479.5 pt beside the notch, less than the open island.
+        let narrow = CGSize(width: 1147, height: 745)
+        let notch = CGRect(x: 479.5, y: 0, width: 188, height: 32)
+        let full = CGRect(origin: .zero, size: narrow)
+        for phase in [IslandPhase.collapsed, .expanded] {
+            let rect = IslandLayout.frame(
+                anchor: .edge(.top, fraction: 0.45), phase: phase, notch: notch,
+                visibleFrame: full, screenSize: narrow, showsWings: false)
+            #expect(!rect.intersects(notch))
+            #expect(rect.minY == 40)
+        }
+    }
+
+    @Test func sideStripNeverSlidesOffItsEdge() {
+        // A strip at the top of a narrow display opens across the notch: it moves down,
+        // not sideways, so it stays on its edge.
+        let narrow = CGSize(width: 700, height: 600)
+        let notch = CGRect(x: 256, y: 0, width: 188, height: 32)
+        let rect = IslandLayout.frame(
+            anchor: .edge(.left, fraction: 0), phase: .collapsed, notch: notch,
+            visibleFrame: CGRect(origin: .zero, size: narrow), screenSize: narrow,
+            showsWings: false)
+        #expect(rect.minX == 0)
+        #expect(rect.minY == 40)
     }
 
     @Test func hoveringADockedIslandNeverMovesItFromUnderThePointer() {

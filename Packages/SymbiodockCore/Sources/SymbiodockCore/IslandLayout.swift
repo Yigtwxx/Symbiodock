@@ -52,7 +52,8 @@ extension IslandLayout {
     /// Size of the island when it is collapsed against the left or right edge: a strip that
     /// lies along the edge instead of sticking out from it.
     public static let sideCollapsedSize = CGSize(width: 36, height: 170)
-    /// Gap (pt) kept below the notch by an island that had to move out from under it.
+    /// Gap (pt) kept to the notch by an island that had to move out from under it,
+    /// below it or beside it.
     public static let notchClearance: CGFloat = 8
     /// Radius of the island's free corners while collapsed, the same as the notch's.
     public static let collapsedCornerRadius: CGFloat = 10
@@ -170,12 +171,23 @@ extension IslandLayout {
 
         let expanded = dockedSize(at: anchor, isExpanded: true)
         var rect = place(dockedSize(at: anchor, isExpanded: isExpanded))
-        // With the menu bar hidden the visible frame reaches the top of the display, and an
-        // island docked there could end up behind the camera housing. Hang it below instead.
-        // Collapsed and expanded must agree: if only the wider, expanded island met the
-        // notch, hovering would move the island out from under the pointer.
+        // Where the frame reaches the top of the display (the island docks against the
+        // bezel, or the menu bar is hidden), an island on the top edge could end up behind
+        // the camera housing. Collapsed and expanded must agree on what happens then: if
+        // only the wider, expanded island met the notch, hovering would move the island
+        // out from under the pointer.
         if rect.intersects(notch) || place(expanded).intersects(notch) {
-            rect.origin.y = max(rect.origin.y, notch.maxY + notchClearance)
+            // It stays on the edge and slides aside, as long as it can also open there.
+            let collapsedMidX = place(dockedSize(at: anchor, isExpanded: false)).midX
+            let beside = collapsedMidX < notch.midX
+                ? (min: usable.minX, max: notch.minX - notchClearance)
+                : (min: notch.maxX + notchClearance, max: usable.maxX)
+            if !isSideDocked(anchor), beside.max - beside.min >= expanded.width {
+                rect.origin.x = min(max(rect.origin.x, beside.min), beside.max - rect.width)
+            } else {
+                // No room beside the notch (or a strip, which belongs to its edge): hang below.
+                rect.origin.y = max(rect.origin.y, notch.maxY + notchClearance)
+            }
         }
         return rect
     }

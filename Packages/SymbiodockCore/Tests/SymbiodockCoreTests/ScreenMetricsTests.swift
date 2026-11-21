@@ -62,4 +62,31 @@ struct ScreenMetricsTests {
 
         #expect(metrics.localVisibleFrame == CGRect(x: 0, y: 32, width: 1512, height: 880))
     }
+
+    @Test func localDockFrameReachesTheBezelAtTheTopAndTheDockBelow() {
+        // A second display to the left: its global origin is not zero, its local one is.
+        let metrics = ScreenMetrics(
+            frame: CGRect(x: -1512, y: 0, width: 1512, height: 982),
+            visibleFrame: CGRect(x: -1512, y: 70, width: 1512, height: 880),
+            safeAreaTop: 32, auxiliaryTopLeftWidth: 662, auxiliaryTopRightWidth: 662)
+
+        #expect(metrics.localDockFrame == CGRect(x: 0, y: 0, width: 1512, height: 912))
+    }
+
+    @Test func localDockFrameStopsAtADockOnTheSide() {
+        let metrics = ScreenMetrics(
+            frame: CGRect(x: 0, y: 0, width: 1512, height: 982),
+            visibleFrame: CGRect(x: 60, y: 0, width: 1452, height: 950),
+            safeAreaTop: 32, auxiliaryTopLeftWidth: 662, auxiliaryTopRightWidth: 662)
+
+        #expect(metrics.localDockFrame == CGRect(x: 60, y: 0, width: 1452, height: 982))
+    }
+
+    @Test func localDockFrameFallsBackToTheWholeDisplay() {
+        let metrics = ScreenMetrics(
+            frame: CGRect(x: 0, y: 0, width: 1512, height: 982), visibleFrame: .zero,
+            safeAreaTop: 0, auxiliaryTopLeftWidth: nil, auxiliaryTopRightWidth: nil)
+
+        #expect(metrics.localDockFrame == CGRect(x: 0, y: 0, width: 1512, height: 982))
+    }
 }

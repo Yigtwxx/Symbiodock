@@ -3,11 +3,13 @@ import Foundation
 import Observation
 
 /// The display facts the island is laid out against, in panel-local coordinates.
-/// Observable so views follow a Dock or menu bar change without the panel being rebuilt.
+/// Observable so views follow a Dock change without the panel being rebuilt.
 @MainActor
 @Observable
 final class IslandGeometry {
     var notch: CGRect = .zero
+    /// The area the island docks against (`ScreenMetrics.localDockFrame`). Since 2026-11-21
+    /// not the system's visible frame: at the top it reaches the bezel, through the menu bar.
     var visibleFrame: CGRect = .zero
     var screenSize: CGSize = .zero
     /// False on displays where the notch is only a stand-in drawn by us.
