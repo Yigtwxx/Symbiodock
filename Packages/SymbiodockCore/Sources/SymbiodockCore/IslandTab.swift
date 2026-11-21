@@ -16,16 +16,17 @@ public enum TabOrder {
     public static let reorderable: [IslandTab] = [.agents, .media]
 
     /// Makes any stored list hold every tab exactly once: unknown and repeated values are
-    /// dropped, missing tabs are appended in default order, and Files is always moved last.
+    /// dropped, missing tabs are appended in default order, and the tabs that cannot be put
+    /// first (System, then Files) always end the list, whatever the stored list says.
     public static func repaired(_ raw: [String]?) -> [IslandTab] {
         var order: [IslandTab] = []
         for value in raw ?? [] {
             if let tab = IslandTab(rawValue: value), !order.contains(tab) { order.append(tab) }
         }
         for tab in `default` where !order.contains(tab) { order.append(tab) }
-        order.removeAll { $0 == .files }
-        order.append(.files)
-        return order
+        let fixed = `default`.filter { !reorderable.contains($0) }
+        order.removeAll { fixed.contains($0) }
+        return order + fixed
     }
 
     public static func moving(_ tab: IslandTab, toFrontOf order: [IslandTab]) -> [IslandTab] {

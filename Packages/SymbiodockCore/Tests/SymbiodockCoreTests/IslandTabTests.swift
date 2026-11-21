@@ -145,6 +145,8 @@ struct IslandTabTests {
     @Test func systemCannotBeMovedToTheFront() {
         #expect(TabOrder.reorderable == [.agents, .media])
         #expect(TabOrder.moving(.system, toFrontOf: TabOrder.default) == TabOrder.default)
+        // Nor by a stored list that names it first.
+        #expect(TabOrder.repaired(["system", "files", "media"]) == [.media, .agents, .system, .files])
     }
 
     @Test func nothingOpensOnTheSystemTabByItself() {

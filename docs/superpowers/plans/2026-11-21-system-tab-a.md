@@ -909,7 +909,7 @@ public enum IslandTab: String, CaseIterable, Sendable {
     public static let reorderable: [IslandTab] = [.agents, .media]
 ```
 
-Nothing else changes there: `repaired` appends a missing tab in default order and moves Files last, `tabToOpen` and `face` pass over tabs they do not name.
+`repaired` appends a missing tab in default order; after the review it also moves every tab that cannot be put first (System, then Files) to the end, so a stored list that names System first cannot make the island open on it. `tabToOpen` and `face` pass over tabs they do not name.
 
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -5`
 Expected: all tests pass (796 + 4 = 800).

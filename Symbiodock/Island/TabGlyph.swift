@@ -69,10 +69,6 @@ enum TabGlyphOutline {
         return outline(of: [Part(bars)])
     }()
 
-    /// Two held files: a sheet in front with its corner folded and the edge of one behind it.
-    /// Both are tall like the shelf's cards. The fold is what makes them documents: plain
-    /// rounded squares read as "copy" or a chain link, and a card with the top of another
-    /// straight above it reads as a padlock or a bag.
     /// A chip: the processor the tab measures. A small rounded square with two legs on each
     /// side; the legs end on the square's own line, so they join it.
     static let system: Path = {
@@ -93,6 +89,10 @@ enum TabGlyphOutline {
         ])
     }()
 
+    /// Two held files: a sheet in front with its corner folded and the edge of one behind it.
+    /// Both are tall like the shelf's cards. The fold is what makes them documents: plain
+    /// rounded squares read as "copy" or a chain link, and a card with the top of another
+    /// straight above it reads as a padlock or a bag.
     static let files = outline(of: [
         Part(card(x0: 5.75, y0: 2.25, x1: 11.25, y1: 9.25, folded: 0)),
         Part(card(x0: 2.75, y0: 4.75, x1: 8.25, y1: 11.75, folded: 2.25), hidesBehind: true),
