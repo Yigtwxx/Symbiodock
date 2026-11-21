@@ -988,6 +988,8 @@ actor LANScanner {
             return Result(devices: devices(on: route), canScan: true, isBlocked: true)
         }
         try? await Task.sleep(for: Self.settle)
+        // Stopped meanwhile: nobody is asked for a name any more.
+        guard !Task.isCancelled else { return Result(devices: devices(on: route), canScan: true) }
         let unnamed = devices(on: route).map(\.address).filter { !asked.contains($0) }.prefix(Self.nameLimit)
         asked.formUnion(unnamed)
         await withTaskGroup(of: (LANAddress, String?).self) { group in
@@ -1091,8 +1093,9 @@ In `Symbiodock/System/SystemCoordinator.swift`:
     func stop() {
         isStopped = true
         endLoop()
+        // The task clears `scanTask` itself when it ends, so a scan asked for after a restart
+        // cannot overlap one that is still winding down.
         scanTask?.cancel()
-        scanTask = nil
     }
 ```
 
@@ -1120,7 +1123,9 @@ In `Symbiodock/System/SystemCoordinator.swift`:
         scanTask = Task { [weak self] in
             guard let scanner = self?.scanner else { return }
             let result = await scanner.scan()
-            guard let self, !Task.isCancelled else { return }
+            guard let self else { return }
+            // The end is always reported, also for a scan the coordinator was stopped during:
+            // the state waits for it, and the button with it.
             self.onDevices(result.devices, result.canScan)
             self.onScanEnd(result.isBlocked)
             Self.log.notice(

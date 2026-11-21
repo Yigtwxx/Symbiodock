@@ -64,8 +64,9 @@ final class SystemCoordinator {
     func stop() {
         isStopped = true
         endLoop()
+        // The task clears `scanTask` itself when it ends, so a scan asked for after a restart
+        // cannot overlap one that is still winding down.
         scanTask?.cancel()
-        scanTask = nil
     }
 
     /// Calls `refresh` whenever what `isWatching` read has changed.
@@ -94,7 +95,9 @@ final class SystemCoordinator {
         scanTask = Task { [weak self] in
             guard let scanner = self?.scanner else { return }
             let result = await scanner.scan()
-            guard let self, !Task.isCancelled else { return }
+            guard let self else { return }
+            // The end is always reported, also for a scan the coordinator was stopped during:
+            // the state waits for it, and the button with it.
             self.onDevices(result.devices, result.canScan)
             self.onScanEnd(result.isBlocked)
             Self.log.notice(

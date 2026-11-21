@@ -42,6 +42,8 @@ actor LANScanner {
             return Result(devices: devices(on: route), canScan: true, isBlocked: true)
         }
         try? await Task.sleep(for: Self.settle)
+        // Stopped meanwhile: nobody is asked for a name any more.
+        guard !Task.isCancelled else { return Result(devices: devices(on: route), canScan: true) }
         let unnamed = devices(on: route).map(\.address).filter { !asked.contains($0) }.prefix(Self.nameLimit)
         asked.formUnion(unnamed)
         await withTaskGroup(of: (LANAddress, String?).self) { group in
