@@ -1417,8 +1417,8 @@ private struct DevicesPanel: View {
                 LinearGradient(
                     stops: [
                         .init(color: .black, location: 0),
-                        .init(color: .black, location: 0.78),
-                        .init(color: .black.opacity(0.2), location: 1),
+                        .init(color: .black, location: 0.62),
+                        .init(color: .black.opacity(0.12), location: 1),
                     ],
                     startPoint: .top, endPoint: .bottom)
             } else {
