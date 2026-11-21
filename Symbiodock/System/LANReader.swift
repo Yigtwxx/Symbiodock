@@ -5,6 +5,8 @@ import SystemConfiguration
 
 /// Where this Mac is on its network.
 struct LANRoute: Equatable, Sendable {
+    /// The primary interface's name, such as "en0": a sweep is bound to it.
+    var interface: String
     var router: LANAddress?
     var own: LANAddress
     var mask: LANAddress
@@ -25,6 +27,7 @@ enum LANReader {
               let mask = (own["SubnetMasks"] as? [String])?.first.flatMap(LANAddress.init)
         else { return nil }
         return LANRoute(
+            interface: interface,
             router: (global["Router"] as? String).flatMap(LANAddress.init), own: address, mask: mask)
     }
 

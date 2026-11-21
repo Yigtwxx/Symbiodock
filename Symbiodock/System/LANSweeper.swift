@@ -10,12 +10,20 @@ enum LANSweeper {
     /// The discard port: nothing answers it, and nothing needs to.
     private static let port: UInt16 = 9
 
-    static func sweep(_ hosts: [LANAddress]) -> SweepOutcome {
+    /// Sends through `interface` only: with a full-tunnel VPN the primary interface is a
+    /// tunnel, and nothing may be swept into one. Returns the addresses the system refused.
+    static func sweep(_ hosts: [LANAddress], interface: String) -> SweepOutcome {
+        var index = if_nametoindex(interface)
+        var outcome = SweepOutcome(sent: 0, refused: [])
+        guard index != 0 else { return outcome }
         let descriptor = socket(AF_INET, SOCK_DGRAM, 0)
-        guard descriptor >= 0 else { return SweepOutcome(sent: 0, refused: 0) }
+        guard descriptor >= 0 else { return outcome }
         defer { close(descriptor) }
+        // Not bound: not sent. The datagrams would otherwise follow the routing table.
+        guard setsockopt(
+            descriptor, IPPROTO_IP, IP_BOUND_IF, &index, socklen_t(MemoryLayout<UInt32>.size)) == 0
+        else { return outcome }
         _ = fcntl(descriptor, F_SETFL, O_NONBLOCK)
-        var outcome = SweepOutcome(sent: 0, refused: 0)
         for host in hosts {
             var target = sockaddr_in()
             target.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
@@ -30,7 +38,7 @@ enum LANSweeper {
             if result >= 0 {
                 outcome.sent += 1
             } else if errno == EHOSTUNREACH {
-                outcome.refused += 1
+                outcome.refused.insert(host)
             }
         }
         return outcome

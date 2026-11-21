@@ -275,8 +275,13 @@ private struct DevicesPanel: View {
     let onScan: () -> Void
 
     private static let rowHeight: CGFloat = 20
-    /// More rows than this are scrolled, and the list fades out at its lower edge.
-    private static let visibleRows = 4
+    /// The fade, and the room the last row is scrolled clear of it.
+    private static let fadeHeight: CGFloat = 14
+
+    /// More rows than this are scrolled, and the list fades out at its lower edge. The note
+    /// about the permission takes the place of one row.
+    private var visibleRows: Int { scan == .blocked ? 3 : 4 }
+    private var overflows: Bool { devices.count > visibleRows }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -342,10 +347,12 @@ private struct DevicesPanel: View {
                     row(device)
                 }
             }
+            // So that the last row can be scrolled out from under the fade.
+            .padding(.bottom, overflows ? Self.fadeHeight : 0)
         }
         .mask {
             // Fading out at the lower edge says that the list goes on.
-            if devices.count > Self.visibleRows {
+            if overflows {
                 LinearGradient(
                     stops: [
                         .init(color: .black, location: 0),

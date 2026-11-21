@@ -174,11 +174,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.state.setSystem(snapshot, history: history)
             },
             onDevices: { [weak self] devices, canScan in
-                self?.state.setLANDevices(devices, canScan: canScan)
+                guard let self else { return }
+                self.state.setLANDevices(devices, canScan: canScan)
+                // The note goes when the network does: the menu item follows the state.
+                self.islandMenu?.setLocalNetworkAccessNeeded(self.state.lanScan == .blocked)
             },
             onScanEnd: { [weak self] blocked in
-                self?.state.finishLANScan(blocked: blocked)
-                self?.islandMenu?.setLocalNetworkAccessNeeded(blocked)
+                guard let self else { return }
+                self.state.finishLANScan(blocked: blocked)
+                self.islandMenu?.setLocalNetworkAccessNeeded(self.state.lanScan == .blocked)
             })
         system.start()
         self.system = system

@@ -90,6 +90,14 @@ enum SystemHook {
         var count = 0
     }
 
+    private static func scanName(_ scan: LANScanState) -> String {
+        switch scan {
+        case .idle: "idle"
+        case .scanning: "scanning"
+        case .blocked: "blocked"
+        }
+    }
+
     private static func checkLoop() {
         Task {
             let state = IslandState()
@@ -112,7 +120,7 @@ enum SystemHook {
                 let before = tally.count
                 try? await Task.sleep(for: .seconds(seconds))
                 let cpu = SystemLabels.percent(state.system?.cpu)
-                print("\(name), \(seconds) s: \(tally.count - before) measures, cpu \(cpu), graph \(state.networkHistory.samples.count), \(lists.count) device lists, \(state.lanDevices.count) devices, can scan \(state.canScanLAN)")
+                print("\(name), \(seconds) s: \(tally.count - before) measures, cpu \(cpu), graph \(state.networkHistory.samples.count), \(lists.count) device lists, \(state.lanDevices.count) devices, can scan \(state.canScanLAN), scan \(scanName(state.lanScan))")
             }
             await stretch("island closed", seconds: 3)
             state.setHovering(true)
