@@ -112,7 +112,7 @@ struct IslandView: View {
         let frame = IslandLayout.frame(
             anchor: state.anchor, phase: .collapsed, notch: geometry.notch,
             visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
-            showsWings: state.showsWings)
+            showsWings: state.showsWings, dock: geometry.dock)
         let edge = WorkingAurora.edge(
             dockedEdges: IslandLayout.dockedEdges(anchor: state.anchor),
             isVertical: IslandLayout.isSideDocked(state.anchor))
@@ -164,7 +164,7 @@ struct IslandView: View {
         let frame = IslandLayout.frame(
             anchor: state.anchor, phase: state.phase, notch: geometry.notch,
             visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
-            showsWings: state.showsWings)
+            showsWings: state.showsWings, dock: geometry.dock)
         // Wherever it rests, the island sits against its screen edge the way the notch does:
         // square on that edge, rounded on the free side.
         let radii = IslandLayout.cornerRadii(

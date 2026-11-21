@@ -48,16 +48,7 @@ public struct ScreenMetrics: Equatable, Sendable {
     /// `visibleFrame` in panel-local coordinates.
     public var localVisibleFrame: CGRect { localRect(fromGlobal: visibleFrame) }
 
-    /// The area the island docks against, in panel-local coordinates. At the top it reaches
-    /// the bezel, through the menu bar; on the other sides it stops where the Dock begins,
-    /// so the island lies on the bezel everywhere except on the Dock's side, where it lies
-    /// on the Dock.
-    public var localDockFrame: CGRect {
-        let visible = localVisibleFrame
-        let finite = visible.minX.isFinite && visible.width.isFinite && visible.maxY.isFinite
-        guard !visible.isNull, finite, visible.width > 0, visible.maxY > 0 else {
-            return CGRect(origin: .zero, size: frame.size)
-        }
-        return CGRect(x: visible.minX, y: 0, width: visible.width, height: visible.maxY)
-    }
+    /// The area the island docks against, in panel-local coordinates: the whole display, so
+    /// a docked island lies on the bezel itself. The Dock is handled apart (`DockGeometry`).
+    public var localDockFrame: CGRect { CGRect(origin: .zero, size: frame.size) }
 }

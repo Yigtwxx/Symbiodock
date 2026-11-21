@@ -27,6 +27,8 @@ final class OverlayController {
     private(set) var panel: OverlayPanel?
     private var metrics: ScreenMetrics?
     private var screenObserver: NSObjectProtocol?
+    private var appObservers: [NSObjectProtocol] = []
+    private var dockTask: Task<Void, Never>?
     private var tracker: MouseTracker?
     var pointerInside = false
     var hoverTask: Task<Void, Never>?
@@ -105,7 +107,44 @@ final class OverlayController {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.rebuildPanel() }
         }
+        // The Dock grows and shrinks as apps come and go, without the screen changing.
+        let workspace = NSWorkspace.shared.notificationCenter
+        appObservers = [
+            NSWorkspace.willLaunchApplicationNotification,
+            NSWorkspace.didLaunchApplicationNotification,
+            NSWorkspace.didTerminateApplicationNotification,
+        ].map { name in
+            workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.dockMayHaveChanged() }
+            }
+        }
         installDragMonitor()
+    }
+
+    // MARK: Dock
+
+    /// Reads where the Dock is; an island resting near it follows through the geometry.
+    private func refreshDock() {
+        guard let metrics else { return }
+        let dock = DockGeometry.obstacle(
+            screenSize: metrics.frame.size, visibleFrame: metrics.localVisibleFrame,
+            reported: DockProbe.rect(for: metrics))
+        guard dock != geometry.dock else { return }
+        geometry.dock = dock
+        refreshPointer()
+    }
+
+    /// The Dock resizes with an animation; look again once it has settled.
+    private func dockMayHaveChanged() {
+        dockTask?.cancel()
+        dockTask = Task { [weak self] in
+            for delay in [0.5, 1.0, 2.0] {
+                try? await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled, let self else { return }
+                // Never under a carried island: where it will land must not shift mid-drag.
+                if self.isIdle { self.refreshDock() }
+            }
+        }
     }
 
     /// Puts the island back on the notch. Ignored while it is being dragged or settling.
@@ -142,8 +181,7 @@ final class OverlayController {
             stored.visibleFrame = metrics.visibleFrame
             if stored == metrics {
                 self.metrics = metrics
-                geometry.visibleFrame = metrics.localDockFrame
-                refreshPointer()
+                refreshDock()
                 return
             }
         }
@@ -156,6 +194,9 @@ final class OverlayController {
         self.metrics = metrics
         geometry.notch = NotchGeometry.notchRect(for: metrics)
         geometry.visibleFrame = metrics.localDockFrame
+        geometry.dock = DockGeometry.obstacle(
+            screenSize: metrics.frame.size, visibleFrame: metrics.localVisibleFrame,
+            reported: DockProbe.rect(for: metrics))
         geometry.screenSize = metrics.frame.size
         geometry.hasPhysicalNotch = metrics.hasNotch
 
@@ -188,7 +229,7 @@ final class OverlayController {
         IslandLayout.frame(
             anchor: state.anchor, phase: phase, notch: geometry.notch,
             visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
-            showsWings: state.showsWings)
+            showsWings: state.showsWings, dock: geometry.dock)
     }
 
     /// Clicks reach the panel only while this is on. While the panel accepts events the
@@ -216,7 +257,7 @@ final class OverlayController {
         IslandLayout.hitRect(
             anchor: state.anchor, phase: state.phase, notch: geometry.notch,
             visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
-            showsWings: state.showsWings)
+            showsWings: state.showsWings, dock: geometry.dock)
     }
 
     /// While another app drags files with the island at the notch, the whole area the open
@@ -232,7 +273,7 @@ final class OverlayController {
         var band = IslandLayout.hitRect(
             anchor: state.anchor, phase: .collapsed, notch: geometry.notch,
             visibleFrame: geometry.visibleFrame, screenSize: geometry.screenSize,
-            showsWings: state.showsWings)
+            showsWings: state.showsWings, dock: geometry.dock)
         band = band.insetBy(dx: -Self.fileApproachMargin, dy: 0)
         band.size.height += Self.fileApproachMargin
         return band
@@ -414,6 +455,9 @@ final class OverlayController {
     }
 
     private func beginDrag(from press: CGPoint) {
+        // The carried island reaches for the Dock as it is now.
+        dockTask?.cancel()
+        refreshDock()
         // The island is always collapsed while it is dragged; it shrinks from what it is now.
         let current = islandFrame(phase: state.phase)
         let resting = islandFrame(phase: .collapsed)
@@ -431,7 +475,7 @@ final class OverlayController {
             rootRect: atNotch ? geometry.notch : resting,
             rootAnchor: state.anchor,
             rootIsPhysicalNotch: atNotch && geometry.hasPhysicalNotch,
-            notch: geometry.notch, visibleFrame: geometry.visibleFrame,
+            notch: geometry.notch, visibleFrame: geometry.visibleFrame, dock: geometry.dock,
             hasPhysicalNotch: geometry.hasPhysicalNotch)
         setAcceptsMouse(true)
     }
@@ -455,9 +499,12 @@ final class OverlayController {
         let wasDetached = state.phase == .detached
         // Strands holding a surface decide where the island goes; otherwise the nearest place.
         let held = session.heldSurface
+        // Over the Dock the island is released against the Dock, beside it against the bezel.
         let resolved = SnapResolver.anchor(
             forRelease: session.bodyCenter, attachedTo: held, notch: geometry.notch,
-            visibleFrame: geometry.visibleFrame)
+            visibleFrame: DockGeometry.frame(
+                forCenter: session.bodyCenter, display: geometry.visibleFrame,
+                dock: geometry.dock))
         state.endDrag(resolvedAnchor: resolved)
         session.settle(into: islandFrame(phase: .collapsed), anchor: state.anchor)
         Self.dragLog.notice("drag ended; detached: \(wasDetached), held: \(held != nil)")

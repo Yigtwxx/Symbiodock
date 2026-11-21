@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import Observation
+import SymbiodockCore
 
 /// The display facts the island is laid out against, in panel-local coordinates.
 /// Observable so views follow a Dock change without the panel being rebuilt.
@@ -9,8 +10,10 @@ import Observation
 final class IslandGeometry {
     var notch: CGRect = .zero
     /// The area the island docks against (`ScreenMetrics.localDockFrame`). Since 2026-11-21
-    /// not the system's visible frame: at the top it reaches the bezel, through the menu bar.
+    /// the whole display, not the system's visible frame: the island lies on the bezel.
     var visibleFrame: CGRect = .zero
+    /// The Dock, while it takes up room on this display: over it the island rests on the Dock.
+    var dock: DockObstacle?
     var screenSize: CGSize = .zero
     /// False on displays where the notch is only a stand-in drawn by us.
     var hasPhysicalNotch = false

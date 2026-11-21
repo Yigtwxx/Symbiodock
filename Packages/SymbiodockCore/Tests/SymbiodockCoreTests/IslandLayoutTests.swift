@@ -319,6 +319,117 @@ struct IslandLayoutTests {
         #expect(rect.minY == 40)
     }
 
+    // MARK: The Dock
+
+    /// The whole display, with a Dock in the middle of its bottom edge.
+    private var full: CGRect { CGRect(origin: .zero, size: screen) }
+    private var bottomDock: DockObstacle {
+        DockObstacle(rect: CGRect(x: 300, y: 916, width: 912, height: 66), edge: .bottom)
+    }
+
+    private func docked(
+        _ anchor: IslandAnchor, _ phase: IslandPhase = .collapsed, dock: DockObstacle?
+    ) -> CGRect {
+        IslandLayout.frame(
+            anchor: anchor, phase: phase, notch: notch, visibleFrame: full,
+            screenSize: screen, showsWings: false, dock: dock)
+    }
+
+    @Test func besideTheDockTheIslandLiesOnTheBezel() {
+        // Owner: beside the Dock it must not hang at the Dock's height.
+        #expect(docked(.edge(.bottom, fraction: 0.125), dock: bottomDock)
+            == CGRect(x: 89, y: 946, width: 200, height: 36))
+        #expect(docked(.corner(.bottomRight), dock: bottomDock)
+            == CGRect(x: 1312, y: 946, width: 200, height: 36))
+        #expect(docked(.corner(.bottomLeft), dock: bottomDock)
+            == CGRect(x: 0, y: 946, width: 200, height: 36))
+        // It opens from the bezel too, over the Dock's end if it has to.
+        #expect(docked(.edge(.bottom, fraction: 0.125), .expanded, dock: bottomDock)
+            == CGRect(x: 0, y: 812, width: 600, height: 170))
+    }
+
+    @Test func overTheDockTheIslandRestsOnTheDock() {
+        #expect(docked(.edge(.bottom, fraction: 0.5), dock: bottomDock)
+            == CGRect(x: 656, y: 880, width: 200, height: 36))
+        #expect(docked(.edge(.bottom, fraction: 0.5), .expanded, dock: bottomDock)
+            == CGRect(x: 456, y: 746, width: 600, height: 170))
+        // Near the Dock's end it moves in, so none of it hangs past the end.
+        #expect(docked(.edge(.bottom, fraction: 0.25), dock: bottomDock)
+            == CGRect(x: 300, y: 880, width: 200, height: 36))
+        #expect(docked(.edge(.bottom, fraction: 0.75), dock: bottomDock)
+            == CGRect(x: 1012, y: 880, width: 200, height: 36))
+    }
+
+    @Test func anIslandThatWouldOverlapTheDocksEndSlidesClearOfIt() {
+        // Centered at 283.5, left of the Dock's end at 300: it stays on the bezel, 8 pt away.
+        #expect(docked(.edge(.bottom, fraction: 0.1875), dock: bottomDock)
+            == CGRect(x: 92, y: 946, width: 200, height: 36))
+        #expect(docked(.edge(.bottom, fraction: 0.8125), dock: bottomDock)
+            == CGRect(x: 1220, y: 946, width: 200, height: 36))
+    }
+
+    @Test func withNoRoomBesideTheDockTheIslandRestsOnIt() {
+        let wide = DockObstacle(rect: CGRect(x: 100, y: 916, width: 1412, height: 66), edge: .bottom)
+        #expect(docked(.corner(.bottomLeft), dock: wide) == CGRect(x: 0, y: 880, width: 200, height: 36))
+        // A strip keeps to its own edge and ends above the Dock.
+        #expect(docked(.edge(.right, fraction: 1), dock: wide)
+            == CGRect(x: 1476, y: 746, width: 36, height: 170))
+    }
+
+    @Test func aDockWithoutAKnownExtentCoversItsWholeEdge() {
+        let whole = DockObstacle(rect: CGRect(x: 0, y: 916, width: 1512, height: 66), edge: .bottom)
+        #expect(docked(.edge(.bottom, fraction: 0.125), dock: whole).maxY == 916)
+        #expect(docked(.corner(.bottomRight), dock: whole).maxY == 916)
+    }
+
+    @Test func theDockLeavesTheOtherEdgesAlone() {
+        for anchor in [IslandAnchor.edge(.top, fraction: 0.1), .corner(.topRight), .edge(.left, fraction: 0.3)] {
+            for phase in [IslandPhase.collapsed, .expanded] {
+                #expect(docked(anchor, phase, dock: bottomDock) == docked(anchor, phase, dock: nil))
+            }
+        }
+    }
+
+    @Test func aStripRestsOnADockOnItsOwnEdge() {
+        let left = DockObstacle(rect: CGRect(x: 0, y: 200, width: 70, height: 582), edge: .left)
+        // Over the Dock: against the Dock's inner side.
+        #expect(docked(.edge(.left, fraction: 0.5), dock: left)
+            == CGRect(x: 70, y: 406, width: 36, height: 170))
+        // Above it: on the bezel, and clear of the Dock's end.
+        #expect(docked(.edge(.left, fraction: 0), dock: left)
+            == CGRect(x: 0, y: 0, width: 36, height: 170))
+        let near = docked(.edge(.left, fraction: 0.15), dock: left)
+        #expect(near.minX == 0)
+        #expect(near.maxY == 192)
+    }
+
+    @Test func hoveringNeverMovesAnIslandNearTheDockFromUnderThePointer() {
+        let docks = [
+            bottomDock,
+            DockObstacle(rect: CGRect(x: 100, y: 916, width: 1412, height: 66), edge: .bottom),
+            DockObstacle(rect: CGRect(x: 0, y: 916, width: 1512, height: 66), edge: .bottom),
+            DockObstacle(rect: CGRect(x: 0, y: 200, width: 70, height: 582), edge: .left),
+            DockObstacle(rect: CGRect(x: 1442, y: 200, width: 70, height: 582), edge: .right),
+        ]
+        var anchors: [IslandAnchor] = [
+            .corner(.topLeft), .corner(.topRight), .corner(.bottomLeft), .corner(.bottomRight),
+        ]
+        for edge in [ScreenEdge.top, .bottom, .left, .right] {
+            for step in 0...200 { anchors.append(.edge(edge, fraction: Double(step) / 200)) }
+        }
+        for dock in docks {
+            for anchor in anchors {
+                let collapsed = IslandLayout.hitRect(
+                    anchor: anchor, phase: .collapsed, notch: notch, visibleFrame: full,
+                    screenSize: screen, showsWings: false, dock: dock)
+                let expanded = IslandLayout.hitRect(
+                    anchor: anchor, phase: .expanded, notch: notch, visibleFrame: full,
+                    screenSize: screen, showsWings: false, dock: dock)
+                #expect(expanded.contains(collapsed), "\(anchor), dock \(dock.rect)")
+            }
+        }
+    }
+
     @Test func hoveringADockedIslandNeverMovesItFromUnderThePointer() {
         // Otherwise an island beside the notch would open, jump down, lose the pointer,
         // close, and open again, forever.

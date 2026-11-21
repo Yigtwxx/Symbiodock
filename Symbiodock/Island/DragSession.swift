@@ -49,6 +49,7 @@ final class DragSession {
     private var isTornOff = false
     private var notch: CGRect = .zero
     private var visibleFrame: CGRect = .zero
+    private var dock: DockObstacle?
     private var hasPhysicalNotch = false
     /// Where the released island is going; strands are thrown only at that place.
     private var settleAnchor: IslandAnchor?
@@ -85,16 +86,18 @@ final class DragSession {
     ///   - rootAnchor: where the island rests; the root has that place's outline.
     ///   - rootIsPhysicalNotch: the root is real hardware and stays after the island leaves;
     ///     any other root is the island's old place and shrinks away once the goo tears.
-    ///   - notch, visibleFrame, hasPhysicalNotch: the surfaces the carried island can reach for.
+    ///   - notch, visibleFrame, dock, hasPhysicalNotch: the surfaces the carried island can
+    ///     reach for. Over the Dock the bottom surface is the Dock, beside it the bezel.
     /// - Parameter currentFrame: the island as it is on screen at the grab; it shrinks from
     ///   there to `restingFrame`, the collapsed island that is actually dragged.
     func begin(
         currentFrame: CGRect, restingFrame: CGRect, press: CGPoint, rootRect: CGRect,
         rootAnchor: IslandAnchor, rootIsPhysicalNotch: Bool,
-        notch: CGRect, visibleFrame: CGRect, hasPhysicalNotch: Bool
+        notch: CGRect, visibleFrame: CGRect, dock: DockObstacle?, hasPhysicalNotch: Bool
     ) {
         self.notch = notch
         self.visibleFrame = visibleFrame
+        self.dock = dock
         self.hasPhysicalNotch = hasPhysicalNotch
         reach = nil
         fadingReaches = []
@@ -238,8 +241,10 @@ final class DragSession {
             retire(current)
             reach = nil
         }
+        let surfaces = DockGeometry.frame(
+            forCenter: CGPoint(x: body.midX, y: body.midY), display: visibleFrame, dock: dock)
         if let target = ReachResolver.target(
-            body: body, notch: notch, notchIsPhysical: hasPhysicalNotch, visibleFrame: visibleFrame),
+            body: body, notch: notch, notchIsPhysical: hasPhysicalNotch, visibleFrame: surfaces),
             accepts(target.surface) {
             if let current = reach {
                 // The notch takes the island over from the edge beside it.
@@ -262,7 +267,7 @@ final class DragSession {
         @discardableResult
         func advance(_ reach: inout Reach) -> CGFloat {
             let point = ReachResolver.islandPoint(
-                body: body, surface: reach.surface, visibleFrame: visibleFrame)
+                body: body, surface: reach.surface, visibleFrame: surfaces)
             reach.simulation.thickness = CGFloat(soak)
             reach.simulation.advance(root: reach.root, island: point, dt: dt)
             goo.append(reach.simulation.frame)

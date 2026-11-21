@@ -55,6 +55,8 @@ extension IslandLayout {
     /// Gap (pt) kept to the notch by an island that had to move out from under it,
     /// below it or beside it.
     public static let notchClearance: CGFloat = 8
+    /// Gap (pt) an island on the display's edge keeps to the end of the Dock beside it.
+    public static let dockClearance: CGFloat = 8
     /// Radius of the island's free corners while collapsed, the same as the notch's.
     public static let collapsedCornerRadius: CGFloat = 10
     /// Radius of the island's free corners while expanded.
@@ -117,9 +119,15 @@ extension IslandLayout {
     }
 
     /// The island frame for any anchor, in panel-local coordinates.
+    ///
+    /// - Parameters:
+    ///   - visibleFrame: the frame the island docks against; the whole display in the app.
+    ///   - dock: the Dock, when it takes up room on this display. Beside it the island lies on
+    ///     the display's edge; where it would meet the Dock it rests on the Dock instead.
     public static func frame(
         anchor: IslandAnchor, phase: IslandPhase, notch: CGRect,
-        visibleFrame: CGRect, screenSize: CGSize, showsWings: Bool
+        visibleFrame: CGRect, screenSize: CGSize, showsWings: Bool,
+        dock: DockObstacle? = nil
     ) -> CGRect {
         // Every phase other than `.expanded` is laid out as collapsed.
         let isExpanded = phase == .expanded
@@ -130,12 +138,11 @@ extension IslandLayout {
                 screenSize: screenSize, showsWings: showsWings)
         }
 
-        // A docked island lies flush against the border of the visible frame.
-        let visible = usableBase(visibleFrame, screenSize: screenSize)
-        let usable = visible
+        let display = usableBase(visibleFrame, screenSize: screenSize)
 
-        /// Where an island of `size` sits at this anchor, before the notch is considered.
-        func place(_ size: CGSize) -> CGRect {
+        /// Where an island of `size` sits at this anchor, flush against the border of
+        /// `usable`, before the Dock and the notch are considered.
+        func place(_ size: CGSize, in usable: CGRect) -> CGRect {
             let minX = usable.minX
             let minY = usable.minY
             // Never below the minimum, so a frame smaller than the island still gives a finite origin.
@@ -148,10 +155,10 @@ extension IslandLayout {
                 origin = CGPoint(x: minX, y: minY)  // handled above
             case .edge(let edge, let fraction):
                 let f = fraction.isFinite ? CGFloat(min(max(fraction, 0), 1)) : 0.5
-                // The fraction is where the island's center sits along the visible frame's edge
+                // The fraction is where the island's center sits along the frame's edge
                 // (as `SnapResolver` measures it), so an island keeps its center when it expands.
-                let alongX = min(max(visible.minX + f * visible.width - size.width / 2, minX), maxX)
-                let alongY = min(max(visible.minY + f * visible.height - size.height / 2, minY), maxY)
+                let alongX = min(max(usable.minX + f * usable.width - size.width / 2, minX), maxX)
+                let alongY = min(max(usable.minY + f * usable.height - size.height / 2, minY), maxY)
                 switch edge {
                 case .top: origin = CGPoint(x: alongX, y: minY)
                 case .bottom: origin = CGPoint(x: alongX, y: maxY)
@@ -169,20 +176,68 @@ extension IslandLayout {
             return CGRect(origin: origin, size: size)
         }
 
-        let expanded = dockedSize(at: anchor, isExpanded: true)
-        var rect = place(dockedSize(at: anchor, isExpanded: isExpanded))
+        let collapsedSize = dockedSize(at: anchor, isExpanded: false)
+        let expandedSize = dockedSize(at: anchor, isExpanded: true)
+
+        // The closed island decides where it rests; the open one grows from the same line,
+        // so hovering never moves the island out from under the pointer.
+        var usable = display
+        var collapsed = place(collapsedSize, in: display)
+        if let dock, collapsed.intersects(dock.rect) {
+            let horizontal = dock.isHorizontal
+            let length = horizontal ? collapsedSize.width : collapsedSize.height
+            let center = horizontal ? collapsed.midX : collapsed.midY
+            let extent = dock.extent
+            let beside = center < extent.lowerBound
+                ? (min: horizontal ? display.minX : display.minY,
+                   max: extent.lowerBound - dockClearance)
+                : (min: extent.upperBound + dockClearance,
+                   max: horizontal ? display.maxX : display.maxY)
+            var liesAlongDock = false
+            if case .edge(let edge, _) = anchor { liesAlongDock = edge == dock.edge }
+
+            if liesAlongDock, !extent.contains(center), beside.max - beside.min >= length {
+                // Mostly beside the Dock: it stays on the display's edge and clears the Dock.
+                let start = horizontal ? collapsed.minX : collapsed.minY
+                let slid = min(max(start, beside.min), beside.max - length)
+                if horizontal { collapsed.origin.x = slid } else { collapsed.origin.y = slid }
+            } else {
+                // Over the Dock (or with no room beside it): it rests on the Dock.
+                usable = DockGeometry.trimmed(display, by: dock)
+                collapsed = place(collapsedSize, in: usable)
+                if liesAlongDock, extent.contains(center),
+                   extent.upperBound - extent.lowerBound >= length {
+                    // All of it on the Dock, none hanging past the Dock's end.
+                    let start = horizontal ? collapsed.minX : collapsed.minY
+                    let kept = min(max(start, extent.lowerBound), extent.upperBound - length)
+                    if horizontal { collapsed.origin.x = kept } else { collapsed.origin.y = kept }
+                }
+            }
+        }
+        // Making room for the Dock may have moved the closed island along its edge; the
+        // open one follows as far as it must to keep covering it.
+        var expanded = place(expandedSize, in: usable)
+        if expanded.width >= collapsed.width {
+            expanded.origin.x = min(
+                max(expanded.origin.x, collapsed.maxX - expanded.width), collapsed.minX)
+        }
+        if expanded.height >= collapsed.height {
+            expanded.origin.y = min(
+                max(expanded.origin.y, collapsed.maxY - expanded.height), collapsed.minY)
+        }
+
+        var rect = isExpanded ? expanded : collapsed
         // Where the frame reaches the top of the display (the island docks against the
         // bezel, or the menu bar is hidden), an island on the top edge could end up behind
         // the camera housing. Collapsed and expanded must agree on what happens then: if
         // only the wider, expanded island met the notch, hovering would move the island
         // out from under the pointer.
-        if rect.intersects(notch) || place(expanded).intersects(notch) {
+        if collapsed.intersects(notch) || expanded.intersects(notch) {
             // It stays on the edge and slides aside, as long as it can also open there.
-            let collapsedMidX = place(dockedSize(at: anchor, isExpanded: false)).midX
-            let beside = collapsedMidX < notch.midX
+            let beside = collapsed.midX < notch.midX
                 ? (min: usable.minX, max: notch.minX - notchClearance)
                 : (min: notch.maxX + notchClearance, max: usable.maxX)
-            if !isSideDocked(anchor), beside.max - beside.min >= expanded.width {
+            if !isSideDocked(anchor), beside.max - beside.min >= expandedSize.width {
                 rect.origin.x = min(max(rect.origin.x, beside.min), beside.max - rect.width)
             } else {
                 // No room beside the notch (or a strip, which belongs to its edge): hang below.
@@ -203,11 +258,12 @@ extension IslandLayout {
     /// The area in which the pointer counts as hovering the island: its frame grown by `hitPadding`.
     public static func hitRect(
         anchor: IslandAnchor, phase: IslandPhase, notch: CGRect,
-        visibleFrame: CGRect, screenSize: CGSize, showsWings: Bool
+        visibleFrame: CGRect, screenSize: CGSize, showsWings: Bool,
+        dock: DockObstacle? = nil
     ) -> CGRect {
         frame(
             anchor: anchor, phase: phase, notch: notch, visibleFrame: visibleFrame,
-            screenSize: screenSize, showsWings: showsWings)
+            screenSize: screenSize, showsWings: showsWings, dock: dock)
             .insetBy(dx: -hitPadding, dy: -hitPadding)
     }
 }
