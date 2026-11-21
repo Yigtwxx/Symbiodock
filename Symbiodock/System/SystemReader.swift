@@ -11,10 +11,14 @@ actor SystemReader {
 
     /// - Parameter withTemperatures: they change slowly and cost the most to read.
     func read(withTemperatures: Bool) -> SystemReading {
-        SystemReading(
-            date: Date(), cpu: HostSampler.cpuTicks(), memory: HostSampler.memory(),
-            gpu: GPUProbe.utilization(), temperatures: withTemperatures ? temperatures() : nil,
-            counters: NetworkCounterReader.counters(store: store))
+        // The counters are divided by the time between two dates, so they are read right
+        // beside the date; the temperatures take the longest and come last.
+        let date = Date()
+        let counters = NetworkCounterReader.counters(store: store)
+        let cpu = HostSampler.cpuTicks()
+        return SystemReading(
+            date: date, cpu: cpu, memory: HostSampler.memory(), gpu: GPUProbe.utilization(),
+            temperatures: withTemperatures ? temperatures() : nil, counters: counters)
     }
 
     private func temperatures() -> Temperatures {

@@ -1,5 +1,6 @@
 import Foundation
 import IOKit
+import SymbiodockCore
 
 /// The chip's die temperature from the HID sensor services, for a Mac whose controller has
 /// no temperature keys under the names `SMCReader` knows. The calls are private (IOKit's
@@ -56,7 +57,7 @@ enum ThermalFallback {
                   let event = calls.copyEvent(service, temperatureEvent, 0, 0)?.takeRetainedValue()
             else { continue }
             let value = calls.floatValue(event, temperatureField)
-            if (10...120).contains(value) { readings.append(value) }
+            if TemperatureKeys.validRange.contains(value) { readings.append(value) }
         }
         return readings.isEmpty ? nil : readings.reduce(0, +) / Double(readings.count)
     }

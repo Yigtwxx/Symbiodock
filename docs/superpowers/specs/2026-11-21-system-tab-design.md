@@ -90,8 +90,9 @@ söner.
   kapalıyken hiçbir şey çalışmaz. Son değerler saklanır, sekme yeniden açılınca hemen görünür.
 - Kullanım ve ağ hızı 2 sn'de bir, sıcaklık 6 sn'de bir (her üçüncü örnekte). CPU ve ağ hızı iki
   örnek ister; ilk iki örnek 0,5 sn arayla alınır.
-- İki örnek arası 10 sn'yi geçerse (uyku) ya da sayaç geri giderse o tur hız ve CPU değeri
-  verilmez, grafik sıfırlanır.
+- İki örnek arası 10 sn'yi geçerse (uyku, ya da sekme o kadar gizli kaldıysa) o tur hız ve CPU
+  değeri verilmez ve grafik sıfırlanır. Sayaç geri giderse (arayüz yeniden kalktı) yalnızca o
+  örnek atlanır, grafik kalır. Ağ yoksa grafik boşalır.
 - Çubuklar ve grafik yalnızca yeni örnekle değişir; çubuk geçişi Core Animation'da (0,6 sn).
   Kare kare çizim yok.
 - CPU: çekirdeklerin toplam meşguliyeti (user + system + nice). RAM: uygulama + wired +
@@ -144,7 +145,7 @@ söner.
 
 - `SystemSnapshot`: `cpu`, `gpu`, `memory`, `temperatures`, `network`; `Sendable`, `Equatable`.
 - `CPUUsage`: tick farkından kullanım. `MemoryUsage`: sayfa sayılarından kullanılan bayt.
-- `NetworkRate`: sayaç farkından bayt/sn, sıfırlama kuralıyla. `ByteRateFormat`: `1.7 MB/s`.
+- `NetworkRate`: sayaç farkından bayt/sn, sıfırlama kuralıyla.
 - `TemperatureKeys`: anahtar adını CPU / GPU diye sınıflar, aralık dışını atar, ortancayı alır,
   eşit aralıklı alt küme seçer.
 - `SystemLabels`: `31%`, `45°`, `1.7 MB/s`, `18.5`; sıcaklık kademesi (80 ve 95 °C).
@@ -157,7 +158,7 @@ söner.
 
 **Uygulama** (`Symbiodock/System/`):
 
-- `HostSampler` (`host_processor_info`, `host_statistics64`), `GPUProbe` (IOKit),
+- `HostSampler` (`host_statistics`, `host_statistics64`), `GPUProbe` (IOKit),
   `SMCReader` (`AppleSMC`; anahtarlar bir kez sayılır), `ThermalFallback`
   (`IOHIDEventSystemClient`, `DockProbe` gibi `dlsym` ile), `NetworkCounterReader`
   (`NET_RT_IFLIST2`, birincil arayüz `SCDynamicStore`'dan).
@@ -196,7 +197,9 @@ Her biri ilgili görevin ilk işi olarak denenir; sonucu `CLAUDE.md`'ye yazılı
   okuma: 3462 anahtarın sayımı 24 ms, 134 anahtarın okunması 23 ms; ortanca CPU 44,0 °C, GPU
   36,6 °C (ortalama 47,2 / 38,7; en yüksek 75,0 / 44,7). Adlar çipe göre değişiyor, başka çipte
   denenmedi; GPU yükü altında denenmedi. Yedek: `tdie` sensörlerinin ortalaması, CPU ve GPU'da
-  aynı değer.
+  aynı değer. Son incelemenin notu (aranarak bulundu, denenmedi): M3'te performans çekirdeği ve
+  GPU anahtarları `Tf**` olabilir; o zaman CPU yalnızca `Te**` (E çekirdekleri) ortancasını, GPU
+  çip sıcaklığını gösterir. Dağıtımdan önce çipe göre anahtar tablosu gerekir.
 - **Komşu tablosu (2026-11-21'de denendi, varsayım yanlış çıktı).** `arp -an` 4 cihaz
   gösterirken Terminal'den çalışan sıradan bir süreç `sysctl`'den (`NET_RT_FLAGS` +
   `RTF_LLINFO`, `AF_INET`) 0 bayt alıyor; `NET_RT_DUMP` de IPv4 komşularını vermiyor. `arp`'ın

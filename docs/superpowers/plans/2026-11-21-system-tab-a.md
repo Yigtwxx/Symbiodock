@@ -67,7 +67,7 @@ Claude-Session: https://claude.ai/code/session_01BW1DAFBBz2zwgt57hNkzQK
 - Consumes: nothing.
 - Produces: `CPUTicks(busy:total:)`, `CPUUsage.fraction(previous:current:) -> Double?`, `MemoryPages(internalPages:purgeable:wired:compressed:)`, `MemoryUse(used:total:)` with `.fraction`, `MemoryUsage.used(_:pageSize:) -> UInt64`, `NetworkCounters(interface:received:sent:)`, `NetworkSpeed(down:up:)`, `NetworkRate.maximumGap`, `NetworkRate.speed(previous:current:elapsed:) -> NetworkSpeed?`, `TemperatureSensor`, `TemperatureKeys.sensor(forKey:)`, `.validRange`, `.cpuLimit`, `.gpuLimit`, `.spread(_:limit:)`, `.typical(_:)`, `TemperatureTier`, `SystemLabels.missing`, `.percent(_:)`, `.degrees(_:)`, `.tier(_:)`, `.rate(_:)`, `.gigabytes(_:)`, `.wholeGigabytes(_:)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `Packages/SymbiodockCore/Tests/SymbiodockCoreTests/SystemMeasuresTests.swift`:
 
@@ -233,12 +233,12 @@ struct SystemLabelsTests {
 }
 ```
 
-- [ ] **Step 2: Run the tests and see them fail**
+- [x] **Step 2: Run the tests and see them fail**
 
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -15`
 Expected: the build fails with `cannot find 'CPUUsage' in scope` (and the other new names).
 
-- [ ] **Step 3: Write the code**
+- [x] **Step 3: Write the code**
 
 `Packages/SymbiodockCore/Sources/SymbiodockCore/System/SystemMeasures.swift`:
 
@@ -460,14 +460,14 @@ public enum SystemLabels {
 }
 ```
 
-- [ ] **Step 4: Run the tests and see them pass**
+- [x] **Step 4: Run the tests and see them pass**
 
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -5`
 Expected: all tests pass (766 + 19 = 785).
 
 If `floorsAndHeldPeaksDoNotPullTheMedian` fails by a rounding hair (`40.6` against `40.6000…1`), compare with a tolerance instead: `#expect(abs((TemperatureKeys.typical(values) ?? 0) - 40.6) < 0.0001)`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Packages/SymbiodockCore/Sources/SymbiodockCore/System Packages/SymbiodockCore/Tests/SymbiodockCoreTests/SystemMeasuresTests.swift Packages/SymbiodockCore/Tests/SymbiodockCoreTests/TemperatureKeysTests.swift Packages/SymbiodockCore/Tests/SymbiodockCoreTests/SystemLabelsTests.swift
@@ -496,7 +496,7 @@ git push origin main
   - `SystemMeter`: `init()`, `mutating take(_ reading: SystemReading) -> SystemSnapshot?`, `history: NetworkHistory`
   - `IslandState.system: SystemSnapshot?`, `IslandState.networkHistory: NetworkHistory`, `IslandState.setSystem(_:history:)`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `Packages/SymbiodockCore/Tests/SymbiodockCoreTests/SystemMeterTests.swift`:
 
@@ -632,12 +632,12 @@ Add to `IslandStateTests.swift`, at the end of the struct (before its closing br
     }
 ```
 
-- [ ] **Step 2: Run the tests and see them fail**
+- [x] **Step 2: Run the tests and see them fail**
 
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -15`
 Expected: the build fails with `cannot find 'SystemMeter' in scope`.
 
-- [ ] **Step 3: Write the code**
+- [x] **Step 3: Write the code**
 
 `Packages/SymbiodockCore/Sources/SymbiodockCore/System/SystemMeter.swift`:
 
@@ -799,12 +799,12 @@ After the `setVolume(_:for:)` method, add:
     }
 ```
 
-- [ ] **Step 4: Run the tests and see them pass**
+- [x] **Step 4: Run the tests and see them pass**
 
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -5`
 Expected: all tests pass (785 + 11 = 796).
 
-- [ ] **Step 5: Build the app and commit**
+- [x] **Step 5: Build the app and commit**
 
 Run the `xcodebuild` line from Global Constraints. Expected: `** BUILD SUCCEEDED **`.
 
@@ -828,7 +828,7 @@ git push origin main
 - Consumes: `SystemSnapshot`, `NetworkHistory`, `IslandState.system`, `.networkHistory` (Task 2).
 - Produces: `IslandTab.system` (raw value `"system"`); `TabOrder.default == [.agents, .media, .system, .files]`; `TabGlyphOutline.system`; `SystemContent(snapshot: SystemSnapshot?, history: NetworkHistory, topInset: CGFloat)` (an empty page in this task; Task 4 fills it).
 
-- [ ] **Step 1: Update the tests that spell out the order**
+- [x] **Step 1: Update the tests that spell out the order**
 
 Every full order in the two test files gains `.system` before `.files`:
 
@@ -883,12 +883,12 @@ Add to `IslandStateTests.swift`, at the end of the struct:
     }
 ```
 
-- [ ] **Step 2: Run the tests and see them fail**
+- [x] **Step 2: Run the tests and see them fail**
 
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -15`
 Expected: the build fails with `type 'IslandTab' has no member 'system'`.
 
-- [ ] **Step 3: Add the tab to the core**
+- [x] **Step 3: Add the tab to the core**
 
 In `IslandTab.swift`, replace the enum and the default order:
 
@@ -914,7 +914,7 @@ public enum IslandTab: String, CaseIterable, Sendable {
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -5`
 Expected: all tests pass (796 + 4 = 800).
 
-- [ ] **Step 4: Wire the tab into the app**
+- [x] **Step 4: Wire the tab into the app**
 
 `Symbiodock/Island/TabStrip.swift`, in `IslandTab.title`, after the media case:
 
@@ -1012,14 +1012,14 @@ struct SystemContent: View {
 
 - The doc comment of `ExpandedPreview` says "600 × 150"; the island is 600 × 170. Correct the comment.
 
-- [ ] **Step 5: Build and look**
+- [x] **Step 5: Build and look**
 
 Run the `xcodebuild` line from Global Constraints. Expected: `** BUILD SUCCEEDED **`. If the compiler names another `switch` over `IslandTab` that is not exhaustive, give `.system` the same answer as `.files` there and note it in this plan.
 
 Run: `SYMBIODOCK_RENDER_DIR=build/render build/Build/Products/Debug/Symbiodock.app/Contents/MacOS/Symbiodock`
 Read `build/render/tab-glyphs.png`. Expected: four glyphs on their grids; the fourth column is not cut off; the chip is a square with eight legs, its strokes on whole pixels in the 2x view; the real strips show four tabs in the order terminal, bars, chip, cards.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add Packages/SymbiodockCore Symbiodock/Island Symbiodock/App/DebugRender.swift
@@ -1039,7 +1039,7 @@ git push origin main
 - Consumes: `SystemSnapshot`, `NetworkHistory`, `SystemLabels`, `TemperatureTier`, `IslandState.setSystem(_:history:)`.
 - Produces: `SystemPalette.cpu`, `.gpu`, `.ram` (`[NSColor]`, left to right), `.down`, `.downFade`, `.up` (`Color`), `.color(for: TemperatureTier) -> Color`; `MeterBar(fraction: Double?, colors: [NSColor])`; `DemoSystem.requested: String?`, `DemoSystem.apply(_ set: String, to: IslandState)` (`"1"` calm, `"hot"` busy).
 
-- [ ] **Step 1: The colours**
+- [x] **Step 1: The colours**
 
 `Symbiodock/Island/System/SystemPalette.swift`:
 
@@ -1078,7 +1078,7 @@ enum SystemPalette {
 }
 ```
 
-- [ ] **Step 2: The bar**
+- [x] **Step 2: The bar**
 
 `Symbiodock/Island/System/MeterBar.swift`:
 
@@ -1200,7 +1200,7 @@ struct MeterBar: NSViewRepresentable {
 }
 ```
 
-- [ ] **Step 3: The page**
+- [x] **Step 3: The page**
 
 Replace `Symbiodock/Island/System/SystemContent.swift`:
 
@@ -1489,7 +1489,7 @@ private struct DevicesPanel: View {
 }
 ```
 
-- [ ] **Step 4: The demo and the renders**
+- [x] **Step 4: The demo and the renders**
 
 `Symbiodock/System/DemoSystem.swift`:
 
@@ -1561,7 +1561,7 @@ enum DemoSystem {
             named: "expanded-system-empty", to: directory)
 ```
 
-- [ ] **Step 5: Build and look**
+- [x] **Step 5: Build and look**
 
 Run the `xcodebuild` line. Expected: `** BUILD SUCCEEDED **`.
 
@@ -1576,7 +1576,7 @@ Run the render line, then read `build/render/expanded-system.png`, `expanded-sys
 
 If the bars are missing from the renders while everything else is there, the offscreen capture did not include the layers (the level bars of the Media renders are layers too, so this is not expected). Then give the bar a still twin for renders only: an environment value `\.stillMeters` (default `false`) that `DebugRender` sets on `ExpandedPreview` with `.environment(\.stillMeters, true)`; `MeterRow` reads it and, when it is true, draws the bar with SwiftUI instead of `MeterBar`: in a `GeometryReader`, a `Capsule().fill(.white.opacity(0.14))` with a `Capsule` on top filled by `LinearGradient(colors: colors.map(Color.init(nsColor:)), startPoint: .leading, endPoint: .trailing)` and framed to `max(width * fraction, 6)`, aligned leading. Record that in this plan.
 
-- [ ] **Step 6: See it in the running app**
+- [x] **Step 6: See it in the running app**
 
 ```bash
 pkill -x Symbiodock; open --env SYMBIODOCK_DEMO_SYSTEM=hot --env SYMBIODOCK_DEMO_AGENTS=quiet build/Build/Products/Debug/Symbiodock.app
@@ -1586,7 +1586,7 @@ pkill -x Symbiodock
 
 Expected: the app runs, its panel is listed, CPU 0.0 with the island closed.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add Symbiodock docs/superpowers/plans/2026-11-21-system-tab-a.md
@@ -1608,7 +1608,7 @@ git push origin main
 
 All of these reads were run as a script on this Mac on 2026-11-21 (M4 Pro, macOS 27.0.1, no `sudo`, no prompt): CPU 8 %, memory 21.0 of 48 GB, GPU 26 %, 3462 SMC keys of which 110 are valid chip temperatures (median CPU 44.0 °C, GPU 36.6 °C), `en0` counters and their rate.
 
-- [ ] **Step 1: Processor and memory**
+- [x] **Step 1: Processor and memory**
 
 `Symbiodock/System/HostSampler.swift`:
 
@@ -1660,7 +1660,7 @@ enum HostSampler {
 }
 ```
 
-- [ ] **Step 2: Graphics**
+- [x] **Step 2: Graphics**
 
 `Symbiodock/System/GPUProbe.swift`:
 
@@ -1694,7 +1694,7 @@ enum GPUProbe {
 }
 ```
 
-- [ ] **Step 3: Temperatures**
+- [x] **Step 3: Temperatures**
 
 `Symbiodock/System/SMCReader.swift`:
 
@@ -1834,6 +1834,7 @@ final class SMCReader {
 ```swift
 import Foundation
 import IOKit
+import SymbiodockCore
 
 /// The chip's die temperature from the HID sensor services, for a Mac whose controller has
 /// no temperature keys under the names `SMCReader` knows. The calls are private (IOKit's
@@ -1890,14 +1891,14 @@ enum ThermalFallback {
                   let event = calls.copyEvent(service, temperatureEvent, 0, 0)?.takeRetainedValue()
             else { continue }
             let value = calls.floatValue(event, temperatureField)
-            if (10...120).contains(value) { readings.append(value) }
+            if TemperatureKeys.validRange.contains(value) { readings.append(value) }
         }
         return readings.isEmpty ? nil : readings.reduce(0, +) / Double(readings.count)
     }
 }
 ```
 
-- [ ] **Step 4: The network counters**
+- [x] **Step 4: The network counters**
 
 `Symbiodock/System/NetworkCounterReader.swift`:
 
@@ -1946,7 +1947,7 @@ enum NetworkCounterReader {
 }
 ```
 
-- [ ] **Step 5: One whole reading**
+- [x] **Step 5: One whole reading**
 
 `Symbiodock/System/SystemReader.swift`:
 
@@ -1964,10 +1965,14 @@ actor SystemReader {
 
     /// - Parameter withTemperatures: they change slowly and cost the most to read.
     func read(withTemperatures: Bool) -> SystemReading {
-        SystemReading(
-            date: Date(), cpu: HostSampler.cpuTicks(), memory: HostSampler.memory(),
-            gpu: GPUProbe.utilization(), temperatures: withTemperatures ? temperatures() : nil,
-            counters: NetworkCounterReader.counters(store: store))
+        // The counters are divided by the time between two dates, so they are read right
+        // beside the date; the temperatures take the longest and come last.
+        let date = Date()
+        let counters = NetworkCounterReader.counters(store: store)
+        let cpu = HostSampler.cpuTicks()
+        return SystemReading(
+            date: date, cpu: cpu, memory: HostSampler.memory(), gpu: GPUProbe.utilization(),
+            temperatures: withTemperatures ? temperatures() : nil, counters: counters)
     }
 
     private func temperatures() -> Temperatures {
@@ -1986,7 +1991,7 @@ actor SystemReader {
 }
 ```
 
-- [ ] **Step 6: The loop**
+- [x] **Step 6: The loop**
 
 `Symbiodock/System/SystemCoordinator.swift`:
 
@@ -2108,7 +2113,7 @@ final class SystemCoordinator {
 }
 ```
 
-- [ ] **Step 7: A way to see the numbers without a window**
+- [x] **Step 7: A way to see the numbers without a window**
 
 Append to `Symbiodock/System/DemoSystem.swift`, inside the `#if DEBUG` block, after `DemoSystem`:
 
@@ -2151,7 +2156,7 @@ enum SystemHook {
 
 After the review a second mode was added to the hook (see `DemoSystem.swift`): `SYMBIODOCK_PRINT_SYSTEM=loop` runs the coordinator against an `IslandState` of its own, opens and closes the System tab on it and prints how many measures arrived in each stretch. Expected: 0 while the island is closed or shows another tab, about one every two seconds while the System tab is shown (4 in 7 s, the first after half a second).
 
-- [ ] **Step 8: Wire it**
+- [x] **Step 8: Wire it**
 
 `Symbiodock/App/AppDelegate.swift`:
 
@@ -2204,7 +2209,7 @@ After the review a second mode was added to the hook (see `DemoSystem.swift`): `
     }
 ```
 
-- [ ] **Step 9: Build and read the numbers**
+- [x] **Step 9: Build and read the numbers**
 
 Run the `xcodebuild` line. Expected: `** BUILD SUCCEEDED **`.
 
@@ -2228,7 +2233,7 @@ SYMBIODOCK_PRINT_SYSTEM=1 build/Build/Products/Debug/Symbiodock.app/Contents/Mac
 
 Expected: CPU above 50 % and a higher CPU temperature than before.
 
-- [ ] **Step 10: The cost, closed and open**
+- [x] **Step 10: The cost, closed and open**
 
 ```bash
 pkill -x Symbiodock; open --env SYMBIODOCK_DEMO_AGENTS=quiet build/Build/Products/Debug/Symbiodock.app
@@ -2239,7 +2244,7 @@ pkill -x Symbiodock
 
 Expected: 0.0 on every line with the island closed, and no `measuring` line in the log: nothing is measured while the tab is not on screen. The open tab cannot be opened from a script; its cost is on the owner's list, and the reader's own cost is the `read` time above (about 10 ms every 2 s, half a percent of a core).
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add Symbiodock docs/superpowers/plans/2026-11-21-system-tab-a.md
@@ -2254,7 +2259,7 @@ git push origin main
 **Files:**
 - Modify: `CLAUDE.md` (`Durum`, roadmap, "Doğrulanmamış varsayımlar"), `docs/superpowers/specs/2026-11-21-system-tab-design.md` if anything was measured differently, this plan (tick the boxes)
 
-- [ ] **Step 1: Run everything once more**
+- [x] **Step 1: Run everything once more**
 
 ```bash
 swift test --package-path Packages/SymbiodockCore 2>&1 | tail -3
@@ -2264,7 +2269,7 @@ SYMBIODOCK_RENDER_DIR=build/render build/Build/Products/Debug/Symbiodock.app/Con
 
 Expected: 800 tests pass, `** BUILD SUCCEEDED **`, and the renders are written. Read `expanded-system.png` and one render of each other tab (`expanded-agents.png`, `expanded-media-volume.png`, `expanded-files.png` or the nearest name in `build/render`) to see that the fourth tab did not disturb their headers.
 
-- [ ] **Step 2: Write the status**
+- [x] **Step 2: Write the status**
 
 In `CLAUDE.md`:
 
@@ -2272,7 +2277,7 @@ In `CLAUDE.md`:
 - In the roadmap, leave Faz 12 unticked (Part B is open) and say that Part A's code is done and waits for the owner's check.
 - In "Doğrulanmamış varsayımlar", correct the System entry with anything this plan measured differently from the spec.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add CLAUDE.md docs/superpowers
