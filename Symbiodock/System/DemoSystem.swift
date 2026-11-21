@@ -82,18 +82,25 @@ enum SystemHook {
         Task {
             let state = IslandState()
             let tally = Tally()
+            let lists = Tally()
             let coordinator = SystemCoordinator(
                 isWatching: { state.phase == .expanded && state.selectedTab == .system },
+                isScanRequested: { state.lanScan == .scanning },
                 onUpdate: { snapshot, history in
                     tally.count += 1
                     state.setSystem(snapshot, history: history)
-                })
+                },
+                onDevices: { devices, canScan in
+                    lists.count += 1
+                    state.setLANDevices(devices, canScan: canScan)
+                },
+                onScanEnd: { state.finishLANScan(blocked: $0) })
             coordinator.start()
             @MainActor func stretch(_ name: String, seconds: Int) async {
                 let before = tally.count
                 try? await Task.sleep(for: .seconds(seconds))
                 let cpu = SystemLabels.percent(state.system?.cpu)
-                print("\(name), \(seconds) s: \(tally.count - before) measures, cpu \(cpu), graph \(state.networkHistory.samples.count)")
+                print("\(name), \(seconds) s: \(tally.count - before) measures, cpu \(cpu), graph \(state.networkHistory.samples.count), \(lists.count) device lists, \(state.lanDevices.count) devices, can scan \(state.canScanLAN)")
             }
             await stretch("island closed", seconds: 3)
             state.setHovering(true)

@@ -9,6 +9,7 @@ import SymbiodockCore
 final class IslandMenu: NSObject, NSMenuDelegate {
     let menu = NSMenu()
     private let musicAccessItem: NSMenuItem
+    private let localNetworkItem: NSMenuItem
     private let musicAccessSeparator = NSMenuItem.separator()
     private let launchAtLoginItem: NSMenuItem
     private let returnToNotchItem: NSMenuItem
@@ -34,6 +35,8 @@ final class IslandMenu: NSObject, NSMenuDelegate {
     override init() {
         musicAccessItem = NSMenuItem(
             title: "Music access needed", action: #selector(openAutomationSettings), keyEquivalent: "")
+        localNetworkItem = NSMenuItem(
+            title: "Local Network access needed", action: #selector(openLocalNetworkSettings), keyEquivalent: "")
         launchAtLoginItem = NSMenuItem(
             title: "Launch at login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         returnToNotchItem = NSMenuItem(
@@ -46,6 +49,8 @@ final class IslandMenu: NSObject, NSMenuDelegate {
         // "Return to notch" is greyed out by hand while the island is already there.
         menu.autoenablesItems = false
 
+        localNetworkItem.target = self
+        menu.addItem(localNetworkItem)
         musicAccessItem.target = self
         menu.addItem(musicAccessItem)
         menu.addItem(musicAccessSeparator)
@@ -79,12 +84,19 @@ final class IslandMenu: NSObject, NSMenuDelegate {
         quit.target = NSApplication.shared
         menu.addItem(quit)
         setMusicAccessNeeded(false)
+        setLocalNetworkAccessNeeded(false)
     }
 
     /// Shows the entry only while Automation consent for Music is missing.
     func setMusicAccessNeeded(_ needed: Bool) {
         musicAccessItem.isHidden = !needed
-        musicAccessSeparator.isHidden = !needed
+        musicAccessSeparator.isHidden = musicAccessItem.isHidden && localNetworkItem.isHidden
+    }
+
+    /// Shows the entry only while a scan was kept back for want of the Local Network permission.
+    func setLocalNetworkAccessNeeded(_ needed: Bool) {
+        localNetworkItem.isHidden = !needed
+        musicAccessSeparator.isHidden = musicAccessItem.isHidden && localNetworkItem.isHidden
     }
 
     /// The checkmark reflects the system's real status each time the menu opens.
@@ -118,6 +130,13 @@ final class IslandMenu: NSObject, NSMenuDelegate {
             return
         }
         LoginItem.setEnabled(!LoginItem.isEnabled)
+    }
+
+    @objc private func openLocalNetworkSettings() {
+        guard let url = URL(
+            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork")
+        else { return }
+        NSWorkspace.shared.open(url)
     }
 
     @objc private func openAutomationSettings() {

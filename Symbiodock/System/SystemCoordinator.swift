@@ -4,7 +4,9 @@ import SymbiodockCore
 import os
 
 /// Measures this Mac while the System tab is on screen, and only then: every two seconds,
-/// off the main thread, and hands each snapshot to the app.
+/// off the main thread, and hands each snapshot to the app. While the tab is shown it also
+/// reads the devices the Mac already knows, and it runs a scan of the network when one was
+/// asked for. Nothing is sent to the network unless a scan was asked for.
 @MainActor
 final class SystemCoordinator {
     /// Numbers only.
@@ -15,25 +17,41 @@ final class SystemCoordinator {
     private static let primingInterval: Duration = .milliseconds(500)
     /// The temperatures are read with every third reading: every six seconds.
     private static let temperatureEvery = 3
+    /// The known devices are read with every fifth reading: every ten seconds.
+    private static let devicesEvery = 5
 
     private let isWatching: @MainActor () -> Bool
+    private let isScanRequested: @MainActor () -> Bool
     private let onUpdate: @MainActor (SystemSnapshot, NetworkHistory) -> Void
+    private let onDevices: @MainActor ([LANDevice], Bool) -> Void
+    private let onScanEnd: @MainActor (Bool) -> Void
     private let reader = SystemReader()
+    private let scanner = LANScanner()
     private var meter = SystemMeter()
     private var task: Task<Void, Never>?
+    private var scanTask: Task<Void, Never>?
     /// Tells the running loop from one that has been replaced.
     private var run = 0
     private var isStopped = true
     private var hasLogged = false
 
-    /// - Parameter isWatching: whether the open island shows the System tab. It must read
-    ///   observable state: the coordinator observes what it reads.
+    /// - Parameter isWatching: whether the open island shows the System tab.
+    /// - Parameter isScanRequested: whether a scan was asked for and has not ended.
+    ///   Both must read observable state: the coordinator observes what they read.
+    /// - Parameter onDevices: the devices known now, and whether this network can be scanned.
+    /// - Parameter onScanEnd: the scan has ended; true when macOS kept it back.
     init(
         isWatching: @escaping @MainActor () -> Bool,
-        onUpdate: @escaping @MainActor (SystemSnapshot, NetworkHistory) -> Void
+        isScanRequested: @escaping @MainActor () -> Bool,
+        onUpdate: @escaping @MainActor (SystemSnapshot, NetworkHistory) -> Void,
+        onDevices: @escaping @MainActor ([LANDevice], Bool) -> Void,
+        onScanEnd: @escaping @MainActor (Bool) -> Void
     ) {
         self.isWatching = isWatching
+        self.isScanRequested = isScanRequested
         self.onUpdate = onUpdate
+        self.onDevices = onDevices
+        self.onScanEnd = onScanEnd
     }
 
     func start() {
@@ -46,12 +64,15 @@ final class SystemCoordinator {
     func stop() {
         isStopped = true
         endLoop()
+        scanTask?.cancel()
+        scanTask = nil
     }
 
     /// Calls `refresh` whenever what `isWatching` read has changed.
     private func observe() {
         withObservationTracking {
             _ = isWatching()
+            _ = isScanRequested()
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self, !self.isStopped else { return }
@@ -63,6 +84,23 @@ final class SystemCoordinator {
 
     private func refresh() {
         if isWatching() { beginLoop() } else { endLoop() }
+        if isScanRequested() { beginScan() }
+    }
+
+    /// Runs the scan that was asked for. It is short, and it finishes even if the tab is left
+    /// meanwhile: the state waits for its end.
+    private func beginScan() {
+        guard scanTask == nil else { return }
+        scanTask = Task { [weak self] in
+            guard let scanner = self?.scanner else { return }
+            let result = await scanner.scan()
+            guard let self, !Task.isCancelled else { return }
+            self.onDevices(result.devices, result.canScan)
+            self.onScanEnd(result.isBlocked)
+            Self.log.notice(
+                "scan: \(result.devices.count, privacy: .public) devices, blocked \(result.isBlocked, privacy: .public)")
+            self.scanTask = nil
+        }
     }
 
     private func beginLoop() {
@@ -87,6 +125,12 @@ final class SystemCoordinator {
     private func loop() async {
         var count = 0
         while !Task.isCancelled, isWatching() {
+            if count % Self.devicesEvery == 0, scanTask == nil {
+                let known = await scanner.known()
+                guard !Task.isCancelled else { return }
+                // A scan that began meanwhile brings a fuller list itself.
+                if scanTask == nil { onDevices(known.devices, known.canScan) }
+            }
             let reading = await reader.read(withTemperatures: count % Self.temperatureEvery == 0)
             guard !Task.isCancelled else { return }
             count += 1

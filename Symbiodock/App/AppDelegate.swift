@@ -19,9 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         #if DEBUG
         DebugRender.runIfRequested()
-        if ConvertHook.runIfRequested() || FlowHook.runIfRequested() || SystemHook.runIfRequested()
-            || LANProbe.runIfRequested()
-        { return }
+        if ConvertHook.runIfRequested() || FlowHook.runIfRequested() || SystemHook.runIfRequested() { return }
         #endif
         installTerminationHandler()
 
@@ -164,14 +162,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         state.shelf.items.first { $0.id == id }
     }
 
-    /// Starts measuring this Mac whenever the open island shows the System tab.
+    /// Starts measuring this Mac whenever the open island shows the System tab, and scanning
+    /// the network whenever a scan was asked for.
     private func startSystem() {
         let system = SystemCoordinator(
             isWatching: { [weak self] in
                 self.map { $0.state.phase == .expanded && $0.state.selectedTab == .system } ?? false
             },
+            isScanRequested: { [weak self] in self?.state.lanScan == .scanning },
             onUpdate: { [weak self] snapshot, history in
                 self?.state.setSystem(snapshot, history: history)
+            },
+            onDevices: { [weak self] devices, canScan in
+                self?.state.setLANDevices(devices, canScan: canScan)
+            },
+            onScanEnd: { [weak self] blocked in
+                self?.state.finishLANScan(blocked: blocked)
+                self?.islandMenu?.setLocalNetworkAccessNeeded(blocked)
             })
         system.start()
         self.system = system
