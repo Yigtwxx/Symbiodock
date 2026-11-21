@@ -104,18 +104,25 @@ söner.
 
 ### Ağdaki cihazlar
 
-- Sekme görünür olunca ARP tablosu hemen okunur ve liste gösterilir.
-- Sonra alt ağ taranır: her adrese bir UDP paketi; tablo 1 ve 3 sn sonra yeniden okunur. Tarama
-  en fazla 60 sn'de bir, yalnızca sekme görünürken. Alt ağ /22'den genişse (1022 adresten çok)
-  tarama yapılmaz.
-- Adlar: önce modemin ters DNS'i, bulunamazsa mDNS ters sorgusu; cihaz başına 2 sn. Çözülen ad
+- **Kendiliğinden hiçbir paket gönderilmez** (2026-11-21, sahibi: "tarama düğmeyle olsun o zaman.
+  Kaç kişi bağlı olduğunu paket göndermeden görebiliyorsak o kalsın"). Gerekçe: Mac hangi
+  ağdaysa orası taranırdı; ofis, okul ya da kafe ağında bu şüpheli bir tarama gibi görünebilir ve
+  uygulamayı indiren herkes için de böyle olurdu.
+- Sekme görünür olunca yalnızca Mac'in zaten bildiği komşular okunur (komşu tablosu) ve sayılır:
+  bu, Mac'in konuştuğu cihazlardır, ağdaki herkes olmayabilir. Tablo okunamıyorsa (bkz.
+  "Doğrulanmamış varsayımlar") tarama yapılana kadar liste boş kalır.
+- Tarama yalnızca `Devices` panelindeki `Scan` düğmesine basınca yapılır: alt ağdaki her adrese
+  bir UDP paketi; tablo 1 ve 3 sn sonra yeniden okunur. Aynı anda tek tarama; süresince düğme
+  `Scanning…` olur ve basılamaz. Alt ağ /22'den genişse (1022 adresten çok) düğme çıkmaz.
+- Adlar da yalnızca taramayla çözülür (onlar da ağa sorgu gönderir): önce modemin ters DNS'i,
+  bulunamazsa mDNS ters sorgusu; cihaz başına 2 sn. Çözülen ad
   (ve bulunamadığı) IP + MAC ile uygulama kapanana kadar saklanır.
 - 3 dk boyunca ARP'de görülmeyen cihaz listeden düşer.
 - Yalnızca IPv4. Yayın ve multicast adresleri sayılmaz.
 
 ### İzin
 
-- İzin penceresini `System` sekmesinin ilk açılışındaki tarama tetikler; uygulama açılışı değil.
+- İzin penceresini ilk `Scan` basışı tetikler; uygulama açılışı ya da sekmenin açılması değil.
 - Metin (`NSLocalNetworkUsageDescription`): "Symbiodock looks for the devices on your network to
   count them and show their names in the System tab."
 - İzin verilmezse liste ARP'de zaten duranlarla kalır, panelin altında tek satır
