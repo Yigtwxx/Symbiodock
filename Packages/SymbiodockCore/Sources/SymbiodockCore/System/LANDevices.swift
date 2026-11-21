@@ -183,12 +183,15 @@ public struct SweepOutcome: Equatable, Sendable {
     /// Whether macOS kept the sweep back for want of the Local Network permission.
     /// - Parameter witnesses: addresses that had a hardware address before the sweep, this
     ///   Mac and the router left out. The kernel does not refuse those by itself, so if
-    ///   there are any, they decide: blocked when every one of them was refused. Without
+    ///   there are any, they decide: blocked when any of them was refused. Without
     ///   any, nine in ten refusals, or more, count as blocked.
     public func isBlocked(witnesses: Set<LANAddress>) -> Bool {
         // The kernel also answers "no route" for an address that stayed silent through several
         // ARP requests, so on repeated scans of a quiet range most refusals are its own.
-        if !witnesses.isEmpty { return witnesses.isSubset(of: refused) }
+        // One refused witness is enough: the kernel never refuses a device it holds an address
+        // for, so only the missing permission can have done it. (Asking for all of them would
+        // miss the permission if the system lets one address through.)
+        if !witnesses.isEmpty { return !witnesses.isDisjoint(with: refused) }
         return !refused.isEmpty && refused.count * 10 >= (sent + refused.count) * 9
     }
 }

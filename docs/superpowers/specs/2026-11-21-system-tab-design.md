@@ -119,12 +119,22 @@ söner.
   olmayabilir (denemede 6 cihazın 5'i). Yalnızca donanım adresi olan kayıtlar cihazdır. Bu Mac
   de tablodadır; kendi adresinden tanınır.
 - Tarama yalnızca `Devices` panelindeki `Scan` düğmesine basınca yapılır: alt ağdaki her adrese
-  bir UDP paketi; tablo 1 ve 3 sn sonra yeniden okunur. Aynı anda tek tarama; süresince düğme
-  `Scanning…` olur ve basılamaz. Alt ağ /22'den genişse (1022 adresten çok) düğme çıkmaz.
-- Adlar da yalnızca taramayla çözülür (onlar da ağa sorgu gönderir): önce modemin ters DNS'i,
-  bulunamazsa mDNS ters sorgusu; cihaz başına 2 sn. Çözülen ad
-  (ve bulunamadığı) IP + MAC ile uygulama kapanana kadar saklanır.
-- 3 dk boyunca ARP'de görülmeyen cihaz listeden düşer.
+  bir boş UDP paketi (port 9), 1 sn sonra tablo yeniden okunur, adlar sorulur, sonra bir kez daha
+  okunur. Bir basış tek tarama; süresince düğme `Scanning…` olur ve basılamaz.
+- `Scan` düğmesi yalnızca taranabilecek bir ağda çıkar: alt ağ en çok /22 (1022 adres) ve
+  **modem komşu tablosunda donanım adresiyle duruyor** olmalı. İkincisi bunun ARP konuşan
+  yerel bir ağ olduğunu gösterir: VPN tünelinde (birincil arayüz `utun`) böyle bir kayıt
+  olmaz, yani tünele asla tarama gitmez. Paketler ayrıca birincil arayüze bağlanır
+  (`IP_BOUND_IF`), ad sorguları da o arayüze.
+- Adlar da yalnızca taramayla çözülür (onlar da ağa sorgu gönderir): cihazın kendi verdiği ad,
+  mDNS ters sorgusuyla, cihaz başına 2 sn, aynı anda en çok 16, taramada en çok 64 cihaz.
+  Modemin ters DNS'i sorulmaz: denemede hiçbir ad vermedi ve bazı ağlarda uzun süre takılabilir.
+  `Router` ve `This Mac` satırlarına ad sorulmaz. Çözülen ad (ve bulunamadığı) **IP + donanım
+  adresi** ile, uygulama kapanana kadar bellekte saklanır: başka bir ağda aynı IP başkasıdır.
+- Ad başka bir cihazdan geldiği için güvenilmez: kontrol ve yön karakterleri atılır, 40
+  karakterde kesilir, yalnızca ilk etiket alınır (`.local` gider), tireler boşluk olur.
+- Liste, tablonun o anki hâlidir; ayrı bir "3 dk görünmeyen düşer" kuralı yoktur (eski kayıtları
+  çekirdek kendisi siler). Yalnızca birincil arayüzün alt ağındaki komşular listelenir.
 - Yalnızca IPv4. Yayın ve multicast adresleri sayılmaz.
 
 ### İzin
@@ -132,15 +142,25 @@ söner.
 - İzin penceresini ilk `Scan` basışı tetikler; uygulama açılışı ya da sekmenin açılması değil.
 - Metin (`NSLocalNetworkUsageDescription`): "Symbiodock looks for the devices on your network to
   count them and show their names in the System tab."
-- İzin verilmezse liste ARP'de zaten duranlarla kalır, panelin altında tek satır
-  `Allow Local Network to find all devices` çıkar ve sağ tık menüsünün başına
-  `Local Network access needed` gelir (`Music access needed` kalıbı). Madde
-  `x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork` açar.
+- İzin yokken liste tabloda zaten duranlarla kalır, panelin altında tek satır
+  `Local Network access needed` çıkar ve sağ tık menüsünün başına aynı adla bir madde gelir
+  (`Music access needed` kalıbı). Madde
+  `x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork` açar. Not ve
+  madde bir sonraki başarılı taramada ya da ağ gidince kalkar.
+- İzin penceresi ilk basışta çıkar; o basışın taraması reddedildiği için not görünür. `Allow`
+  dedikten sonra `Scan`'e yeniden basılır.
+- "İzin yok" kararı: taramadan hemen önce tabloda donanım adresiyle duran cihazlardan (bu Mac ve
+  modem hariç) herhangi birine gönderim `EHOSTUNREACH` ile reddedildiyse. Çekirdek adresini
+  bildiği bir cihazı kendiliğinden reddetmez; cevapsız adresleri ise art arda taramalarda
+  kendisi de aynı hatayla reddeder (son incelemenin notu, çekirdek kaynağından; çalıştırılıp
+  görülmedi), bu yüzden karar onlara dayanmaz. Böyle bir cihaz yoksa gönderimlerin onda dokuzu
+  reddedildiyse.
 - Uygulama izin durumunu saklamaz; her taramada yeniden anlar.
 
 ## Gizlilik
 
-- Hiçbir şey Mac'ten dışarı gönderilmez; tarama paketleri boş ve yalnızca yerel alt ağa gider.
+- Hiçbir şey Mac'ten dışarı gönderilmez; tarama paketleri boş, birincil arayüze bağlı ve yalnızca
+  yerel alt ağa gider. `Scan`'e basılmadıkça hiçbir paket çıkmaz.
 - Cihaz adı, IP ve MAC diske yazılmaz ve hiçbir seviyede loglanmaz. Log yalnızca sayıları ve hata
   kodlarını taşır (`system` kategorisi).
 - Yeni üçüncü taraf bağımlılık yok.
@@ -159,8 +179,10 @@ söner.
   `NetworkHistory`'yi (son 30 örnek, ortak ölçek) tutar.
 - `IslandTab.system`; `IslandState`: `system`, `networkHistory`, `setSystem(_:history:)`
   ("yalnızca değişince ata").
-- Bölüm B'de: cihaz listesi (birleştirme, eleme, ad temizleme, sıralama, sayım, 3 dk kuralı),
-  `SubnetSweep` (taranacak adresler, /22 sınırı), `lanDevices`, `localNetworkDenied`.
+- Bölüm B: `LANAddress`, `SubnetSweep` (taranacak adresler, /22 sınırı), `NeighbourTable`
+  (tablonun baytları), `LANDevices` (hangi kayıt cihaz, sıra, `canScan`), `LANIdentity`,
+  `LANNames`, `SweepOutcome.isBlocked(witnesses:)`; `IslandState.lanDevices`, `canScanLAN`,
+  `lanScan` (`idle` / `scanning` / `blocked`), `requestLANScan()`.
 
 **Uygulama** (`Symbiodock/System/`):
 
@@ -170,9 +192,11 @@ söner.
   (`NET_RT_IFLIST2`, birincil arayüz `SCDynamicStore`'dan).
 - `SystemReader` (actor): bunları tek okumada toplar. `SystemCoordinator` (`@MainActor`):
   `IslandState`'i gözler (`withObservationTracking`), sekme görünürken döngüyü çalıştırır.
-- Bölüm B'de: `LANScanner` (komşu tablosu, tarama, ad çözme).
-- `DemoSystem`: `SYMBIODOCK_DEMO_SYSTEM=1|hot` (Bölüm B'de `denied`); `SYMBIODOCK_PRINT_SYSTEM=1`
-  pencere açmadan dört okuma yazdırır (ikisi de yalnızca Debug).
+- Bölüm B: `LANReader` (rota ve tablo), `LANSweeper` (tarama), `MulticastNames` (ad sorgusu),
+  `LANScanner` (actor: `known()` yalnızca okur, `scan()` gönderir).
+- `DemoSystem`: `SYMBIODOCK_DEMO_SYSTEM=1|hot|scanning|denied`; `SYMBIODOCK_PRINT_SYSTEM=1`
+  pencere açmadan dört okuma yazdırır, `loop` döngüyü ve cihaz sayısını dener (tarama yapmaz;
+  tabloyu okuyabilmesi için `open --stdout` ile başlatılır). Hepsi yalnızca Debug.
 - Görünüm: `Symbiodock/Island/System/SystemContent.swift`; çubuk için Core Animation katmanı.
 - Bağlantılar: `TabStrip`, `TabGlyph`, `ExpandedIsland`, `IslandView`, `AppDelegate`,
   `IslandMenu`, `DebugRender`, `project.yml`, `Info.plist`.
@@ -182,8 +206,8 @@ söner.
 - **Bölüm A (izin gerektirmez):** sekme, simge, CPU / GPU / RAM, sıcaklıklar, ağ hızı ve grafiği;
   `Devices` paneli başlığıyla durur, içinde `—`. Sonunda sahibi dener.
   Plan: `docs/superpowers/plans/2026-11-21-system-tab-a.md`.
-- **Bölüm B (izinli):** cihaz listesi, tarama, adlar, izin reddi durumu, menü maddesi. Planı,
-  aşağıdaki varsayımlar sahibinin izin penceresine basmasıyla denendikten sonra yazılır.
+- **Bölüm B (izinli):** cihaz listesi, `Scan` düğmesi, adlar, izin notu, menü maddesi.
+  Plan: `docs/superpowers/plans/2026-11-21-system-tab-b.md`.
 
 ## Doğrulama
 

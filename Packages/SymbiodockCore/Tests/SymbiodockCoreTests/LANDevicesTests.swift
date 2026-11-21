@@ -114,11 +114,13 @@ struct LANDevicesTests {
 
     private func address(_ last: UInt8) -> LANAddress { LANAddress(192, 168, 1, last) }
 
-    @Test func aSweepIsBlockedWhenEveryWitnessWasRefused() {
+    @Test func aSweepIsBlockedWhenAKnownDeviceWasRefused() {
         let outcome = SweepOutcome(sent: 3, refused: [address(20), address(21), address(50)])
         #expect(outcome.isBlocked(witnesses: [address(20), address(21)]))
-        // One witness got through: the permission is there.
-        #expect(!outcome.isBlocked(witnesses: [address(20), address(22)]))
+        // One is enough: the kernel never refuses a device it holds an address for.
+        #expect(outcome.isBlocked(witnesses: [address(20), address(22)]))
+        // None of the known devices was refused: the permission is there.
+        #expect(!outcome.isBlocked(witnesses: [address(22), address(23)]))
     }
 
     /// The kernel itself refuses addresses that did not answer for a while.

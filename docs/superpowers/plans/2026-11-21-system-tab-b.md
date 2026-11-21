@@ -83,7 +83,7 @@ Claude-Session: https://claude.ai/code/session_01BW1DAFBBz2zwgt57hNkzQK
   - `SweepOutcome(sent:refused:)` with `isBlocked`.
   - `LANLabels.count(_ devices: Int) -> String`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `Packages/SymbiodockCore/Tests/SymbiodockCoreTests/LANAddressTests.swift`:
 
@@ -336,12 +336,12 @@ struct LANDevicesTests {
 }
 ```
 
-- [ ] **Step 2: Run the tests and see them fail**
+- [x] **Step 2: Run the tests and see them fail**
 
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -15`
 Expected: the build fails with `cannot find 'LANAddress' in scope`.
 
-- [ ] **Step 3: Write the code**
+- [x] **Step 3: Write the code**
 
 `Packages/SymbiodockCore/Sources/SymbiodockCore/System/LANAddress.swift`:
 
@@ -619,14 +619,14 @@ public enum LANLabels {
 }
 ```
 
-- [ ] **Step 4: Run the tests and see them pass**
+- [x] **Step 4: Run the tests and see them pass**
 
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -5`
 Expected: all tests pass (802 + 21 = 823).
 
 After the review two things were hardened in `LANNames` (see the file; this plan's listing above is the first version): a wire name cut off before its closing zero is refused, and `display` drops control and format characters and caps the name at 40 characters, because the name comes from another device. One test was added: 824.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Packages/SymbiodockCore
@@ -646,7 +646,7 @@ git push origin main
 - Consumes: `LANDevice` (Task 1).
 - Produces: `LANScanState { idle, scanning, blocked }`; `IslandState.lanDevices: [LANDevice]`, `.canScanLAN: Bool`, `.lanScan: LANScanState`, `.setLANDevices(_:canScan:)`, `.requestLANScan()`, `.finishLANScan(blocked:)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `IslandStateTests.swift`, at the end of the struct:
 
@@ -706,12 +706,12 @@ Add to `IslandStateTests.swift`, at the end of the struct:
     }
 ```
 
-- [ ] **Step 2: Run the tests and see them fail**
+- [x] **Step 2: Run the tests and see them fail**
 
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -15`
 Expected: the build fails with `value of type 'IslandState' has no member 'lanDevices'`.
 
-- [ ] **Step 3: Write the code**
+- [x] **Step 3: Write the code**
 
 In `Packages/SymbiodockCore/Sources/SymbiodockCore/System/LANDevices.swift`, add at the end:
 
@@ -765,12 +765,12 @@ After `setSystem(_:history:)`:
     }
 ```
 
-- [ ] **Step 4: Run the tests and see them pass**
+- [x] **Step 4: Run the tests and see them pass**
 
 Run: `swift test --package-path Packages/SymbiodockCore 2>&1 | tail -5`
 Expected: all tests pass (824 + 5 = 829).
 
-- [ ] **Step 5: Build the app and commit**
+- [x] **Step 5: Build the app and commit**
 
 Run the `xcodebuild` line from Global Constraints. Expected: `** BUILD SUCCEEDED **`.
 
@@ -799,7 +799,7 @@ git push origin main
   - `SystemCoordinator(isWatching:isScanRequested:onUpdate:onDevices:onScanEnd:)`
   - `IslandMenu.setLocalNetworkAccessNeeded(_ needed: Bool)`
 
-- [ ] **Step 1: The route and the table**
+- [x] **Step 1: The route and the table**
 
 `Symbiodock/System/LANReader.swift`:
 
@@ -848,7 +848,7 @@ enum LANReader {
 }
 ```
 
-- [ ] **Step 2: The sweep**
+- [x] **Step 2: The sweep**
 
 `Symbiodock/System/LANSweeper.swift`:
 
@@ -893,7 +893,7 @@ enum LANSweeper {
 }
 ```
 
-- [ ] **Step 3: One name**
+- [x] **Step 3: One name**
 
 `Symbiodock/System/MulticastNames.swift`:
 
@@ -939,7 +939,7 @@ enum MulticastNames {
 }
 ```
 
-- [ ] **Step 4: The scanner**
+- [x] **Step 4: The scanner**
 
 `Symbiodock/System/LANScanner.swift`:
 
@@ -1027,7 +1027,7 @@ actor LANScanner {
 }
 ```
 
-- [ ] **Step 5: The coordinator reads the devices and runs a scan**
+- [x] **Step 5: The coordinator reads the devices and runs a scan**
 
 In `Symbiodock/System/SystemCoordinator.swift`:
 
@@ -1146,7 +1146,7 @@ In `Symbiodock/System/SystemCoordinator.swift`:
             }
 ```
 
-- [ ] **Step 6: The menu item**
+- [x] **Step 6: The menu item**
 
 In `Symbiodock/App/IslandMenu.swift`:
 
@@ -1200,7 +1200,7 @@ In `Symbiodock/App/IslandMenu.swift`:
     }
 ```
 
-- [ ] **Step 7: Wire it, and remove the probe**
+- [x] **Step 7: Wire it, and remove the probe**
 
 Delete `Symbiodock/System/LANProbe.swift`.
 
@@ -1266,7 +1266,7 @@ In `Symbiodock/System/DemoSystem.swift`, `SystemHook`:
 
 The hook never calls `requestLANScan()`: it must not send anything.
 
-- [ ] **Step 8: Build and count the devices**
+- [x] **Step 8: Build and count the devices**
 
 Run the `xcodebuild` line. Expected: `** BUILD SUCCEEDED **`; no warnings in `Symbiodock/System`, `AppDelegate` or `IslandMenu`.
 
@@ -1285,7 +1285,7 @@ If the count is 0 through `open` as well, stop and report: the table is not read
 
 Do not press `Scan` and do not call `scan()` from anything: the owner does that.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add -A Symbiodock docs/superpowers/plans/2026-11-21-system-tab-b.md
@@ -1304,7 +1304,7 @@ git push origin main
 - Consumes: `LANDevice`, `LANScanState`, `LANLabels.count`, `IslandState.lanDevices`, `.canScanLAN`, `.lanScan`, `.requestLANScan()`, `.setLANDevices(_:canScan:)`, `.finishLANScan(blocked:)`; `SystemPalette.down`; `PanelCaption`, `systemPanel()` (private in `SystemContent.swift`).
 - Produces: `SystemContent(snapshot:history:devices:scan:canScan:topInset:onScan:)`; `DemoSystem.apply` accepts `"1"`, `"hot"`, `"scanning"`, `"denied"`.
 
-- [ ] **Step 1: The page takes the devices**
+- [x] **Step 1: The page takes the devices**
 
 In `Symbiodock/Island/System/SystemContent.swift`, `SystemContent`:
 
@@ -1329,7 +1329,7 @@ In `Symbiodock/Island/System/SystemContent.swift`, `SystemContent`:
             DevicesPanel(devices: devices, scan: scan, canScan: canScan, onScan: onScan)
 ```
 
-- [ ] **Step 2: The panel**
+- [x] **Step 2: The panel**
 
 Replace `DevicesPanel` (the whole private struct and its doc comment) with:
 
@@ -1461,7 +1461,7 @@ private struct DevicesPanel: View {
 }
 ```
 
-- [ ] **Step 3: The island hands them over**
+- [x] **Step 3: The island hands them over**
 
 In `Symbiodock/Island/ExpandedIsland.swift`, replace the `.system` case:
 
@@ -1483,7 +1483,7 @@ In `summary`, add a branch after the Files one (before the Agents one):
                 .lineLimit(1)
 ```
 
-- [ ] **Step 4: The demo and the renders**
+- [x] **Step 4: The demo and the renders**
 
 In `Symbiodock/System/DemoSystem.swift`:
 
@@ -1513,7 +1513,7 @@ In `Symbiodock/App/DebugRender.swift`, the loop that writes `expanded-system` an
         ] {
 ```
 
-- [ ] **Step 5: Build and look**
+- [x] **Step 5: Build and look**
 
 Run the `xcodebuild` line. Expected: `** BUILD SUCCEEDED **`.
 
@@ -1528,7 +1528,7 @@ Run `SYMBIODOCK_RENDER_DIR=build/render build/Build/Products/Debug/Symbiodock.ap
 
 If the row text or the pill does not fit the 164-point panel (144 points inside), shorten the row before the panel: keep the widths from the Global Constraints of Part A.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add Symbiodock docs/superpowers/plans/2026-11-21-system-tab-b.md
@@ -1543,7 +1543,7 @@ git push origin main
 **Files:**
 - Modify: `CLAUDE.md` (`Durum`, roadmap, "Doğrulanmamış varsayımlar"), the spec where the build differs from it, this plan (tick the boxes)
 
-- [ ] **Step 1: Run everything once more**
+- [x] **Step 1: Run everything once more**
 
 ```bash
 swift test --package-path Packages/SymbiodockCore 2>&1 | tail -3
@@ -1553,11 +1553,11 @@ SYMBIODOCK_RENDER_DIR=build/render build/Build/Products/Debug/Symbiodock.app/Con
 
 Expected: 829 tests pass, `** BUILD SUCCEEDED **`, the renders are written.
 
-- [ ] **Step 2: Write the status**
+- [x] **Step 2: Write the status**
 
 In `CLAUDE.md`: a `Durum` entry in Turkish with what this plan's steps showed (test count, renders, the passive device count through `open`, that no scan was run by anything but the owner); tick Faz 12 only if the owner has approved both parts, otherwise say that Part B's code is done and waits for the owner. In the spec: the three-minute rule is gone (the list is the table as it stands; the kernel ages its entries), the router's reverse DNS is not asked (it named nothing here and can block), the note reads `Local Network access needed`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add CLAUDE.md docs/superpowers
@@ -1566,6 +1566,17 @@ git push origin main
 ```
 
 Then stop and give the owner the list below.
+
+## After the final review
+
+The whole-change review found nothing critical: nothing is sent without a press, one press is one sweep, no name or address is logged or written. Its findings were fixed in `68744c9` and the commit after it; the code is the reference, not the listings above:
+
+- Names are kept by address and hardware address (`LANIdentity`), not by address alone.
+- A sweep counts as blocked when any device that had a hardware address before the sweep (this Mac and the router left out) was refused; the nine-in-ten rule only applies when there is no such device. The kernel itself refuses silent addresses on repeated scans.
+- `Scan` is offered only where the router has a hardware address in the table (`LANDevices.canScan`), the sweep's socket is bound to the primary interface and the name queries go to it: nothing is swept into a tunnel.
+- Names are asked in batches of 16; the router and this Mac are not asked.
+- The menu item follows `state.lanScan`; the list's fade depends on the rows that fit (3 with the note), and the scrolled content has room below it.
+- The hook prints the scan's state: `scan idle` on every line.
 
 ## Elle kontrol listesi
 
@@ -1582,5 +1593,7 @@ Then stop and give the owner the list below.
 9. Sekmeyi kapatıp aç: cihaz adları duruyor (uygulama kapanana kadar).
 10. System Settings → Privacy & Security → Local Network'te Symbiodock'u kapat, `Scan`'e bas: panelin altında ve sağ tık menüsünde `Local Network access needed` çıkıyor; menü maddesi ayarları açıyor. İzni geri aç, `Scan`'e bas: not gidiyor.
 11. Wi-Fi'yi kapat: liste boşalıyor, `Scan` düğmesi yok.
-12. `Scan`'e basmadıkça ağa bir şey gönderilmiyor (istersen `sudo tcpdump -i en0 udp port 9` ile bak: yalnızca basınca paket görünür).
+12. `Scan`'e basmadıkça ağa bir şey gönderilmiyor (istersen `sudo tcpdump -i en0 'udp port 9 or udp port 5353'` ile bak: 9. port yalnızca basınca; 5353'te Symbiodock'tan gelen sorgular yalnızca basınca).
+14. Bir-iki dakika içinde 6 kez `Scan`'e bas: `Local Network access needed` notu **çıkmamalı**.
+15. Varsa bir VPN aç: `Scan` düğmesi kayboluyor; kapatınca birkaç saniyede geri geliyor.
 13. Activity Monitor'de Symbiodock: sekme açıkken CPU yine %1 civarı ya da altı.
