@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var overlayController: OverlayController?
     private var nowPlaying: NowPlayingCoordinator?
     private var agents: AgentSessionCoordinator?
+    private var system: SystemCoordinator?
     private let previews = FilePreviews()
     private var shelf: ShelfCoordinator?
     private var terminationSignalSource: DispatchSourceSignal?
@@ -18,7 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         #if DEBUG
         DebugRender.runIfRequested()
-        if ConvertHook.runIfRequested() || FlowHook.runIfRequested() { return }
+        if ConvertHook.runIfRequested() || FlowHook.runIfRequested() || SystemHook.runIfRequested() { return }
         #endif
         installTerminationHandler()
 
@@ -67,7 +68,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
 
         #if DEBUG
-        if let demo = DemoSystem.requested { DemoSystem.apply(demo, to: state) }
+        if let demo = DemoSystem.requested {
+            DemoSystem.apply(demo, to: state)
+        } else {
+            startSystem()
+        }
+        #else
+        startSystem()
         #endif
 
         #if DEBUG
@@ -103,6 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Otherwise the perl helper would outlive the app until its next write.
         nowPlaying?.stop()
         agents?.stop()
+        system?.stop()
         shelf?.stop()
     }
 
@@ -152,6 +160,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func shelfItem(_ id: UUID) -> ShelfItem? {
         state.shelf.items.first { $0.id == id }
+    }
+
+    /// Starts measuring this Mac whenever the open island shows the System tab.
+    private func startSystem() {
+        let system = SystemCoordinator(
+            isWatching: { [weak self] in
+                self.map { $0.state.phase == .expanded && $0.state.selectedTab == .system } ?? false
+            },
+            onUpdate: { [weak self] snapshot, history in
+                self?.state.setSystem(snapshot, history: history)
+            })
+        system.start()
+        self.system = system
     }
 
     /// Starts looking for agent sessions.

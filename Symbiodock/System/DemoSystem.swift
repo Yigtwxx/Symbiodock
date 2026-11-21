@@ -32,4 +32,38 @@ enum DemoSystem {
             history: history)
     }
 }
+
+/// `SYMBIODOCK_PRINT_SYSTEM=1 build/Build/Products/Debug/Symbiodock.app/Contents/MacOS/Symbiodock`
+/// prints four measures a second apart and quits, without building the island.
+@MainActor
+enum SystemHook {
+    /// True when the hook took over: the caller must not build the island.
+    static func runIfRequested() -> Bool {
+        guard ProcessInfo.processInfo.environment["SYMBIODOCK_PRINT_SYSTEM"] != nil else { return false }
+        Task {
+            let reader = SystemReader()
+            var meter = SystemMeter()
+            for _ in 0..<5 {
+                let started = Date()
+                let reading = await reader.read(withTemperatures: true)
+                let cost = Int(Date().timeIntervalSince(started) * 1_000_000)
+                if let snapshot = meter.take(reading) {
+                    let memory = snapshot.memory.map {
+                        "\(SystemLabels.gigabytes($0.used)) / \(SystemLabels.wholeGigabytes($0.total)) GB"
+                    } ?? SystemLabels.missing
+                    let down = snapshot.network.map { SystemLabels.rate($0.down) } ?? SystemLabels.missing
+                    let up = snapshot.network.map { SystemLabels.rate($0.up) } ?? SystemLabels.missing
+                    print(
+                        "cpu \(SystemLabels.percent(snapshot.cpu)) \(SystemLabels.degrees(snapshot.temperatures.cpu))",
+                        "| gpu \(SystemLabels.percent(snapshot.gpu)) \(SystemLabels.degrees(snapshot.temperatures.gpu))",
+                        "| ram \(memory) | down \(down) up \(up)",
+                        "| online \(snapshot.isOnline) | read \(cost) µs")
+                }
+                try? await Task.sleep(for: .seconds(1))
+            }
+            exit(0)
+        }
+        return true
+    }
+}
 #endif
