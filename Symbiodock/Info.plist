@@ -28,5 +28,7 @@
 	<string>Symbiodock reads the current track from Music, controls playback and volume in Music and Spotify, and asks your browser which site is playing.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 Yigtwxx</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Symbiodock looks for the devices on your network to count them and show their names in the System tab.</string>
 </dict>
 </plist>

@@ -101,6 +101,11 @@ söner.
   dışındaki okumalar atılır. Ortalama değil, çünkü çoğu anahtar 40 °C'nin altını göstermiyor ve
   bazıları tepe değerini tutuyor. Bir anahtarı okumak ~170 µs sürdüğü için ilk okumada geçerli
   çıkanlardan eşit aralıklı en fazla 24 CPU ve 8 GPU anahtarı seçilir. Intel Mac'te bu fazda `—`.
+  Anahtarların dörtte birinden fazlası tam 40,0'da duruyorsa çip 40 °C'den serindir ve ortanca
+  40'ta takılır; o zaman 40'ın altını okuyan (tabansız) anahtarların ortalaması, yoksa 40
+  gösterilir. Ölçüm (2026-11-21): boşta çip sensörleri (`tdie`) 35,5, tabansız anahtarlar 36,2,
+  ortanca 40,0; yükte 42,1 / 50,6 / 56,6. Hangisinin "CPU sıcaklığı" olduğu için elde referans
+  araç yok; yükte ortanca, serinken tabansız anahtarlar gösteriliyor.
 - Ağ hızı: birincil arayüzün (varsayılan rota) bayt sayaçları.
 
 ### Ağdaki cihazlar
@@ -109,9 +114,10 @@ söner.
   Kaç kişi bağlı olduğunu paket göndermeden görebiliyorsak o kalsın"). Gerekçe: Mac hangi
   ağdaysa orası taranırdı; ofis, okul ya da kafe ağında bu şüpheli bir tarama gibi görünebilir ve
   uygulamayı indiren herkes için de böyle olurdu.
-- Sekme görünür olunca yalnızca Mac'in zaten bildiği komşular okunur (komşu tablosu) ve sayılır:
-  bu, Mac'in konuştuğu cihazlardır, ağdaki herkes olmayabilir. Tablo okunamıyorsa (bkz.
-  "Doğrulanmamış varsayımlar") tarama yapılana kadar liste boş kalır.
+- Sekme görünür olunca yalnızca Mac'in zaten bildiği komşular okunur (komşu tablosu; izin
+  gerektirmediği denendi) ve sayılır: bu, Mac'in konuştuğu cihazlardır, ağdaki herkes
+  olmayabilir (denemede 6 cihazın 5'i). Yalnızca donanım adresi olan kayıtlar cihazdır. Bu Mac
+  de tablodadır; kendi adresinden tanınır.
 - Tarama yalnızca `Devices` panelindeki `Scan` düğmesine basınca yapılır: alt ağdaki her adrese
   bir UDP paketi; tablo 1 ve 3 sn sonra yeniden okunur. Aynı anda tek tarama; süresince düğme
   `Scanning…` olur ve basılamaz. Alt ağ /22'den genişse (1022 adresten çok) düğme çıkmaz.
@@ -200,20 +206,26 @@ Her biri ilgili görevin ilk işi olarak denenir; sonucu `CLAUDE.md`'ye yazılı
   aynı değer. Son incelemenin notu (aranarak bulundu, denenmedi): M3'te performans çekirdeği ve
   GPU anahtarları `Tf**` olabilir; o zaman CPU yalnızca `Te**` (E çekirdekleri) ortancasını, GPU
   çip sıcaklığını gösterir. Dağıtımdan önce çipe göre anahtar tablosu gerekir.
-- **Komşu tablosu (2026-11-21'de denendi, varsayım yanlış çıktı).** `arp -an` 4 cihaz
-  gösterirken Terminal'den çalışan sıradan bir süreç `sysctl`'den (`NET_RT_FLAGS` +
-  `RTF_LLINFO`, `AF_INET`) 0 bayt alıyor; `NET_RT_DUMP` de IPv4 komşularını vermiyor. `arp`'ın
-  özel yetkisi (entitlement) yok, yani çekirdek tabloyu Apple'ın kendi araçları dışındakilerden
-  saklıyor. İzin verilince uygulamanın okuyup okuyamadığı Bölüm B'nin ilk denemesi. Yedekler:
-  izin verildikten sonra `/usr/sbin/arp -an` çıktısını okumak (izin reddedilmişse kullanılmaz);
-  o da olmazsa cihazları kendi yoklamamızın cevaplarından (ICMP) ve Bonjour'dan bulmak.
-- **Tarama.** UDP paketinin izin penceresini açtığı ve tabloyu doldurduğu denenmedi. Yedek: ICMP
-  (`SOCK_DGRAM`).
-- **Adlar.** Ters DNS ve mDNS ters sorgusunun ad döndürdüğü denenmedi. Yedek: Bonjour servis
-  taraması (`NSBonjourServices` ister). Hiçbiri olmazsa cihazlar IP ile kalır ve sahibine söylenir.
-- **İzin reddi.** Resmi API yok; reddin `sendto` hatasından anlaşıldığı varsayılıyor. Yedek: not
-  ve menü maddesi gösterilmez, liste eksik kalır.
-- **Ad-hoc imza.** Debug sürümünde yeniden derlemeden sonra izin tekrar sorulabilir.
+- **Komşu tablosu (2026-11-21, uygulamanın içinden denendi: okunuyor).** `open` ile başlatılan
+  uygulama, izin verilmeden ve tek paket göndermeden tabloyu okudu (`NET_RT_FLAGS` +
+  `RTF_LLINFO`, `AF_INET`): 860 bayt, donanım adresi olan 5 kayıt (modem, 3 cihaz ve bu Mac'in
+  kendisi). Daha önce 0 bayt alan, Terminal'den çalıştırılan süreçti; yani çekirdek tabloyu
+  sürecin ait olduğu uygulamaya göre veriyor. İzin açıkça reddedilince okunup okunmadığı
+  denenmedi; okunamazsa liste boş kalır.
+- **Tarama (denendi: çalışıyor).** Alt ağın 254 adresine boş UDP paketi (port 9): izin
+  verilmeden önce 252'si `EHOSTUNREACH` (65) ile reddedildi ve izin penceresi çıktı; sahibi
+  `Allow`'a basınca 254'ü de gönderildi. Tablo 254 kayda çıktı, ama yalnızca cevap verenlerin
+  donanım adresi var: 6 cihaz (taramadan önce 5). Cihaz, donanım adresi olan kayıttır.
+- **Adlar (denendi: kısmen).** Modemin ters DNS'i hiçbir cihaz için ad vermedi (0,02 sn'de
+  cevapsız). mDNS ters sorgusu 6 cihazın 2'sinin adını verdi (bir iPhone ve bu Mac; 0,2 sn
+  içinde), diğer dördü 2 sn'de cevap vermedi. Sorgular sırayla 8 sn sürdü; uygulamada aynı anda
+  yapılır. Rastgele MAC'li iki cihaz ve üretici MAC'li iki cihaz (modem dahil) IP ile kalır.
+- **İzin bekleme/red (kısmen denendi).** İzin verilmemişken gönderimlerin neredeyse hepsi 65
+  hatası veriyor; "izin yok" bundan anlaşılır. Açıkça `Don't Allow` denen durum denenmedi.
+- **Ad-hoc imza.** Debug sürümünde yeniden derlemeden sonra iznin tekrar sorulup sorulmadığı
+  henüz görülmedi.
+- **`/usr/sbin/arp`.** Uygulamanın içinden çalıştırılınca 0 satır verdi (izinden sonra da);
+  yedek olarak kullanılamaz, gerek de kalmadı.
 
 ## Kapsam dışı
 

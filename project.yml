@@ -44,6 +44,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSAppleEventsUsageDescription: Symbiodock reads the current track from Music, controls playback and volume in Music and Spotify, and asks your browser which site is playing.
+        NSLocalNetworkUsageDescription: Symbiodock looks for the devices on your network to count them and show their names in the System tab.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yigtwxx.Symbiodock

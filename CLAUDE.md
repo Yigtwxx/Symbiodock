@@ -320,7 +320,7 @@ spec'te yazılı.
   bazı anahtarlar tepe değeri tutuyor: bu yüzden ortanca alınır (boşta CPU 44,0, GPU 36,6 °C).
   Bir SMC anahtarını okumak ~170 µs. **Komşu tablosu sıradan bir süreçten okunamıyor**: aynı
   `sysctl` çağrısı 0 bayt döndürüyor, `arp`'ın özel yetkisi yok; yani Bölüm A'da cihaz listesi
-  yok. Denenmeyenler ve yedekleri spec'in sonunda: başka çipler ve GPU yükü, izin verilince
+  yok (bu, Terminal'den çalışan süreç içindi). **Bölüm B denemesi (2026-11-21, uygulamanın içinden, sahibi `Allow`'a bastı):** `open` ile başlatılan uygulama komşu tablosunu izinsiz ve paket göndermeden okuyor (5 cihaz); 254 adrese boş UDP paketi izin verilmeden önce 65 (`EHOSTUNREACH`) hatası verip izin penceresini açıyor, izinden sonra hepsi gidiyor ve 6. cihaz bulunuyor; modemin ters DNS'i ad vermiyor, mDNS ters sorgusu 6 cihazın 2'sinin adını veriyor (iPhone ve bu Mac); `/usr/sbin/arp` uygulamanın içinden 0 satır veriyor. CPU sıcaklığı: serinken ortanca 40'ta takıldığı için tabansız anahtarların ortalaması gösteriliyor (boşta `tdie` 35,5, tabansız 36,2, ortanca 40,0; yükte 42,1 / 50,6 / 56,6); elde referans araç yok. Denenmeyenler ve yedekleri spec'in sonunda: başka çipler ve GPU yükü, izin verilince
   komşu tablosunun okunması, UDP taramasının izin penceresini açması, ters DNS / mDNS ile ad
   çözme, izin reddinin `sendto` hatasından anlaşılması, ad-hoc imzada iznin yeniden sorulması.
 - Dosya sürükleme (2026-11-16, Faz 10 Görev 5): gerçek sürükleme elle yapılması gerektiği için

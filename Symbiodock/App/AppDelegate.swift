@@ -19,7 +19,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         #if DEBUG
         DebugRender.runIfRequested()
-        if ConvertHook.runIfRequested() || FlowHook.runIfRequested() || SystemHook.runIfRequested() { return }
+        if ConvertHook.runIfRequested() || FlowHook.runIfRequested() || SystemHook.runIfRequested()
+            || LANProbe.runIfRequested()
+        { return }
         #endif
         installTerminationHandler()
 

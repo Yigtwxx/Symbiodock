@@ -33,10 +33,24 @@ public enum TemperatureKeys {
         return (0..<limit).map { items[$0 * items.count / limit] }
     }
 
-    /// The median of the readings within the valid range; nil when there is none.
+    /// The value many keys do not read below (measured on an M4 Pro). A key that reads exactly
+    /// this says only "at most this".
+    public static let floor = 40.0
+
+    /// One number for the readings within the valid range; nil when there is none.
+    ///
+    /// Normally the median. While more than a quarter of the keys sit exactly on the floor the
+    /// chip is cooler than the floor, and the median would stick at it: then the mean of the
+    /// keys that do read below it is taken (they have no floor), or the floor itself when
+    /// there is none.
     public static func typical(_ values: [Double]) -> Double? {
         let valid = values.filter { validRange.contains($0) }.sorted()
         guard !valid.isEmpty else { return nil }
+        let onFloor = valid.filter { $0 == floor }.count
+        if onFloor * 4 > valid.count {
+            let below = valid.filter { $0 < floor }
+            return below.isEmpty ? floor : below.reduce(0, +) / Double(below.count)
+        }
         let middle = valid.count / 2
         return valid.count % 2 == 1 ? valid[middle] : (valid[middle - 1] + valid[middle]) / 2
     }
