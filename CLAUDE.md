@@ -69,6 +69,7 @@ Tam tasarım: `docs/superpowers/specs/2026-11-14-symbiodock-v1-design.md`. Kod y
 | Dosya çevirme | Yalnızca yerleşik macOS araçları (sips, textutil, afconvert, ditto, PDFKit, AVFoundation, Markdown ayrıştırıcısı); çıktı orijinalin yanına, orijinal kalır. Toplu çevirmede desteklenmeyen (PPTX/XLSX) atlanır ve söylenir; toplu ZIP tek `Archive.zip` (2026-11-16) | Sahibi: "ekstra bir şey kurmak zorunda kalmayalım"; "2 docx 1 pptx pdfe çevirilecek hepsini çevirsin" |
 | Venom sarma | Çevrilen kart (ya da çekmece) çentikteki goo diliyle sarılır, siyah koza olur, yeni formatla açılır; istirahatte kare kare çizim yok (2026-11-16) | Sahibi: "venom gibi o dosyayı çevresinden sarmalasın tamamen kapatsın siyah olsun ve açılsın" |
 | Dosya baloncuğu | Raf doluyken kapalı adanın sağında yuvarlak baloncuk: türün simgesi kendi renginde, adet köşede rozet; diğer türler arkadan taşar (2026-11-16) | Sahibi: "fotoğrafsa fotoğraf iconu olsun ve onun kendi rengi olsun" |
+| System sekmesi | Dördüncü sekme, sıra `Agents, Media, System, Files`: CPU / GPU / RAM kullanımı, CPU ve GPU sıcaklığı, ağ hızı, ağdaki cihazların sayısı ve adları. Yerleşim A (satırlar): solda üç ölçü çubuklarıyla, ortada `Network`, sağda `Devices` listesi. Her ölçü kendi renginde (CPU mavi, GPU mor-pembe, RAM yeşil); simge çip. RAM'de sıcaklık yok, yalnızca kullanım. Yalnızca açık adada: yüzü ve baloncuğu yok, hover'da kendiliğinden açılmaz, `First tab` menüsüne girmez. Yalnızca sekme görünürken, 2 sn'de bir ölçülür. Ağ taraması macOS "Local Network" iznini bir kez ister (pencere sekmenin ilk açılışında); adı çözülemeyen cihaz IP ile görünür. Hook, `sudo` ve yeni bağımlılık yok (2026-11-21) | Sahibi: "bir sekme daha ekleyelim. CPU GPU RAM kullanımı, bunların sıcaklıkları ağ kullanımı ağa bağlı kaç kişi olduğu ve onların adını filan göstersin"; izin için "izinleri tara seçeneği seçmek istiyorum"; RAM sensörü bulunamayınca "Yalnızca kullanım"; canlı taslaktan "A, çip ve her ölçü kendi renginde". Ad, sıra, kendiliğinden açılmama, ortalama sıcaklık ve sayıma bu Mac ile modemin girmesi öneriydi, planla birlikte onayladı (spec: `2026-11-21-system-tab-design.md`) |
 | Mimari | Spec bölüm 4-5 | Sahibi onayladı |
 | Proje üretimi | XcodeGen (`project.yml`), `.xcodeproj` commit edilmez | Komut satırından üretilebilir ve diff'i okunur |
 | Kod yerleşimi | Saf mantık `Packages/SymbiodockCore` paketinde, AppKit/SwiftUI app hedefinde | Mantık uygulama açılmadan `swift test` ile test edilir |
@@ -252,6 +253,10 @@ v1 bunlarla biter.
 - [x] **Faz 11 — Çalışma ışığı, renkli yay, uydular, canlı pet.** Kod tamam, elle kontrol bekliyor.
       Spec: `docs/superpowers/specs/2026-11-20-working-aurora-design.md`.
       Plan: `docs/superpowers/plans/2026-11-20-working-aurora.md` (8 görev; elle kontrol listesi sonunda).
+- [ ] **Faz 12 — System sekmesi: CPU / GPU / RAM, sıcaklıklar, ağ hızı, ağdaki cihazlar.**
+      Spec: `docs/superpowers/specs/2026-11-21-system-tab-design.md`. Plan yazılacak:
+      `docs/superpowers/plans/2026-11-21-system-tab.md`. İki bölüm: A izin gerektirmez (sonunda
+      sahibi dener), B ağ taraması ve adlar (Local Network izni).
 
 Sonrası (başka widget'lar, kişiselleştirme, dil desteği, imzalama, site) için sahibi ayrıca
 yön verecek; kendiliğinden başlama.
@@ -302,6 +307,14 @@ spec'te yazılı.
   sayılır; böylece compact'ın bitişi hiçbir zaman bitiş (finish) sayılmaz.
 - Claude Code `status: "shell"`: tur bitmiş, arka planda kabuk komutu sürüyor (bir oturumda iki
   kez görüldü). Boşta sayılıyor; başka anlamı çıkarsa buraya yazılır.
+- System sekmesi (2026-11-21, M4 Pro, `sudo` olmadan denenenler): GPU kullanımı `IOAccelerator`
+  istatistiklerinden okunuyor (%29); `AppleSMC` kullanıcı istemcisi açılıyor ve sıcaklık
+  anahtarlarını veriyor (CPU `Tp**`/`Te**` 40-72 °C, GPU `Tg**` 36-45 °C; çoğu `Tp0*` boşta tam
+  40,0 okuyor, yer tutucu olabilir); özel `IOHIDEventSystemClient` `PMU tdie*` sensörlerini veriyor
+  (35-39 °C); RAM sensörü bulunamadı; `arp -an` Terminal'den modem + 3 cihaz gösterdi. Denenmeyenler
+  ve yedekleri spec'in sonunda: SMC anahtarlarının çekirdeklerle eşleşmesi ve başka çipler, ARP
+  tablosunun uygulamanın içinden okunması, UDP taramasının izin penceresini açması, ters DNS / mDNS
+  ile ad çözme, izin reddinin `sendto` hatasından anlaşılması, ad-hoc imzada iznin yeniden sorulması.
 - Dosya sürükleme (2026-11-16, Faz 10 Görev 5): gerçek sürükleme elle yapılması gerektiği için
   üç varsayımın hiçbiri denenmedi. (1) Başka uygulamanın sürüklemesi sırasında global
   `.leftMouseDragged` geliyor; yedek kodda: global `leftMouseDown` ile başlayıp tuş bırakılınca
