@@ -118,6 +118,22 @@ enum DebugRender {
         write(
             ExpandedPreview(state: branches), size: CGSize(width: 640, height: 210),
             named: "expanded-agents-branches", to: directory)
+        for (name, set) in [("expanded-system", "1"), ("expanded-system-hot", "hot")] {
+            let system = IslandState()
+            DemoSystem.apply(set, to: system)
+            system.setHovering(true)
+            system.selectTab(.system)
+            write(
+                ExpandedPreview(state: system), size: CGSize(width: 640, height: 210),
+                named: name, to: directory)
+        }
+        // Before the first measure: dashes, tracks without fills, an empty graph.
+        let unmeasured = IslandState()
+        unmeasured.setHovering(true)
+        unmeasured.selectTab(.system)
+        write(
+            ExpandedPreview(state: unmeasured), size: CGSize(width: 640, height: 210),
+            named: "expanded-system-empty", to: directory)
         write(CollapsedGallery(), size: CGSize(width: 620, height: 540), named: "collapsed-faces", to: directory)
         write(WorkingAuroraGallery(), size: CGSize(width: 900, height: 700), named: "working-aurora", to: directory)
         // The goo that swallows a tile while its file changes format, over a photo becoming a

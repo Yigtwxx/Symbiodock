@@ -67,6 +67,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
 
         #if DEBUG
+        if let demo = DemoSystem.requested { DemoSystem.apply(demo, to: state) }
+        #endif
+
+        #if DEBUG
         if DemoMedia.requested {
             DemoMedia.apply(to: state)
             if DemoMedia.cyclesTracks { DemoMedia.cycleTracks(on: state) }
