@@ -18,6 +18,9 @@ enum NetworkCounterReader {
         var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST2, Int32(index)]
         var length = 0
         guard sysctl(&mib, UInt32(mib.count), nil, &length, nil, 0) == 0, length > 0 else { return nil }
+        // Room to spare: an address added between the two calls must not fail the read, which
+        // would show the Mac as offline for a sample.
+        length += 512
         var buffer = [UInt8](repeating: 0, count: length)
         guard sysctl(&mib, UInt32(mib.count), &buffer, &length, nil, 0) == 0 else { return nil }
         var offset = 0

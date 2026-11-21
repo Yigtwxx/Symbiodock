@@ -34,12 +34,19 @@ enum DemoSystem {
 }
 
 /// `SYMBIODOCK_PRINT_SYSTEM=1 build/Build/Products/Debug/Symbiodock.app/Contents/MacOS/Symbiodock`
-/// prints four measures a second apart and quits, without building the island.
+/// prints four measures a second apart and quits, without building the island. With `loop` it
+/// runs the coordinator against an island state of its own, opens and closes the System tab
+/// on it, and prints how many measures arrived in each stretch: none may arrive while the tab
+/// is not shown.
 @MainActor
 enum SystemHook {
     /// True when the hook took over: the caller must not build the island.
     static func runIfRequested() -> Bool {
-        guard ProcessInfo.processInfo.environment["SYMBIODOCK_PRINT_SYSTEM"] != nil else { return false }
+        guard let mode = ProcessInfo.processInfo.environment["SYMBIODOCK_PRINT_SYSTEM"] else { return false }
+        if mode == "loop" {
+            checkLoop()
+            return true
+        }
         Task {
             let reader = SystemReader()
             var meter = SystemMeter()
@@ -64,6 +71,44 @@ enum SystemHook {
             exit(0)
         }
         return true
+    }
+
+    /// Counts the measures the coordinator hands over.
+    private final class Tally {
+        var count = 0
+    }
+
+    private static func checkLoop() {
+        Task {
+            let state = IslandState()
+            let tally = Tally()
+            let coordinator = SystemCoordinator(
+                isWatching: { state.phase == .expanded && state.selectedTab == .system },
+                onUpdate: { snapshot, history in
+                    tally.count += 1
+                    state.setSystem(snapshot, history: history)
+                })
+            coordinator.start()
+            @MainActor func stretch(_ name: String, seconds: Int) async {
+                let before = tally.count
+                try? await Task.sleep(for: .seconds(seconds))
+                let cpu = SystemLabels.percent(state.system?.cpu)
+                print("\(name), \(seconds) s: \(tally.count - before) measures, cpu \(cpu), graph \(state.networkHistory.samples.count)")
+            }
+            await stretch("island closed", seconds: 3)
+            state.setHovering(true)
+            await stretch("open on \(state.selectedTab.rawValue)", seconds: 3)
+            state.selectTab(.system)
+            await stretch("System tab shown", seconds: 7)
+            state.selectTab(.media)
+            await stretch("another tab", seconds: 5)
+            state.selectTab(.system)
+            await stretch("System tab again", seconds: 5)
+            state.setHovering(false)
+            await stretch("island closed", seconds: 5)
+            coordinator.stop()
+            exit(0)
+        }
     }
 }
 #endif

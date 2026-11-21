@@ -1922,6 +1922,9 @@ enum NetworkCounterReader {
         var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST2, Int32(index)]
         var length = 0
         guard sysctl(&mib, UInt32(mib.count), nil, &length, nil, 0) == 0, length > 0 else { return nil }
+        // Room to spare: an address added between the two calls must not fail the read, which
+        // would show the Mac as offline for a sample.
+        length += 512
         var buffer = [UInt8](repeating: 0, count: length)
         guard sysctl(&mib, UInt32(mib.count), &buffer, &length, nil, 0) == 0 else { return nil }
         var offset = 0
@@ -2146,6 +2149,8 @@ enum SystemHook {
 }
 ```
 
+After the review a second mode was added to the hook (see `DemoSystem.swift`): `SYMBIODOCK_PRINT_SYSTEM=loop` runs the coordinator against an `IslandState` of its own, opens and closes the System tab on it and prints how many measures arrived in each stretch. Expected: 0 while the island is closed or shows another tab, about one every two seconds while the System tab is shown (4 in 7 s, the first after half a second).
+
 - [ ] **Step 8: Wire it**
 
 `Symbiodock/App/AppDelegate.swift`:
@@ -2292,7 +2297,7 @@ Then stop and give the owner the list below.
 9. Bir indirme başlat: `↓` hızı ve grafik yükseliyor; bitince düşüyor.
 10. Wi-Fi'yi kapat: `Network` panelinde `Offline`; açınca hızlar geri geliyor.
 11. `Devices` panelinde yalnızca başlık ve `—` var (Bölüm B'de dolacak).
-12. Başka sekmeye geç ve geri dön: son değerler hemen görünüyor, grafik yeniden başlıyor.
+12. Başka sekmeye geç ve geri dön: son değerler hemen görünüyor. 10 sn'den kısa ayrıldıysan grafik kaldığı yerden sürüyor, daha uzunsa yeniden başlıyor.
 13. Adadan çık, yeniden gel: ada `System`'de değil, her zamanki sekmede açılıyor.
 14. Sağ tık → `First tab`: yalnızca `Agents` ve `Media` var.
 15. Adayı bir kenara taşı (alt, sağ): `System` sekmesi orada da düzgün görünüyor.
