@@ -421,10 +421,12 @@ public final class IslandState {
         lanScan = .scanning
     }
 
-    /// The scan that was asked for has ended.
+    /// The scan that was asked for has ended. Whoever runs the scan must always say so, or
+    /// the button stays disabled.
     public func finishLANScan(blocked: Bool) {
         guard lanScan == .scanning else { return }
-        lanScan = blocked ? .blocked : .idle
+        // The network may have gone meanwhile: then there is nothing to give permission for.
+        lanScan = blocked && canScanLAN ? .blocked : .idle
     }
 
     public func setAgentSessions(_ sessions: [AgentSession]) {

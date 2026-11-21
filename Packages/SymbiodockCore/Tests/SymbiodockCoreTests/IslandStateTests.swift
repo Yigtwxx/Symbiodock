@@ -1313,6 +1313,27 @@ struct IslandStateTests {
         #expect(state.lanScan == .idle)
     }
 
+    @Test func aSecondPressWhileScanningChangesNothing() {
+        let state = IslandState()
+        state.setLANDevices([device(1)], canScan: true)
+        state.requestLANScan()
+        state.requestLANScan()
+        #expect(state.lanScan == .scanning)
+        // A new list of devices arriving meanwhile does not end the scan.
+        state.setLANDevices([device(1), device(9)], canScan: true)
+        #expect(state.lanScan == .scanning)
+    }
+
+    @Test func aScanThatEndsBlockedAfterTheNetworkWentIsJustOver() {
+        let state = IslandState()
+        state.setLANDevices([device(1)], canScan: true)
+        state.requestLANScan()
+        state.setLANDevices([], canScan: false)
+        #expect(state.lanScan == .scanning)
+        state.finishLANScan(blocked: true)
+        #expect(state.lanScan == .idle)
+    }
+
     @Test func losingTheNetworkEndsTheBlockedNote() {
         let state = IslandState()
         state.setLANDevices([device(1)], canScan: true)
