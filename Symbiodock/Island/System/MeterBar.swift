@@ -26,6 +26,8 @@ struct MeterBar: NSViewRepresentable {
         private let fill = CAGradientLayer()
         private var fraction: Double?
         private var colors: [NSColor] = []
+        /// The size the layers were last laid out for.
+        private var placedSize = CGSize.zero
 
         override init(frame: NSRect) {
             super.init(frame: frame)
@@ -72,6 +74,10 @@ struct MeterBar: NSViewRepresentable {
 
         override func layout() {
             super.layout()
+            guard bounds.size != placedSize else { return }
+            // The island is being resized: a fill still on its way to a width measured against
+            // the old size would finish there.
+            for part in [glow, fill] { part.removeAllAnimations() }
             place(animated: false)
         }
 
@@ -89,6 +95,7 @@ struct MeterBar: NSViewRepresentable {
             } else {
                 CATransaction.setDisableActions(true)
             }
+            placedSize = bounds.size
             let height = bounds.height
             let origin = CGPoint(x: 0, y: bounds.midY)
             track.bounds = CGRect(x: 0, y: 0, width: bounds.width, height: height)

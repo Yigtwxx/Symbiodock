@@ -88,7 +88,8 @@ struct SystemContent: View {
 
     private func spoken(_ fraction: Double?, _ celsius: Double?) -> String {
         guard let fraction else { return "Unknown" }
-        let percent = "\(Int((fraction * 100).rounded())) percent"
+        // The same number the row shows; VoiceOver reads "31%" as "31 percent".
+        let percent = SystemLabels.percent(fraction)
         guard let celsius else { return percent }
         return "\(percent), \(Int(celsius.rounded())) degrees"
     }
@@ -161,12 +162,10 @@ private struct NetworkPanel: View {
                     .foregroundStyle(.white.opacity(0.5))
                     .padding(.top, 6)
             } else {
-                rate(snapshot?.network?.down, pointsDown: true, color: SystemPalette.down)
+                rate(snapshot?.network?.down, title: "Download", pointsDown: true, color: SystemPalette.down)
                     .padding(.top, 6)
-                    .accessibilityLabel("Download")
-                rate(snapshot?.network?.up, pointsDown: false, color: SystemPalette.up)
+                rate(snapshot?.network?.up, title: "Upload", pointsDown: false, color: SystemPalette.up)
                     .padding(.top, 3)
-                    .accessibilityLabel("Upload")
             }
             Spacer(minLength: 4)
             NetworkGraph(history: history)
@@ -175,7 +174,9 @@ private struct NetworkPanel: View {
         .systemPanel()
     }
 
-    private func rate(_ bytesPerSecond: Double?, pointsDown: Bool, color: Color) -> some View {
+    /// One direction's speed. VoiceOver hears the direction and the speed: the arrow says
+    /// nothing to it.
+    private func rate(_ bytesPerSecond: Double?, title: String, pointsDown: Bool, color: Color) -> some View {
         HStack(spacing: 5) {
             RateArrow(pointsDown: pointsDown)
                 .stroke(color, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
@@ -185,7 +186,9 @@ private struct NetworkPanel: View {
                 .foregroundStyle(.white)
                 .lineLimit(1)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(bytesPerSecond.map(SystemLabels.rate) ?? "Unknown")
     }
 }
 

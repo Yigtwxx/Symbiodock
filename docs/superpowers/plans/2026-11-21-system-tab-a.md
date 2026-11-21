@@ -1111,6 +1111,8 @@ struct MeterBar: NSViewRepresentable {
         private let fill = CAGradientLayer()
         private var fraction: Double?
         private var colors: [NSColor] = []
+        /// The size the layers were last laid out for.
+        private var placedSize = CGSize.zero
 
         override init(frame: NSRect) {
             super.init(frame: frame)
@@ -1157,6 +1159,10 @@ struct MeterBar: NSViewRepresentable {
 
         override func layout() {
             super.layout()
+            guard bounds.size != placedSize else { return }
+            // The island is being resized: a fill still on its way to a width measured against
+            // the old size would finish there.
+            for part in [glow, fill] { part.removeAllAnimations() }
             place(animated: false)
         }
 
@@ -1174,6 +1180,7 @@ struct MeterBar: NSViewRepresentable {
             } else {
                 CATransaction.setDisableActions(true)
             }
+            placedSize = bounds.size
             let height = bounds.height
             let origin = CGPoint(x: 0, y: bounds.midY)
             track.bounds = CGRect(x: 0, y: 0, width: bounds.width, height: height)
@@ -1288,7 +1295,8 @@ struct SystemContent: View {
 
     private func spoken(_ fraction: Double?, _ celsius: Double?) -> String {
         guard let fraction else { return "Unknown" }
-        let percent = "\(Int((fraction * 100).rounded())) percent"
+        // The same number the row shows; VoiceOver reads "31%" as "31 percent".
+        let percent = SystemLabels.percent(fraction)
         guard let celsius else { return percent }
         return "\(percent), \(Int(celsius.rounded())) degrees"
     }
@@ -1361,12 +1369,10 @@ private struct NetworkPanel: View {
                     .foregroundStyle(.white.opacity(0.5))
                     .padding(.top, 6)
             } else {
-                rate(snapshot?.network?.down, pointsDown: true, color: SystemPalette.down)
+                rate(snapshot?.network?.down, title: "Download", pointsDown: true, color: SystemPalette.down)
                     .padding(.top, 6)
-                    .accessibilityLabel("Download")
-                rate(snapshot?.network?.up, pointsDown: false, color: SystemPalette.up)
+                rate(snapshot?.network?.up, title: "Upload", pointsDown: false, color: SystemPalette.up)
                     .padding(.top, 3)
-                    .accessibilityLabel("Upload")
             }
             Spacer(minLength: 4)
             NetworkGraph(history: history)
@@ -1375,7 +1381,9 @@ private struct NetworkPanel: View {
         .systemPanel()
     }
 
-    private func rate(_ bytesPerSecond: Double?, pointsDown: Bool, color: Color) -> some View {
+    /// One direction's speed. VoiceOver hears the direction and the speed: the arrow says
+    /// nothing to it.
+    private func rate(_ bytesPerSecond: Double?, title: String, pointsDown: Bool, color: Color) -> some View {
         HStack(spacing: 5) {
             RateArrow(pointsDown: pointsDown)
                 .stroke(color, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
@@ -1385,7 +1393,9 @@ private struct NetworkPanel: View {
                 .foregroundStyle(.white)
                 .lineLimit(1)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(bytesPerSecond.map(SystemLabels.rate) ?? "Unknown")
     }
 }
 
@@ -1561,7 +1571,7 @@ Run the render line, then read `build/render/expanded-system.png`, `expanded-sys
 - `NETWORK` panel: two rates with a teal arrow down and an orange arrow up, the graph along the bottom.
 - `DEVICES` panel: the caption and a dash.
 - Nothing touches the island's edge or the header; nothing is clipped at the rounded bottom corners.
-- Hot: `96°` red, `83°` yellow, bars nearly full, `41.4 MB/s`.
+- Hot: `96°` red, `83°` yellow, bars nearly full, about `37 MB/s` down (the demo shows the last sample of its wave).
 - Empty: dashes, tracks without fills, no graph.
 
 If the bars are missing from the renders while everything else is there, the offscreen capture did not include the layers (the level bars of the Media renders are layers too, so this is not expected). Then give the bar a still twin for renders only: an environment value `\.stillMeters` (default `false`) that `DebugRender` sets on `ExpandedPreview` with `.environment(\.stillMeters, true)`; `MeterRow` reads it and, when it is true, draws the bar with SwiftUI instead of `MeterBar`: in a `GeometryReader`, a `Capsule().fill(.white.opacity(0.14))` with a `Capsule` on top filled by `LinearGradient(colors: colors.map(Color.init(nsColor:)), startPoint: .leading, endPoint: .trailing)` and framed to `max(width * fraction, 6)`, aligned leading. Record that in this plan.
