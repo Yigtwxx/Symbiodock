@@ -73,6 +73,14 @@ public final class IslandState {
     /// The network speeds of the last minute the System tab was looked at.
     public private(set) var networkHistory = NetworkHistory()
 
+    /// The devices on the network, as far as they are known: what the Mac has already talked
+    /// to, and after a scan everything that answered.
+    public private(set) var lanDevices: [LANDevice] = []
+    /// Whether there is a network narrow enough to scan.
+    public private(set) var canScanLAN = false
+    /// Where a scan stands. The app runs one when this turns to `.scanning`.
+    public private(set) var lanScan: LANScanState = .idle
+
     /// Whether the media face is shown collapsed (artwork and level bars).
     /// True while something plays, and for a grace period after it pauses, so a
     /// paused player does not occupy the menu bar all day.
@@ -396,6 +404,27 @@ public final class IslandState {
         // Assign only on change: every assignment redraws the island.
         if system != snapshot { system = snapshot }
         if networkHistory != history { networkHistory = history }
+    }
+
+    /// The devices known now, and whether a scan could run on this network.
+    public func setLANDevices(_ devices: [LANDevice], canScan: Bool) {
+        // Assign only on change: every assignment redraws the island.
+        if lanDevices != devices { lanDevices = devices }
+        if canScanLAN != canScan { canScanLAN = canScan }
+        // Without a network to scan, the note about the permission points at nothing.
+        if !canScan, lanScan == .blocked { lanScan = .idle }
+    }
+
+    /// `Scan` was pressed. Ignored while a scan runs and where none can.
+    public func requestLANScan() {
+        guard canScanLAN, lanScan != .scanning else { return }
+        lanScan = .scanning
+    }
+
+    /// The scan that was asked for has ended.
+    public func finishLANScan(blocked: Bool) {
+        guard lanScan == .scanning else { return }
+        lanScan = blocked ? .blocked : .idle
     }
 
     public func setAgentSessions(_ sessions: [AgentSession]) {

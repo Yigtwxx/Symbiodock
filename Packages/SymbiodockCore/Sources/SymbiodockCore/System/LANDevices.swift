@@ -157,3 +157,12 @@ public enum LANLabels {
         devices == 1 ? "1 device" : "\(devices) devices"
     }
 }
+
+/// Where a scan of the network stands.
+public enum LANScanState: Equatable, Sendable {
+    case idle
+    /// Asked for and not finished.
+    case scanning
+    /// The last scan was kept back by macOS: the Local Network permission is missing.
+    case blocked
+}

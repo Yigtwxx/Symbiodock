@@ -1268,4 +1268,58 @@ struct IslandStateTests {
         // It never opens by itself: the usual rule chooses again.
         #expect(state.selectedTab == .agents)
     }
+
+    private func device(_ last: UInt8) -> LANDevice {
+        LANDevice(address: LANAddress(192, 168, 1, last), name: nil, kind: .other)
+    }
+
+    @Test func theKnownDevicesAreKept() {
+        let state = IslandState()
+        #expect(state.lanDevices.isEmpty)
+        #expect(!state.canScanLAN)
+        #expect(state.lanScan == .idle)
+        state.setLANDevices([device(1), device(9)], canScan: true)
+        #expect(state.lanDevices == [device(1), device(9)])
+        #expect(state.canScanLAN)
+    }
+
+    @Test func aScanIsAskedForOnlyWhereOneCanRun() {
+        let state = IslandState()
+        state.requestLANScan()
+        // No network, or one too wide to sweep.
+        #expect(state.lanScan == .idle)
+        state.setLANDevices([device(1)], canScan: true)
+        state.requestLANScan()
+        #expect(state.lanScan == .scanning)
+    }
+
+    @Test func aScanEndsIdleOrBlocked() {
+        let state = IslandState()
+        state.setLANDevices([], canScan: true)
+        state.requestLANScan()
+        state.finishLANScan(blocked: false)
+        #expect(state.lanScan == .idle)
+        state.requestLANScan()
+        state.finishLANScan(blocked: true)
+        #expect(state.lanScan == .blocked)
+        // The permission may have been given since: pressing again tries again.
+        state.requestLANScan()
+        #expect(state.lanScan == .scanning)
+    }
+
+    @Test func aScanThatWasNotRunningCannotEnd() {
+        let state = IslandState()
+        state.finishLANScan(blocked: true)
+        #expect(state.lanScan == .idle)
+    }
+
+    @Test func losingTheNetworkEndsTheBlockedNote() {
+        let state = IslandState()
+        state.setLANDevices([device(1)], canScan: true)
+        state.requestLANScan()
+        state.finishLANScan(blocked: true)
+        state.setLANDevices([], canScan: false)
+        // Nothing to scan: the note about the permission would point at nothing.
+        #expect(state.lanScan == .idle)
+    }
 }
